@@ -146,7 +146,7 @@ function authPopupPlugin(): Plugin {
 // The dev server starts once `src/router.tsx` and `src/routes/` exist — see
 // AGENTS.md § "First scaffold".
 const pages = process.env.ZENKO_PAGES === "1" || process.env.NITRO_PRESET === "github-pages";
-const pagesBase = "/zenko-live-app/";
+const pagesBase = process.env.ZENKO_PAGES_BASE || "/zenko-live-app/";
 
 export default defineConfig(({ command, isPreview }) => ({
   base: pages ? pagesBase : "/",
