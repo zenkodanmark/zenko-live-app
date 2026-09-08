@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { ActionPng, CloseX, SagPng, type SagPngName } from "@/components/sag-icons";
-import { GhostButton, SectionLabel } from "@/components/zenko";
+import { SectionLabel } from "@/components/zenko";
 import { t, type CopyKey } from "@/lib/i18n";
-import { driveFolderUrl } from "@/lib/drive";
-import { ensureUdFolders, listUdCounts, listUdFolder, saveUdDraft, uploadUdFile } from "@/lib/drive.functions";
+import { listPladsPrefix, pladsPath, uploadPladsBytes } from "@/lib/plads-file";
 import { lookupProject, useSessionEmployee, useYard } from "@/lib/store";
 import { gpsPatch, readGpsOrSite } from "@/lib/photo-meta";
-import { UD_DAGS_TYPES, UD_ERFARING_TYPES, UD_FOLDERS, type UdKey, isUdDraftNote, isUdNote, udFolderName, udNoteSlug } from "@/lib/ud-folders";
+import { UD_DAGS_TYPES, UD_ERFARING_TYPES, UD_FOLDERS, type UdKey, udFolderName, udNoteSlug } from "@/lib/ud-folders";
 import type { Lang } from "@/lib/types";
 
 type Draft = { id: string; name: string; mimeType: string; dataUrl: string };
@@ -53,9 +52,12 @@ export function UdCount({ projectId, onReady }: { projectId: string; onReady?: (
   const [n, setN] = useState<number | null>(null);
   useEffect(() => {
     let live = true;
-    void listUdCounts({ data: { projectId } }).then((res) => {
+    void Promise.all(UD_FOLDERS.map(async (f) => {
+      const files = await listPladsPrefix(`${projectId}/${f.key}`);
+      return { name: f.name, id: f.key, count: files.length };
+    })).then((folders) => {
       if (!live) return;
-      const total = res.total ?? 0;
+      const total = folders.reduce((n, f) => n + f.count, 0);
       setN(total);
       onReady?.(total);
     });
@@ -69,13 +71,10 @@ export function UdCount({ projectId, onReady }: { projectId: string; onReady?: (
 export function UdSheet({ projectId, lang, onClose, onAdd }: { projectId: string; lang: Lang; onClose: () => void; onAdd: () => void }) {
   const [folders, setFolders] = useState<{ name: string; id: string; count: number }[]>([]);
   useEffect(() => {
-    void listUdCounts({ data: { projectId } }).then((res) => {
-      setFolders((res.folders ?? []).map((x: { name: string; id: string; count?: number }) => ({
-        name: x.name,
-        id: x.id,
-        count: x.count ?? 0,
-      })));
-    });
+    void Promise.all(UD_FOLDERS.map(async (f) => {
+      const files = await listPladsPrefix(`${projectId}/${f.key}`);
+      return { name: f.name, id: f.key, count: files.length };
+    })).then(setFolders);
   }, [projectId]);
   void onClose;
 
@@ -84,22 +83,9 @@ export function UdSheet({ projectId, lang, onClose, onAdd }: { projectId: string
       <ul className="space-y-1.5">
         {UD_FOLDERS.map((f) => {
           const live = folders.find((x) => x.name === f.name);
-          const href = live?.id ? driveFolderUrl(live.id) : undefined;
           return (
             <li key={f.key}>
-              <a
-                href={href || "#"}
-                onClick={(e) => {
-                  if (!href) {
-                    e.preventDefault();
-                    void ensureUdFolders({ data: { projectId } }).then((r) => {
-                      const id = r.folders?.find((x) => x.name === f.name)?.id;
-                      if (id) window.open(driveFolderUrl(id), "_blank", "noopener");
-                    });
-                  }
-                }}
-                target="_blank"
-                rel="noreferrer"
+              <div
                 className="flex min-h-14 items-center justify-between gap-3 rounded-xl bg-sand px-3 py-3 text-navy"
                 data-testid={`ud-folder-${f.key}`}
               >
@@ -108,7 +94,7 @@ export function UdSheet({ projectId, lang, onClose, onAdd }: { projectId: string
                   <span className="block font-medium">{t(lang, udLabelKey(f.key))}</span>
                 </span>
                 <span className="font-display text-xl tabular-nums text-brick">{live?.count ?? "–"}</span>
-              </a>
+              </div>
             </li>
           );
         })}
@@ -119,44 +105,24 @@ export function UdSheet({ projectId, lang, onClose, onAdd }: { projectId: string
 }
 
 function UdFileList({ projectId, lang }: { projectId: string; lang: Lang }) {
-  const [items, setItems] = useState<{ folder: string; id: string; name: string; href: string; draft?: boolean; noteId?: string; folderId?: string }[]>([]);
-  const [tick, setTick] = useState(0);
+  const [items, setItems] = useState<{ folder: string; id: string; name: string; href: string }[]>([]);
   useEffect(() => {
     let live = true;
     void Promise.all(UD_FOLDERS.map(async (f) => {
-      const listed = await listUdFolder({ data: { projectId, folderName: f.name } });
-      const files = (listed.items ?? []).filter((x) => !x.folder);
-      const notes = files.filter((x) => isUdNote(x.name));
-      return files
-        .filter((x) => !isUdNote(x.name))
-        .map((x) => {
-          const stem = x.name.replace(/\.[^.]+$/, "");
-          const saved = notes.find((n) => n.name === `${stem}.note.json`);
-          const draftNote = notes.find((n) => isUdDraftNote(n.name) && n.name.startsWith(stem));
-          const note = saved ?? draftNote;
-          return {
-            folder: f.name,
-            id: x.id,
-            name: x.name,
-            href: x.href,
-            noteId: note?.id,
-            folderId: listed.folderId,
-            draft: Boolean(draftNote && !saved),
-          };
-        });
+      const files = await listPladsPrefix(`${projectId}/${f.key}`);
+      return files.map((x) => ({
+        folder: f.name,
+        id: x.path,
+        name: x.name,
+        href: x.url,
+      }));
     })).then((rows) => {
       if (live) setItems(rows.flat());
     });
     return () => {
       live = false;
     };
-  }, [projectId, tick]);
-
-  async function gem(row: (typeof items)[0]) {
-    if (!row.noteId || !row.folderId) return;
-    await saveUdDraft({ data: { noteId: row.noteId, folderId: row.folderId, noteName: row.name.replace(/\.[^.]+$/, "") + ".note.json" } });
-    setTick((n) => n + 1);
-  }
+  }, [projectId]);
 
   if (!items.length) return null;
   return (
@@ -167,11 +133,6 @@ function UdFileList({ projectId, lang }: { projectId: string; lang: Lang }) {
             <p className="truncate text-sm font-medium text-navy">{row.name}</p>
             <p className="text-xs text-muted">{udUiLabel(lang, row.folder)}</p>
           </a>
-          {row.draft ? (
-            <GhostButton className="rounded-full bg-sand px-3 text-xs" onClick={() => void gem(row)}>
-              {t(lang, "udSave")}
-            </GhostButton>
-          ) : null}
         </li>
       ))}
     </ul>
@@ -245,19 +206,13 @@ export function UdPick({
         ]
           .filter(Boolean)
           .join("\n");
-        const noteRes = await uploadUdFile({
-          data: {
-            projectId,
-            folderName,
-            name: udNoteSlug(body, at),
-            mimeType: "text/plain",
-            contentBase64: utf8b64(txt),
-            udType,
-            note: body,
-            date: at.toISOString().slice(0, 10),
-            draft: false,
-            employeeName: me?.name ?? "",
-          },
+        const noteRes = await uploadPladsBytes({
+          path: pladsPath(projectId, pick, udNoteSlug(body, at)),
+          contentBase64: utf8b64(txt),
+          mimeType: "text/plain",
+          projectId,
+          kind: pick,
+          name: udNoteSlug(body, at),
         });
         if (noteRes.ok && noteRes.fileId) fileIds.push(noteRes.fileId);
         else if (!noteRes.ok) {
@@ -266,19 +221,13 @@ export function UdPick({
         }
       }
       for (const d of drafts) {
-        const up = await uploadUdFile({
-          data: {
-            projectId,
-            folderName,
-            name: d.name,
-            mimeType: d.mimeType,
-            contentBase64: dataUrlB64(d.dataUrl),
-            udType,
-            note: body,
-            date: at.toISOString().slice(0, 10),
-            draft: false,
-            employeeName: me?.name ?? "",
-          },
+        const up = await uploadPladsBytes({
+          path: pladsPath(projectId, pick, d.name),
+          contentBase64: dataUrlB64(d.dataUrl),
+          mimeType: d.mimeType,
+          projectId,
+          kind: pick,
+          name: d.name,
         });
         if (up.ok && up.fileId) fileIds.push(up.fileId);
         else {

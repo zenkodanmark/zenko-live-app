@@ -3,7 +3,8 @@ import { CloseX } from "@/components/sag-icons";
 import { DrivePhoto } from "@/components/drive-photo";
 import { Card, Chip, PrimaryButton, SectionLabel } from "@/components/zenko";
 import { t } from "@/lib/i18n";
-import { KNOWN_KS, driveFileView } from "@/lib/ks-drive";
+import { fileHref } from "@/lib/plads-file";
+import { KNOWN_KS } from "@/lib/ks-drive";
 import { DIV_POINT, FLOORS, ROOMS, controlPlanFor, findControlPoint } from "@/lib/seed";
 import { useYard } from "@/lib/store";
 import type { KsPhoto, Lang } from "@/lib/types";
@@ -30,6 +31,7 @@ export function PhotoSheet({ photo, lang, onClose, canOverride = true }: { photo
   const guessSpec = findControlPoint(guess, photo.projectId);
   const spec = findControlPoint(point, photo.projectId);
   const driveId = photo.driveFileId;
+  const openUrl = fileHref(driveId);
   const catalog = driveId ? KNOWN_KS[driveId] : undefined;
   const when = new Date(photo.takenAt).toLocaleString("da-DK", {
     timeZone: "Europe/Copenhagen",
@@ -55,9 +57,9 @@ export function PhotoSheet({ photo, lang, onClose, canOverride = true }: { photo
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-navy/50" role="dialog">
       <div className="sticky top-0 z-10 flex items-center gap-2 bg-navy px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-sand">
-        {driveId ? (
-          <a className="text-action text-sand/80 underline" href={driveFileView(driveId)} target="_blank" rel="noreferrer">
-            {t(lang, "ksOpenDrive")}
+        {openUrl ? (
+          <a className="text-action text-sand/80 underline" href={openUrl} target="_blank" rel="noreferrer">
+            {t(lang, "driveOpen")}
           </a>
         ) : null}
         <CloseX onClick={onClose} label={t(lang, "close")} />

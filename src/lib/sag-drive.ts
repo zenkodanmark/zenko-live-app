@@ -1,5 +1,5 @@
-import { ensureSagFolders, uploadKsPhotoToDrive } from "@/lib/drive.functions";
-import { driveFor } from "@/lib/drive";
+import { pladsPath, uploadPladsBytes } from "@/lib/plads-file";
+import { driveFor, type DriveMap } from "@/lib/drive";
 import { connectorUserText, isConnectorAuthError } from "@/lib/connector-msg";
 import { t } from "@/lib/i18n";
 import { useYard } from "@/lib/store";
@@ -48,7 +48,11 @@ export async function attachSagDrive(projectId: string, name: string, lang: Lang
   return res;
 }
 
-/** Drive first. Only then addProject. Existing name (Jyderup) is reused — no duplicate sag. */
+const EMPTY_MAP: DriveMap = {
+  root: "", udbud: "", ks: "", kunde: "", extra: "", ue: "", reports: "", meetings: "", tf: "", ent: "", inbox: "", chat: "",
+};
+
+/** Create the job in the app. Files go to Supabase — Drive is not required. */
 export async function createSagOnDrive(input: {
   id?: string;
   name: string;
@@ -61,17 +65,13 @@ export async function createSagOnDrive(input: {
   period?: string;
   qualityManager?: string;
   lang?: Lang;
-}): Promise<{ ok: true; id: string; map: NonNullable<Awaited<ReturnType<typeof attachSagDrive>>["map"]> } | { ok: false; error: string; loginRequired?: boolean }> {
+}): Promise<{ ok: true; id: string; map: DriveMap } | { ok: false; error: string; loginRequired?: boolean }> {
   const name = input.name.trim();
   const lang = input.lang ?? "da";
   if (!name) return { ok: false, error: t(lang, "sagFoldersFail") };
   const snap = useYard.getState();
   const existing = snap.projects.find((p) => p.name.toLowerCase() === name.toLowerCase());
   const id = existing?.id ?? input.id ?? `job-${crypto.randomUUID().slice(0, 6)}`;
-  const res = await attachSagDrive(id, name, lang);
-  if (!res.ok || !res.map?.root) {
-    return { ok: false, error: res.error || t(lang, "sagFoldersFail"), loginRequired: res.loginRequired };
-  }
   if (!existing) {
     snap.addProject({
       id,
@@ -84,18 +84,14 @@ export async function createSagOnDrive(input: {
       trade: input.trade,
       period: input.period,
       qualityManager: input.qualityManager,
-      udbudFolderId: res.map.udbud,
-      driveRootId: res.map.root,
     });
-    snap.setDriveMap(id, res.map);
   }
-  return { ok: true, id, map: res.map };
+  return { ok: true, id, map: driveFor(id) ?? EMPTY_MAP };
 }
 
 export async function flushLocalKsPhotos() {
-  if (skipConnectors) return;
   const snap = useYard.getState();
-  const leftover = (snap.drivePhotos ?? []).filter((p) => p.dataUrl && !p.driveFileId);
+  const leftover = (snap.drivePhotos ?? []).filter((p) => p.dataUrl && p.dataUrl.startsWith("data:") && !p.driveFileId);
   if (!leftover.length) return;
   for (const p of leftover) {
     const split = splitDataUrl(p.dataUrl);
@@ -103,24 +99,20 @@ export async function flushLocalKsPhotos() {
       snap.patchPhoto(p.id, { dataUrl: "" });
       continue;
     }
-    const job = snap.projects.find((x) => x.id === p.projectId);
-    const res = await uploadKsPhotoToDrive({
-      data: {
-        projectId: p.projectId,
-        projectName: job?.name ?? p.projectName,
-        name: p.originalName || `${p.id}.jpg`,
-        mimeType: split.mime || "image/jpeg",
-        contentBase64: split.base64,
-        point: p.point,
-      },
+    const res = await uploadPladsBytes({
+      path: pladsPath(p.projectId, "ks", p.originalName || `${p.id}.jpg`),
+      contentBase64: split.base64,
+      mimeType: split.mime || "image/jpeg",
+      projectId: p.projectId,
+      kind: "ks",
+      name: p.originalName || `${p.id}.jpg`,
     });
     if (res.fileId) {
-      const hosted = res.fileId.startsWith("http") ? res.fileId : "";
       snap.upsertDrivePhotos([{
         ...p,
         driveFileId: res.fileId,
-        driveUrl: hosted || `https://drive.google.com/file/d/${res.fileId}/view`,
-        dataUrl: hosted || "",
+        driveUrl: res.url,
+        dataUrl: res.url,
       }]);
       const ks = snap.ksReports.find((r) => r.photoIds?.includes(p.id) || r.photoIds?.includes(p.driveFileId ?? ""));
       if (ks) {
@@ -128,8 +120,6 @@ export async function flushLocalKsPhotos() {
           photoIds: (ks.photoIds ?? []).map((id) => (id === p.id ? res.fileId : id)),
         });
       }
-    } else {
-      toastConnector(sessionLang("da"), res.error, res.loginRequired);
     }
   }
 }

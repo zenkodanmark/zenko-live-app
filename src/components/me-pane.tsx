@@ -6,7 +6,7 @@ import { BackArrow } from "@/components/sag-icons";
 import { Card, Chip, GhostButton, PrimaryButton, SectionLabel } from "@/components/zenko";
 import { LogoutButton } from "@/components/logout-button";
 import { PinEditor } from "@/components/pin-editor";
-import { uploadProfilePhoto } from "@/lib/drive.functions";
+import { pladsPath, uploadPladsBytes } from "@/lib/plads-file";
 import { PushSetup } from "@/components/push-setup";
 import { t, localeFor } from "@/lib/i18n";
 import { isoWeek, planCoversPerson, planPlaceLabel, weekdayLabel, weekStartForPerson } from "@/lib/plan";
@@ -228,19 +228,19 @@ function ProfileCard({ lang }: { lang: Lang }) {
     });
     const base64 = dataUrl.split(",")[1] ?? "";
     try {
-      const res = await uploadProfilePhoto({
-        data: {
-          name: emp.name,
-          fileName: `profil-${emp.name.replace(/\s+/g, "-")}.jpg`,
-          mimeType: file.type || "image/jpeg",
-          contentBase64: base64,
-        },
+      const name = `profil-${emp.name.replace(/\s+/g, "-")}.jpg`;
+      const res = await uploadPladsBytes({
+        path: pladsPath("profiler", emp.id, name),
+        contentBase64: base64,
+        mimeType: file.type || "image/jpeg",
+        kind: "profile",
+        name,
       });
       if (res.fileId) {
         patchEmployee(emp.id, { profileFileId: res.fileId });
         setNote(t(lang, "profileOk"));
       } else {
-        setNote(res.loginRequired ? t(lang, "driveLogin") : t(lang, "profileFail"));
+        setNote(t(lang, "profileFail"));
       }
     } catch {
       setNote(t(lang, "profileFail"));

@@ -1488,7 +1488,7 @@ export const listUdFolder = createServerFn({ method: "POST" }).validator((input)
     id: x.id,
     name: x.name,
     folder: Boolean(x.folder),
-    href: x.folder ? `https://drive.google.com/drive/folders/${x.id}` : `https://drive.google.com/file/d/${x.id}/view`,
+    href: x.folder ? "" : "",
   }));
   return { ok: true, folderId: folder.id, items, loginRequired: listed.loginRequired };
 });
@@ -1533,7 +1533,7 @@ export const uploadUdFile = createServerFn({ method: "POST" }).validator((input)
     ok: true,
     fileId,
     folderId: folder.id,
-    href: `https://drive.google.com/file/d/${fileId}/view`,
+    href: "",
     draft: Boolean(data.draft),
   };
 });

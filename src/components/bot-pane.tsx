@@ -8,7 +8,8 @@ import { buildHoursPack, downloadHours, hoursSummary, type BotAction, type Hours
 import { confirmLine, heuristicTalk, labelDraft, type TalkTool } from "@/lib/bot-talk";
 import { loadTalk, saveTalk, type AssistMsg } from "@/lib/assist-memory";
 import { flushAdminSnapshot } from "@/lib/admin-backup";
-import { appendChatLog, uploadKsPhotoToDrive, writeKsReportSidecar, placeFieldInSlot } from "@/lib/drive.functions";
+import { appendChatLog, placeFieldInSlot } from "@/lib/drive.functions";
+import { pladsPath, uploadPladsBytes } from "@/lib/plads-file";
 import { createSagOnDrive } from "@/lib/sag-drive";
 import { photoFromDriveFile } from "@/lib/ks-drive";
 import { stampFile } from "@/lib/photos";
@@ -431,28 +432,23 @@ export function BotPane({ lang }: { lang: Lang }) {
       const p = local[i]!;
       const base64 = p.dataUrl.split(",")[1] ?? "";
       try {
-        const res = await uploadKsPhotoToDrive({
-          data: { projectId: a.projectId, name: p.originalName || `KS-Grok-${i + 1}.jpg`, mimeType: "image/jpeg", contentBase64: base64, point: a.point },
+        const res = await uploadPladsBytes({
+          path: pladsPath(a.projectId, "ks", p.originalName || `KS-Grok-${i + 1}.jpg`),
+          contentBase64: base64,
+          mimeType: "image/jpeg",
+          projectId: a.projectId,
+          kind: "ks",
+          name: p.originalName || `KS-Grok-${i + 1}.jpg`,
         });
         if (res.fileId) {
           photoIds[i] = res.fileId;
-          store.upsertDrivePhotos([{ ...p, driveFileId: res.fileId, driveUrl: `https://drive.google.com/file/d/${res.fileId}/view` }]);
+          store.upsertDrivePhotos([{ ...p, driveFileId: res.fileId, driveUrl: res.url, dataUrl: res.url }]);
         }
       } catch {
         /* keep local */
       }
     }
     const row = store.addKsReport(a.projectId, a.point, { photoIds, deviations: a.deviations || "Ingen afvigelser." });
-    void writeKsReportSidecar({
-      data: {
-        projectId: a.projectId,
-        number: row.number,
-        point: a.point,
-        title: spec?.title ?? a.point,
-        deviations: a.deviations || "Ingen afvigelser.",
-        names: local.map((p) => p.originalName ?? p.id),
-      },
-    }).catch(() => undefined);
     return { id: row.id, number: row.number, line: `${row.number} · KS ${a.point}` };
   }
 

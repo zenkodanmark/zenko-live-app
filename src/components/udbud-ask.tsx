@@ -4,7 +4,6 @@ import { AssistChat, type ChatLine } from "@/components/assist-chat";
 import { redirectToLoginIfRequired } from "@/lib/app-data";
 import { loadAssist, saveAssist } from "@/lib/assist-memory";
 import { askUdbud, listUdbudFiles } from "@/lib/drive.functions";
-import { driveFolderUrl, slotFolderId } from "@/lib/drive";
 import { t } from "@/lib/i18n";
 import type { Lang } from "@/lib/types";
 
@@ -28,7 +27,6 @@ const CHIPS_ISLEV = [
 
 export function UdbudAsk({ projectId, lang }: { projectId: string; lang: Lang; compact?: boolean; onUnknown?: (q: string) => void }) {
   const key = `udbud:${projectId}`;
-  const folder = slotFolderId(projectId, "udbud");
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [files, setFiles] = useState<{ name: string }[]>([]);
@@ -110,13 +108,6 @@ export function UdbudAsk({ projectId, lang }: { projectId: string; lang: Lang; c
       onChange={setQ}
       onSend={(preset) => void send(preset)}
       lang={lang}
-      footer={
-        folder ? (
-          <a className="text-sm text-navy underline" href={driveFolderUrl(folder)} target="_blank" rel="noreferrer">
-            {t(lang, "udbudOpenFolder")}
-          </a>
-        ) : null
-      }
     />
   );
 }

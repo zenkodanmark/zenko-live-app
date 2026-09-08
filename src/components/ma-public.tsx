@@ -15,7 +15,7 @@ import {
   type MaPublicLine,
   type MaPublicOrder,
 } from "@/lib/ma-public";
-import { driveFileView } from "@/lib/ks-drive";
+import { fileHref } from "@/lib/plads-file";
 import { compressImageFile } from "@/lib/field-media";
 import { connectorUserText } from "@/lib/connector-msg";
 import { useSessionEmployee, useYard } from "@/lib/store";
@@ -273,7 +273,7 @@ export function MaHome({ slug, nr }: { slug: string; nr: string }) {
             <ul className="mt-3 grid grid-cols-3 gap-2">
               {order.receiptPhotos.map((p) => (
                 <li key={p.fileId}>
-                  <a href={driveFileView(p.fileId)} target="_blank" rel="noreferrer">
+                  <a href={fileHref(p.fileId) || undefined} target="_blank" rel="noreferrer">
                     <DrivePhoto
                       photo={{ id: p.fileId, dataUrl: "", takenAt: "", floor: "", room: "", point: "", projectId: order.projectId, projectName: order.sag, employeeId: "", employeeName: "", driveFileId: p.fileId }}
                       className="aspect-square w-full object-cover"
@@ -344,7 +344,7 @@ export function MaLinePage({ slug, nr, linje }: { slug: string; nr: string; linj
         <ul className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {line.photoFileIds.map((id) => (
             <li key={id}>
-              <a href={driveFileView(id)} target="_blank" rel="noreferrer">
+              <a href={fileHref(id) || undefined} target="_blank" rel="noreferrer">
                 <DrivePhoto photo={{ id, dataUrl: "", takenAt: "", floor: "", room: "", point: "", projectId: order.projectId, projectName: order.sag, employeeId: "", employeeName: "", driveFileId: id }} className="aspect-square w-full object-cover" compact />
               </a>
             </li>
@@ -369,7 +369,7 @@ export function MaReceiptPage({ slug, nr }: { slug: string; nr: string }) {
         <ul className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {order.receiptPhotos.map((p) => (
             <li key={p.fileId}>
-              <a href={driveFileView(p.fileId)} target="_blank" rel="noreferrer">
+              <a href={fileHref(p.fileId) || undefined} target="_blank" rel="noreferrer">
                 <DrivePhoto photo={{ id: p.fileId, dataUrl: "", takenAt: "", floor: "", room: "", point: "", projectId: order.projectId, projectName: order.sag, employeeId: "", employeeName: "", driveFileId: p.fileId }} className="aspect-square w-full object-cover" compact />
               </a>
             </li>

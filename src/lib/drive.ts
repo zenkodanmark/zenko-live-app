@@ -1,3 +1,5 @@
+import { fileHref } from "./plads-file";
+
 export type DriveSlot = "root" | "udbud" | "ks" | "kunde" | "extra" | "ue" | "reports" | "meetings" | "tf" | "ent" | "inbox" | "chat";
 export type DriveMap = Record<DriveSlot, string>;
 
@@ -195,12 +197,12 @@ export function driveMapIncomplete(map: DriveMap | null | undefined) {
   return !map.udbud || !map.reports || !map.chat;
 }
 
-export function driveFolderUrl(folderId: string) {
-  return `https://drive.google.com/drive/folders/${folderId}`;
+export function driveFolderUrl(_folderId: string) {
+  return "";
 }
 
 export function driveFileUrl(fileId: string) {
-  return `https://drive.google.com/file/d/${fileId}/view`;
+  return fileHref(fileId);
 }
 
 export function slotFolderId(projectId: string, slot: DriveSlot) {

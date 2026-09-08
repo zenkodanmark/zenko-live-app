@@ -2,16 +2,13 @@ import { useRef, useState } from "react";
 import { Camera, ImagePlus } from "lucide-react";
 import { CloseX } from "@/components/sag-icons";
 import { Card, GhostButton, PrimaryButton, SectionLabel } from "@/components/zenko";
-import { attachSagDrive } from "@/lib/sag-drive";
-import { uploadKsPhotoToDrive, writeKsReportSidecar } from "@/lib/drive.functions";
-import { peekReportNumber } from "@/lib/drive-commit";
-import { connectorUserText } from "@/lib/connector-msg";
 import { t } from "@/lib/i18n";
 import { photoFromDriveFile } from "@/lib/ks-drive";
 import { stampFile } from "@/lib/photos";
+import { pladsPath, uploadPladsBytes } from "@/lib/plads-file";
 import { controlPlanFor, findControlPoint } from "@/lib/seed";
 import { lookupProject, useYard } from "@/lib/store";
-import type { KsPhoto, Lang } from "@/lib/types";
+import type { Lang } from "@/lib/types";
 
 type Draft = { name: string; dataUrl: string };
 
@@ -78,17 +75,9 @@ export function KsCompose({
     setBusy(true);
     setErr("");
     try {
-      const drive = await attachSagDrive(projectId, job.name, lang);
-      if (!drive.ok || !drive.map?.root) {
-        setErr(connectorUserText(lang, drive.error, drive.loginRequired));
-        return;
-      }
       const slug = (spec?.title ?? "KS").replace(/[^\wæøåÆØÅ]+/g, "-").replace(/-+/g, "-").slice(0, 36);
       const stamp = new Date().toISOString().slice(0, 16).replace(/[-T:]/g, "");
-      const number = peekReportNumber("ks", useYard.getState().serial);
-      const folderName = `${point}/${number}`;
       const photoIds: string[] = [];
-      const names: string[] = [];
       for (let i = 0; i < drafts.length; i++) {
         const d = drafts[i]!;
         const name = `KS-Grok-${point}-${slug}-${stamp}-${i + 1}.jpg`;
@@ -97,22 +86,26 @@ export function KsCompose({
           setErr(t(lang, "driveFail"));
           return;
         }
-        const res = await uploadKsPhotoToDrive({
-          data: { projectId, projectName: job.name, name, mimeType: "image/jpeg", contentBase64: base64, point, folderName },
+        const res = await uploadPladsBytes({
+          path: pladsPath(projectId, "ks", name),
+          contentBase64: base64,
+          mimeType: "image/jpeg",
+          projectId,
+          kind: "ks",
+          name,
         });
-        if (!res.fileId) {
-          setErr(connectorUserText(lang, res.error, res.loginRequired));
+        if (!res.ok || !res.fileId) {
+          setErr(res.error || t(lang, "driveFail"));
           return;
         }
         photoIds.push(res.fileId);
-        names.push(name);
         upsertDrivePhotos([
           {
             ...photoFromDriveFile({ fileId: res.fileId, name, projectId, projectName: job.name }),
             id: res.fileId,
             driveFileId: res.fileId,
-            driveUrl: `https://drive.google.com/file/d/${res.fileId}/view`,
-            dataUrl: "",
+            driveUrl: res.url,
+            dataUrl: res.url,
             point,
             employeeName: "Grok",
             deviceLabel: "KS-Grok",
@@ -121,23 +114,7 @@ export function KsCompose({
           },
         ]);
       }
-      const side = await writeKsReportSidecar({
-        data: {
-          projectId,
-          projectName: job.name,
-          number,
-          point,
-          folderName,
-          title: spec?.title ?? "KS",
-          deviations: dev.trim() || "Ingen afvigelser.",
-          names,
-        },
-      });
-      if (!side.ok) {
-        setErr(connectorUserText(lang, side.error, side.loginRequired));
-        return;
-      }
-      const row = addKsReport(projectId, point, { photoIds, deviations: dev.trim() || "Ingen afvigelser.", number, driveFileId: side.fileId });
+      const row = addKsReport(projectId, point, { photoIds, deviations: dev.trim() || "Ingen afvigelser." });
       onCreated(row.id);
     } catch (e) {
       setErr(e instanceof Error ? e.message : t(lang, "driveFail"));

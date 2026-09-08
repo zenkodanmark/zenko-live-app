@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ActionPng } from "@/components/sag-icons";
 import { loadAssist, saveAssist } from "@/lib/assist-memory";
-import { appendChatLog, uploadFieldToDrive } from "@/lib/drive.functions";
+import { appendChatLog } from "@/lib/drive.functions";
+import { pladsPath, uploadPladsBytes } from "@/lib/plads-file";
 import { t } from "@/lib/i18n";
 import { compressImageFile, kindFromFile, videoPoster } from "@/lib/field-media";
 import { readGps, siteFallback } from "@/lib/geo";
@@ -20,7 +21,6 @@ export function CrewSagBot({ project, lang }: { project: Project; lang: Lang }) 
   const me = useSessionEmployee();
   const addFieldItems = useYard((s) => s.addFieldItems);
   const patchFieldItem = useYard((s) => s.patchFieldItem);
-  const setInboxFolder = useYard((s) => s.setInboxFolder);
   const key = `crew-sag:${project.id}:${me?.id ?? "x"}:${lang}`;
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -49,33 +49,21 @@ export function CrewSagBot({ project, lang }: { project: Project; lang: Lang }) 
   }, [key, messages]);
 
   async function pushDrive(it: FieldItem) {
-    const text = [
-      "ZENKO PLADS — feltfil (indbakke)",
-      `Sag: ${it.projectName}`,
-      `Ansat: ${it.employeeName}`,
-      `Tid: ${it.takenAt}`,
-      `Type: ${it.kind}`,
-      `Fil: ${it.name}`,
-      `Note: ${it.note || "AI-hjælper"}`,
-    ].join("\n");
+    const b64 = (it.dataUrl || "").split(",")[1] ?? "";
+    if (!b64) return;
     try {
-      const res = await uploadFieldToDrive({
-        data: {
-          projectId: it.projectId,
-          name: it.name,
-          mimeType: it.mimeType,
-          note: it.note,
-          employeeName: it.employeeName,
-          kind: it.kind,
-          text,
-        },
+      const res = await uploadPladsBytes({
+        path: pladsPath(it.projectId, "inbox", it.name),
+        contentBase64: b64,
+        mimeType: it.mimeType || "image/jpeg",
+        projectId: it.projectId,
+        kind: "inbox",
+        name: it.name,
       });
       if (res.ok && res.fileId) {
-        if (res.folderId) setInboxFolder(it.projectId, res.folderId);
         patchFieldItem(it.id, {
           driveFileId: res.fileId,
-          driveFolderId: res.folderId,
-          driveUrl: `https://drive.google.com/file/d/${res.fileId}/view`,
+          driveUrl: res.url,
         });
       } else {
         useYard.setState({ toast: t(lang, "driveFail") });

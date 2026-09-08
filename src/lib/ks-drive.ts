@@ -229,8 +229,10 @@ export function driveThumbUrl(fileId: string) {
 
 export function driveFileView(fileId: string) {
   if (!fileId) return "";
-  if (isSupabaseFile(fileId) || fileId.startsWith("http")) return sbFileSrc(fileId) || fileId;
-  return `https://drive.google.com/file/d/${fileId}/view`;
+  if (isSupabaseFile(fileId) || (fileId.startsWith("http") && fileId.includes("supabase.co"))) {
+    return sbFileSrc(fileId) || fileId;
+  }
+  return "";
 }
 
 export function isKsImage(name: string, mime?: string) {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchKsImage } from "@/lib/drive.functions";
-import { driveFileView, driveThumbUrl } from "@/lib/ks-drive";
+import { driveThumbUrl } from "@/lib/ks-drive";
+import { fileHref } from "@/lib/plads-file";
 import { isSupabaseFile, sbFileSrc } from "@/lib/supabase";
 import type { KsPhoto } from "@/lib/types";
 
@@ -19,7 +20,7 @@ export function DrivePhoto({
   const supabaseSrc = isSupabaseFile(fileId) || isSupabaseFile(photo.dataUrl)
     ? (sbFileSrc(fileId) || sbFileSrc(photo.dataUrl) || (fileId?.startsWith("http") ? fileId : "") || (photo.dataUrl?.startsWith("http") ? photo.dataUrl : ""))
     : "";
-  const href = supabaseSrc || photo.driveUrl || (fileId ? driveFileView(fileId) : undefined);
+  const href = supabaseSrc || fileHref(photo.driveUrl) || fileHref(fileId) || undefined;
   const thumbUrl = supabaseSrc || (fileId ? driveThumbUrl(fileId) : "");
   const [src, setSrc] = useState(photo.dataUrl || supabaseSrc || (fileId && mem.get(fileId)) || "");
   const [fail, setFail] = useState(false);
@@ -98,7 +99,7 @@ export function DrivePhoto({
     }
     return href ? (
       <a href={href} target="_blank" rel="noreferrer" className={`flex min-h-32 items-center justify-center bg-gray-100 p-3 text-center text-sm text-gray-600 ${className}`}>
-        Åbn foto i Drive
+        Åbn foto
       </a>
     ) : (
       <span className={`flex min-h-16 items-center justify-center bg-gray-100 text-xs text-gray-500 ${className}`}>{photo.point || "—"}</span>

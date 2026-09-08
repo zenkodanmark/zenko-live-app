@@ -1,7 +1,5 @@
 import { FileUp, Film } from "lucide-react";
 import { Card, Chip, GhostButton, PrimaryButton, SectionLabel } from "@/components/zenko";
-import { CLASS_TO_SLOT, driveFolderUrl, driveFileUrl, slotFolderId } from "@/lib/drive";
-import { placeFieldInSlot } from "@/lib/drive.functions";
 import { t } from "@/lib/i18n";
 import { copenhagenTime } from "@/lib/seed";
 import { useSessionEmployee, useYard } from "@/lib/store";
@@ -19,36 +17,14 @@ function classLabel(lang: Lang, k: InboxClass) {
 export function InboxPane({ lang, projectId, compact }: { lang: Lang; projectId?: string; compact?: boolean }) {
   const emp = useSessionEmployee();
   const fieldItems = useYard((s) => s.fieldItems);
-  const inboxFolders = useYard((s) => s.inboxFolders);
   const classifyFieldItem = useYard((s) => s.classifyFieldItem);
-  const patchFieldItem = useYard((s) => s.patchFieldItem);
   const rows = fieldItems.filter((f) => (!projectId || f.projectId === projectId));
   const pending = rows.filter((f) => f.status === "inbox");
   const done = rows.filter((f) => f.status === "classified").slice(0, compact ? 3 : 12);
-  const folderId = projectId ? inboxFolders[projectId] || slotFolderId(projectId, "inbox") : "";
 
   function classify(item: FieldItem, kind: InboxClass) {
     if (!emp) return;
-    const res = classifyFieldItem(item.id, kind, emp.id);
-    const slot = CLASS_TO_SLOT[kind];
-    void placeFieldInSlot({
-      data: {
-        projectId: item.projectId,
-        classifiedAs: kind,
-        name: item.name,
-        note: item.note,
-        employeeName: item.employeeName,
-        reportNumber: res.reportNumber,
-      },
-    }).then((r) => {
-      if (r.ok) {
-        patchFieldItem(item.id, {
-          driveFolderId: r.folderId || slotFolderId(item.projectId, slot),
-          driveFileId: r.fileId || item.driveFileId,
-          driveUrl: r.fileId ? driveFileUrl(r.fileId) : item.driveUrl,
-        });
-      }
-    });
+    classifyFieldItem(item.id, kind, emp.id);
   }
 
   return (
@@ -60,11 +36,6 @@ export function InboxPane({ lang, projectId, compact }: { lang: Lang; projectId?
         </div>
         {pending.length ? <Chip tone="brick">{t(lang, "fieldCount", { n: pending.length })}</Chip> : null}
       </div>
-      {folderId ? (
-        <a className="mb-3 inline-flex min-h-10 items-center text-xs text-navy" href={driveFolderUrl(folderId)} target="_blank" rel="noreferrer">
-          {t(lang, "fieldOpenDrive")} · {t(lang, "fieldInboxFolder")}
-        </a>
-      ) : null}
       {pending.length === 0 ? <p className="text-sm text-muted">{t(lang, "fieldNoPending")}</p> : null}
       <ul className="space-y-3">
         {pending.map((it) => (
