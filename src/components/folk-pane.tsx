@@ -3,17 +3,19 @@ import { DrivePhoto } from "@/components/drive-photo";
 import { PushSetup } from "@/components/push-setup";
 import { SlackSetup } from "@/components/slack-setup";
 import { KsDoc, PrintChrome } from "@/components/print-docs";
+import { PinEditor } from "@/components/pin-editor";
 import { Card, Chip, GhostButton, PrimaryButton, SectionLabel } from "@/components/zenko";
 import { downloadHours, buildHoursPack } from "@/lib/bot-actions";
 import { downloadCsv } from "@/lib/csv";
 import { t, roleLabel, LANGS } from "@/lib/i18n";
 import { copenhagenDate, copenhagenTime, findControlPoint, hoursWorked, projectById } from "@/lib/seed";
 import { hydrateSoftrReport, softrKsPhotos } from "@/lib/softr-ks";
-import { todayLog, useYard } from "@/lib/store";
+import { todayLog, useSessionEmployee, useYard } from "@/lib/store";
 import type { DayLog, Employee, KsPhoto, KsReport, Lang, Role } from "@/lib/types";
 import { PersonTodos } from "@/components/todo-board";
 
 export function FolkPane({ lang }: { lang: Lang }) {
+  const me = useSessionEmployee();
   const employees = useYard((s) => s.employees);
   const projects = useYard((s) => s.projects);
   const assignments = useYard((s) => s.assignments);
@@ -56,6 +58,13 @@ export function FolkPane({ lang }: { lang: Lang }) {
     <div className="space-y-4">
       <h1 className="font-display text-4xl text-navy">{t(lang, "peopleTitle")}</h1>
       <p className="text-sm text-muted">{t(lang, "peopleHint")}</p>
+      {me ? (
+        <Card>
+          <SectionLabel>{t(lang, "changePin")}</SectionLabel>
+          <p className="font-display text-xl text-navy">{me.name}</p>
+          <PinEditor emp={me} lang={lang} />
+        </Card>
+      ) : null}
       <PushSetup lang={lang} />
       <SlackSetup lang={lang} />
       <Card>
@@ -352,38 +361,6 @@ function PersonSheet({
           <KsDoc report={hydrateSoftrReport(ksOpen)} photos={photos} />
         </PrintChrome>
       ) : null}
-    </div>
-  );
-}
-
-function PinEditor({ emp, lang }: { emp: Employee; lang: Lang }) {
-  const live = useYard((s) => s.employees.find((e) => e.id === emp.id) ?? emp);
-  const patchEmployee = useYard((s) => s.patchEmployee);
-  const [pin, setPin] = useState(live.pin);
-  useEffect(() => {
-    setPin(live.pin);
-  }, [live.id, live.pin]);
-  const ready = pin.length === 4 && pin !== live.pin;
-  return (
-    <div className="mt-3" data-testid="pin-editor">
-      <p className="text-xs text-muted">{t(lang, "changePin")}</p>
-      <div className="mt-1 flex gap-2">
-        <input
-          inputMode="numeric"
-          autoComplete="off"
-          className="min-h-11 flex-1 rounded-lg bg-sand px-3 text-sm text-ink"
-          value={pin}
-          maxLength={4}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-        />
-        <PrimaryButton
-          className="w-auto shrink-0 px-4"
-          disabled={!ready}
-          onClick={() => patchEmployee(live.id, { pin })}
-        >
-          {t(lang, "save")}
-        </PrimaryButton>
-      </div>
     </div>
   );
 }

@@ -1,17 +1,16 @@
 import { rememberDeviceUser, pathForRole } from "./device-auth";
 import { EMPLOYEES } from "./crew";
+import { loadCrew, pinOfLive } from "./crew-live";
 import type { Employee } from "./types";
 
 export function pinOf(emp: Employee): string {
-  const own = String(emp.pin ?? "").replace(/\D/g, "");
-  if (own.length === 4) return own;
-  const seed = EMPLOYEES.find((e) => e.id === emp.id);
-  return String(seed?.pin ?? "").replace(/\D/g, "");
+  const live = loadCrew().find((e) => e.id === emp.id) ?? emp;
+  return pinOfLive(live);
 }
 
 export function employeeById(id: string | undefined): Employee | undefined {
   if (!id) return undefined;
-  return EMPLOYEES.find((e) => e.id === id);
+  return loadCrew().find((e) => e.id === id) ?? EMPLOYEES.find((e) => e.id === id);
 }
 
 export function acceptPin(empId: string | undefined, pin: string | undefined): Employee | null {

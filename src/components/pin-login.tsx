@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Avatar, Chip, Wordmark } from "@/components/zenko";
 import { t, roleLabel, LANGS } from "@/lib/i18n";
 import { acceptPin, destFor, employeeById, pinOf } from "@/lib/pin-enter";
-import { EMPLOYEES, isMasterRole } from "@/lib/crew";
-import type { Lang } from "@/lib/types";
+import { isMasterRole } from "@/lib/crew";
+import { loadCrew, refreshCrewFromCloud, saveCrew, pinOfLive } from "@/lib/crew-live";
+import type { Employee, Lang } from "@/lib/types";
 
 function LoginHeader({ lang, title }: { lang: Lang; title?: string }) {
   return (
@@ -36,13 +37,21 @@ function PinPad({ empId, pin = "" }: { empId?: string; pin?: string }) {
   const nav = useNavigate();
   const [digits, setDigits] = useState(() => String(pin || "").replace(/\D/g, "").slice(0, 4));
   const [busy, setBusy] = useState(false);
-  const pick = employeeById(empId);
+  const [crew, setCrew] = useState<Employee[]>(() => loadCrew());
+  useEffect(() => {
+    void refreshCrewFromCloud().then((rows) => {
+      if (rows?.length) setCrew(rows);
+    });
+  }, []);
+  const pick = crew.find((e) => e.id === empId) ?? employeeById(empId);
   const lang: Lang = (pick?.language as Lang) || "da";
-  const wrong = digits.length === 4 && !!pick && digits !== pinOf(pick);
+  const expected = pick ? pinOfLive(pick) || pinOf(pick) : "";
+  const wrong = digits.length === 4 && !!pick && digits !== expected;
 
   function go(nextId: string, code: string) {
     if (busy) return;
-    const emp = employeeById(nextId);
+    saveCrew(crew);
+    const emp = crew.find((e) => e.id === nextId) ?? employeeById(nextId);
     if (!emp) return;
     const ok = acceptPin(emp.id, code);
     if (!ok) return;
@@ -55,7 +64,7 @@ function PinPad({ empId, pin = "" }: { empId?: string; pin?: string }) {
     if (busy || !pick) return;
     const next = (digits + d).replace(/\D/g, "").slice(0, 4);
     setDigits(next);
-    if (next.length === 4 && next === pinOf(pick)) go(pick.id, next);
+    if (next.length === 4 && next === expected) go(pick.id, next);
   }
 
   if (!pick) {
@@ -65,7 +74,7 @@ function PinPad({ empId, pin = "" }: { empId?: string; pin?: string }) {
         <section className="relative z-20 mx-auto max-w-lg px-4 py-5">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted">{t("da", "selectEmployee")}</p>
           <ul className="space-y-3">
-            {EMPLOYEES.map((e) => (
+            {crew.map((e) => (
               <li key={e.id}>
                 <Link
                   to="/"
@@ -155,7 +164,7 @@ function PinPad({ empId, pin = "" }: { empId?: string; pin?: string }) {
           <button
             type="button"
             data-testid="pin-submit"
-            disabled={busy || digits.length !== 4 || !pick || digits !== pinOf(pick)}
+            disabled={busy || digits.length !== 4 || !pick || digits !== expected}
             onClick={() => pick && go(pick.id, digits)}
             className="mt-auto mb-[max(1rem,env(safe-area-inset-bottom))] flex min-h-16 w-full cursor-pointer items-center justify-center rounded-2xl bg-brick font-display text-2xl text-sand disabled:bg-brick/40"
           >

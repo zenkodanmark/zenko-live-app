@@ -751,6 +751,12 @@ export const useYard = create<YardState>()(
       }],
       toast: "Medarbejder oprettet. De logger ind med pinkoden."
     }));
+    const next = get().employees;
+    void import("./crew-live").then((m) => {
+      m.saveCrew(next);
+      const emp = next.find((e) => e.id === id);
+      if (emp) void m.publishEmployee(emp);
+    });
     return id;
   },
   setAssignment: (employeeId, projectId, on) => set((s) => ({ assignments: on ? [...s.assignments.filter((a) => !(a.employeeId === employeeId && a.projectId === projectId)), {
@@ -1129,6 +1135,12 @@ export const useYard = create<YardState>()(
       employees: s.employees.map((e) => (e.id === id ? { ...e, ...patch, ...(pin !== undefined ? { pin } : {}) } : e)),
       toast: pin !== undefined ? "PIN gemt." : "Gemt.",
     }));
+    const next = get().employees;
+    void import("./crew-live").then((m) => {
+      m.saveCrew(next);
+      const emp = next.find((e) => e.id === id);
+      if (emp) void m.publishEmployee(emp);
+    });
   },
   convertTodo: (id, kind, projectId) => {
     const td = get().todos.find((x) => x.id === id);
@@ -2050,6 +2062,7 @@ export const useYard = create<YardState>()(
         return fallback ? { ...e, pin: fallback } : e;
       });
     }
+    void import("./crew-live").then((m) => m.saveCrew(state.employees));
     if (!state.days || typeof state.days !== "object") state.days = seedDays();
     if (!Array.isArray(state.tfs)) state.tfs = SEED_TFS;
     if (!state.drivePhotos?.length) state.drivePhotos = seedDrivePhotos();

@@ -5,6 +5,7 @@ import { PlanWeekRow, WeekSwipe } from "@/components/plan-pane";
 import { BackArrow } from "@/components/sag-icons";
 import { Card, Chip, GhostButton, PrimaryButton, SectionLabel } from "@/components/zenko";
 import { LogoutButton } from "@/components/logout-button";
+import { PinEditor } from "@/components/pin-editor";
 import { uploadProfilePhoto } from "@/lib/drive.functions";
 import { PushSetup } from "@/components/push-setup";
 import { t, localeFor } from "@/lib/i18n";
@@ -53,6 +54,10 @@ export function MePane({ lang }: { lang: Lang }) {
     <div className="space-y-4">
       <h1 className="font-display text-4xl text-navy">{t(lang, "meTitle")}</h1>
       <ProfileCard lang={lang} />
+      <Card className="rounded-[20px]">
+        <SectionLabel>{t(lang, "changePin")}</SectionLabel>
+        <PinEditor emp={emp} lang={lang} />
+      </Card>
 
       <Card className="rounded-[20px]">
         <SectionLabel>
