@@ -323,7 +323,25 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
     });
     let todoId = "";
     if (asTodo && pendingTodoId) {
-      const note = await writeJobNote({
+      const created = addTodo({
+        id: pendingTodoId,
+        projectId,
+        assigneeId: assigneeIds[0] ?? me.id,
+        assigneeIds,
+        title: line.slice(0, 80),
+        due: copenhagenDate(),
+        body: line,
+        photoFileIds: photoIds.filter(Boolean),
+        lat: geo.lat,
+        lng: geo.lng,
+        gpsLabel: geo.gpsLabel,
+        original: line,
+        sourceLang,
+        fromChatId: row.id,
+      });
+      todoId = created.id;
+      patchChat(row.id, { classifiedAs: "todo", classifiedAt: new Date().toISOString() });
+      void writeJobNote({
         data: {
           projectId,
           projectName: job?.name,
@@ -337,30 +355,7 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
             photoFileIds: photoIds.filter(Boolean),
           }, null, 2),
         },
-      });
-      if (!note.ok) {
-        useYard.setState({ toast: connectorUserText(lang, note.error, note.loginRequired) });
-      } else {
-        const created = addTodo({
-          id: pendingTodoId,
-          projectId,
-          assigneeId: assigneeIds[0] ?? me.id,
-          assigneeIds,
-          title: line.slice(0, 80),
-          due: copenhagenDate(),
-          body: line,
-          photoFileIds: photoIds.filter(Boolean),
-          lat: geo.lat,
-          lng: geo.lng,
-          gpsLabel: geo.gpsLabel,
-          original: line,
-          sourceLang,
-          fromChatId: row.id,
-          driveFileId: note.fileId,
-        });
-        todoId = created.id;
-        patchChat(row.id, { classifiedAs: "todo", classifiedAt: new Date().toISOString() });
-      }
+      }).catch(() => {});
     }
     ensureChatThread(row.id);
     setThreadId(tid);
@@ -548,24 +543,6 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
     const who = ids.length ? ids : [me.id];
     const todoId = `td-${crypto.randomUUID().slice(0, 6)}`;
     const job = lookupProject(msg.projectId);
-    const note = await writeJobNote({
-      data: {
-        projectId: msg.projectId,
-        projectName: job.name,
-        folderName: todoDriveFolder(todoId),
-        name: `todo-${todoId}.json`,
-        text: JSON.stringify({
-          id: todoId,
-          title: (msg.translations.da ?? msg.original).slice(0, 80),
-          createdAt: new Date().toISOString(),
-          photoFileIds: (msg.photos ?? []).map((p) => p.driveFileId).filter(Boolean),
-        }, null, 2),
-      },
-    });
-    if (!note.ok) {
-      useYard.setState({ toast: connectorUserText(lang, note.error, note.loginRequired) });
-      return;
-    }
     const created = addTodo({
       id: todoId,
       projectId: msg.projectId,
@@ -582,10 +559,23 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
       sourceLang: msg.sourceLang,
       translations: msg.translations,
       fromChatId: msg.id,
-      driveFileId: note.fileId,
     });
     patchChat(msg.id, { classifiedAs: "todo", classifiedAt: new Date().toISOString() });
     void fillTodoTranslations(created.id, msg.original, msg.sourceLang);
+    void writeJobNote({
+      data: {
+        projectId: msg.projectId,
+        projectName: job.name,
+        folderName: todoDriveFolder(todoId),
+        name: `todo-${todoId}.json`,
+        text: JSON.stringify({
+          id: todoId,
+          title: (msg.translations.da ?? msg.original).slice(0, 80),
+          createdAt: new Date().toISOString(),
+          photoFileIds: (msg.photos ?? []).map((p) => p.driveFileId).filter(Boolean),
+        }, null, 2),
+      },
+    }).catch(() => {});
   }
 
   const headerNames = picked.length

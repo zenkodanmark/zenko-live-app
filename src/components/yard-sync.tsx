@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { pullChats, publishChat } from "@/lib/chat-live";
+import { pullTodos, publishTodo } from "@/lib/todo-live";
 import { onYardEvent } from "@/lib/yard-bus";
 import { mergeById, mergeChats, mergeDays, slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "@/lib/yard-slim";
 import { pullYard, saveYardChat, saveYardDay, saveYardKs, saveYardNeed, saveYardOrder, saveYardTodo } from "@/lib/yard-sync.functions";
@@ -20,12 +21,14 @@ async function applyPull() {
     orders: [] as MaterialOrder[],
   }));
   const clientChats = await pullChats();
+  const clientTodos = await pullTodos();
   const s = useYard.getState();
   const cloudChats = mergeChats(remote.ok ? remote.chats : [], clientChats ?? []);
-  if (!remote.ok && !cloudChats.length) {
+  const cloudTodos = mergeById(remote.ok ? remote.todos : [], clientTodos ?? []);
+  if (!remote.ok && !cloudChats.length && !cloudTodos.length) {
     const actor = "seed";
     await Promise.all([
-      ...s.todos.filter((row) => !DUMMY_TODO.has(row.id)).slice(0, 40).map((row) => saveYardTodo({ data: { todo: slimTodo(row), isNew: false, actorId: actor } }).catch(() => {})),
+      ...s.todos.filter((row) => !DUMMY_TODO.has(row.id)).slice(0, 40).map((row) => publishTodo(slimTodo(row))),
       ...s.chats.filter((row) => !DUMMY_CHAT.has(row.id)).slice(0, 40).map((row) => publishChat(slimChat(row))),
       ...s.ksReports.slice(0, 40).map((row) => saveYardKs({ data: { report: slimKs(row), isNew: false, actorId: actor } }).catch(() => {})),
       ...Object.values(s.days).slice(0, 20).map((row) =>
@@ -37,7 +40,7 @@ async function applyPull() {
     return;
   }
   useYard.setState({
-    todos: remote.ok ? mergeById(s.todos, remote.todos) : s.todos,
+    todos: mergeById(s.todos, cloudTodos),
     chats: mergeChats(s.chats, cloudChats),
     ksReports: remote.ok ? mergeById(s.ksReports, remote.ksReports) : s.ksReports,
     days: remote.ok ? mergeDays(s.days, remote.days) : s.days,
@@ -54,7 +57,11 @@ export function YardSyncHost() {
     const unsub = onYardEvent((ev) => {
       if (!live) return;
       const actor = ev.actorId;
-      if (ev.kind === "todo") void saveYardTodo({ data: { todo: ev.payload as Todo, isNew: ev.isNew, actorId: actor } }).catch(() => {});
+      if (ev.kind === "todo") {
+        const row = ev.payload as Todo;
+        void publishTodo(row);
+        void saveYardTodo({ data: { todo: row, isNew: ev.isNew, actorId: actor } }).catch(() => {});
+      }
       if (ev.kind === "chat") {
         const row = ev.payload as ChatMessage;
         void publishChat(row);

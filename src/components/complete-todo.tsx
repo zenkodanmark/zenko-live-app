@@ -77,7 +77,9 @@ export function TodoActions({ todo, lang }: { todo: Todo; lang: Lang }) {
 
   async function uploadDraftsOf(rows: Draft[]) {
     if (!rows.length) return [] as string[];
-    if (isPersonalTodo(todo.projectId) && !todo.orderId) return [];
+    if (isPersonalTodo(todo.projectId) && !todo.orderId) {
+      return uploadTodoPhotos(todo.projectId || "personlig", todo.id, rows);
+    }
     if (todo.orderId) {
       const order = useYard.getState().orders.find((o) => o.id === todo.orderId);
       const folder = order ? `${RECEIPTS_FOLDER_NAME}/${maFolderName(order.number)}` : RECEIPTS_FOLDER_NAME;

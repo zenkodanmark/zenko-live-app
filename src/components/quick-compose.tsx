@@ -2,8 +2,6 @@ import { useRef, useState } from "react";
 import { Camera, ImagePlus } from "lucide-react";
 import { Card, GhostButton, PrimaryButton } from "@/components/zenko";
 import { CloseX } from "@/components/sag-icons";
-import { writeJobNote } from "@/lib/drive.functions";
-import { todoDriveFolder } from "@/lib/drive";
 import { peekReportNumber, reportDriveFolder } from "@/lib/drive-commit";
 import { t } from "@/lib/i18n";
 import { connectorUserText } from "@/lib/connector-msg";
@@ -15,6 +13,7 @@ import { fillTodoTranslations, uploadTodoPhotos } from "@/lib/todo-drive";
 import { uploadVoicePhoto } from "@/lib/voice-agent.functions";
 import { splitDataUrl } from "@/lib/voice-agent";
 import { isPersonalTodo } from "@/lib/crew-todo";
+import { writeJobNote } from "@/lib/drive.functions";
 import type { Lang } from "@/lib/types";
 
 export type ComposeKind = "todo" | "ks" | "tf" | "as" | "er";
@@ -98,70 +97,29 @@ export function QuickCompose({
         const created = gpsPatch(gps, "create");
         const todoId = `td-${crypto.randomUUID().slice(0, 6)}`;
         let photoFileIds: string[] = [];
-        if (sagId && !isPersonalTodo(sagId) && drafts.length) {
+        if (drafts.length) {
           photoFileIds = await timed(
-            uploadTodoPhotos(sagId, todoId, drafts),
+            uploadTodoPhotos(sagId || "personlig", todoId, drafts),
             12000,
             [],
           );
-          if (photoFileIds.length < drafts.length) {
-            setErr(t(lang, "driveFail"));
-            return;
-          }
         }
-        if (sagId && !isPersonalTodo(sagId)) {
-          const note = await timed(
-            writeJobNote({
-              data: {
-                projectId: sagId,
-                projectName: job?.name,
-                folderName: todoDriveFolder(todoId),
-                name: `todo-${todoId}.json`,
-                text: JSON.stringify({ id: todoId, title: heading, createdAt: new Date().toISOString(), by: me?.name, gps: created, photoFileIds }, null, 2),
-              },
-            }),
-            12000,
-            { ok: false as const, fileId: "", error: t(lang, "driveFail") },
-          );
-          if (!note.ok) {
-            setErr(connectorUserText(lang, note.error, "loginRequired" in note ? Boolean(note.loginRequired) : false));
-            return;
-          }
-          id = addTodo({
-            id: todoId,
-            projectId: sagId,
-            assigneeId: ids[0]!,
-            assigneeIds: ids,
-            title: heading,
-            body: text,
-            due,
-            photoFileIds,
-            needsPhoto: false,
-            lat: created.lat,
-            lng: created.lng,
-            gpsLabel: created.gpsLabel,
-            original: text,
-            sourceLang: lang,
-            driveFileId: note.fileId,
-          }).id;
-        } else {
-          id = addTodo({
-            id: todoId,
-            projectId: sagId,
-            assigneeId: ids[0]!,
-            assigneeIds: ids,
-            title: heading,
-            body: text,
-            due,
-            photoFileIds: [],
-            needsPhoto: false,
-            lat: created.lat,
-            lng: created.lng,
-            gpsLabel: created.gpsLabel,
-            original: text,
-            sourceLang: lang,
-          }).id;
-        }
+        id = addTodo({
+          id: todoId,
+          projectId: sagId,
+          assigneeId: ids[0]!,
+          assigneeIds: ids,
+          title: heading,
+          body: text,
+          due,
+          photoFileIds,
+          needsPhoto: false,
+          lat: created.lat,
+          lng: created.lng,
+          gpsLabel: created.gpsLabel,
+          original: text,
+          sourceLang: lang,
+        }).id;
         void fillTodoTranslations(id, text, lang);
       } else {
         if (!sagId) {
@@ -329,7 +287,7 @@ export function QuickCompose({
       {err ? <p className="mt-2 text-sm text-brick">{err}</p> : null}
       <p className="mt-2 text-xs text-muted">{t(lang, "composeOr")}</p>
       <div className="sticky bottom-0 z-10 mt-3 bg-paper pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
-        <PrimaryButton disabled={busy} onClick={() => void save()}>
+        <PrimaryButton disabled={busy} onClick={() => void save()} data-testid="todo-save">
           {busy ? t(lang, "saving") : t(lang, "save")}
         </PrimaryButton>
       </div>

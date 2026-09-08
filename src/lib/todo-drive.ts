@@ -1,9 +1,8 @@
 import { translateMessage } from "@/lib/ai.functions";
-import { todoDriveFolder } from "@/lib/drive";
+import { pladsPath, uploadPladsBytes } from "@/lib/plads-file";
 import { useYard } from "@/lib/store";
 import { splitDataUrl } from "@/lib/voice-agent";
-import { uploadVoicePhoto } from "@/lib/voice-agent.functions";
-import type { Lang } from "@/lib/types";
+import type { Lang } from "./types";
 
 export async function uploadDraftsToFolder(opts: {
   projectId: string;
@@ -19,24 +18,23 @@ export async function uploadDraftsToFolder(opts: {
     const name = video
       ? (/\.(mp4|mov|webm|m4v)$/i.test(d.name) ? d.name : `video-${i + 1}.mp4`)
       : (/\.(jpe?g|png|webp)$/i.test(d.name) ? d.name : `foto-${i + 1}.jpg`);
-    const job = useYard.getState().projects.find((p) => p.id === opts.projectId);
-    const up = await uploadVoicePhoto({
-      data: {
-        projectId: opts.projectId,
-        projectName: job?.name,
-        name,
-        mimeType: split.mime || (video ? "video/mp4" : "image/jpeg"),
-        contentBase64: split.base64,
-        folderName: opts.folderName,
-      },
+    const kind = (opts.folderName || "todo").split("/")[0] || "todo";
+    const path = pladsPath(opts.projectId || "plads", kind, name);
+    const up = await uploadPladsBytes({
+      path,
+      contentBase64: split.base64,
+      mimeType: mime,
+      projectId: opts.projectId,
+      kind,
+      name,
     });
-    if (up.fileId) ids.push(up.fileId);
+    if (up.ok && up.fileId) ids.push(up.fileId);
   }
   return ids;
 }
 
 export async function uploadTodoPhotos(projectId: string, todoId: string, drafts: { dataUrl: string; name: string }[]) {
-  return uploadDraftsToFolder({ projectId, folderName: todoDriveFolder(todoId), drafts });
+  return uploadDraftsToFolder({ projectId: projectId || "personlig", folderName: `todo/${todoId}`, drafts });
 }
 
 export async function fillTodoTranslations(id: string, text: string, from: Lang) {
