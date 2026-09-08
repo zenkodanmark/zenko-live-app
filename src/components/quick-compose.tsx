@@ -41,6 +41,7 @@ export function QuickCompose({
   onClose,
   onCreated,
   allowNoJob,
+  assigneeId,
 }: {
   kind: ComposeKind;
   projectId: string;
@@ -48,6 +49,7 @@ export function QuickCompose({
   onClose: () => void;
   onCreated?: (id: string) => void;
   allowNoJob?: boolean;
+  assigneeId?: string;
 }) {
   const me = useSessionEmployee();
   const employees = useYard((s) => s.employees);
@@ -61,7 +63,7 @@ export function QuickCompose({
   const galRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [assigneeIds, setAssigneeIds] = useState<string[]>(me?.id ? [me.id] : []);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(assigneeId ? [assigneeId] : me?.id ? [me.id] : []);
   const [sagId, setSagId] = useState(projectId);
   const [due, setDue] = useState(copenhagenDate());
   const [drafts, setDrafts] = useState<Draft[]>([]);

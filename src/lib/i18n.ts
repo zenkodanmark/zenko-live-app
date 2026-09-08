@@ -882,6 +882,14 @@ const da = {
   todoStatusOpen: "Åben",
   todoStatusDone: "Udført",
   crewMaHint: "Ordrer på sagen. Kladde eller send selv.",
+  hoursFrom: "Fra dato",
+  hoursTo: "Til dato",
+  addHours: "Tilføj timer",
+  hoursIn: "Møde",
+  hoursOut: "Gå",
+  hoursNeed: "Vælg sag, møde og gå.",
+  hoursPhotos: "KS-billeder (valgfrit)",
+  folkAssign: "Sager",
 };
 
 const es: Partial<typeof da> = {

@@ -145,6 +145,15 @@ type YardState = {
   grantException: (employeeId: string, reason: ExceptionReason, note: string) => void;
   exportReady: () => void;
   addEmployee: (input: { name: string; pin: string; role: Role; language: Lang; phone?: string }) => string | null;
+  logHours: (input: {
+    employeeId: string;
+    projectId: string;
+    date: string;
+    checkInAt: string;
+    checkOutAt: string;
+    photos?: KsPhoto[];
+    workNote?: string;
+  }) => void;
   setAssignment: (employeeId: string, projectId: string, on: boolean) => void;
   addProject: (input: { id?: string; name: string; address: string; lat: number; lng: number; createdBy: string; brief?: string; customer?: string; trade?: string; period?: string; qualityManager?: string; udbudFolderId?: string; driveRootId?: string }) => string;
   archiveProject: (id: string, archived: boolean, reason?: ReopenReason) => void;
@@ -758,6 +767,41 @@ export const useYard = create<YardState>()(
       if (emp) void m.publishEmployee(emp);
     });
     return id;
+  },
+  logHours: (input) => {
+    const key = dayKey(input.employeeId, input.date);
+    const emp = get().employees.find((e) => e.id === input.employeeId);
+    const prev = get().days[key] ?? emptyDay(input.employeeId, input.date);
+    const day = finalizeStatus({
+      ...prev,
+      employeeId: input.employeeId,
+      date: input.date,
+      projectId: input.projectId,
+      checkInAt: input.checkInAt,
+      checkOutAt: input.checkOutAt,
+      photos: [...(prev.photos ?? []), ...(input.photos ?? [])],
+      workNote: input.workNote || prev.workNote,
+      source: "mester",
+      gpsInside: true,
+      demoGps: true,
+      checkInGps: null,
+      checkOutGps: null,
+    });
+    set((s) => ({
+      days: { ...s.days, [key]: day },
+      toast: "Timer gemt.",
+    }));
+    const saved = get().days[key];
+    if (saved) {
+      emitYard({
+        kind: "day",
+        id: key,
+        payload: slimDay(saved),
+        event: null,
+        actorId: get().employeeId ?? input.employeeId,
+        name: emp?.name,
+      });
+    }
   },
   setAssignment: (employeeId, projectId, on) => set((s) => ({ assignments: on ? [...s.assignments.filter((a) => !(a.employeeId === employeeId && a.projectId === projectId)), {
     employeeId,
