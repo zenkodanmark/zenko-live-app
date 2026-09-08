@@ -1,5 +1,5 @@
 import type { FieldItem, Project, Tf } from "./types";
-import { isSupabaseFile, sbFileSrc } from "./supabase";
+import { isSupabaseFile, sbFileSrc } from "./supabase.ts";
 
 export type TfSharePhoto = {
   id: string;

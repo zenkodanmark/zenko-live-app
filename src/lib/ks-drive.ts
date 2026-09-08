@@ -1,5 +1,5 @@
 import type { KsPhoto } from "./types";
-import { isSupabaseFile, sbFileSrc } from "./supabase";
+import { isSupabaseFile, sbFileSrc } from "./supabase.ts";
 
 export type DriveKsMeta = {
   fileId: string;
