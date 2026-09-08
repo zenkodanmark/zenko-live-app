@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.output/
+.local/
+.env
+.env.*
+*.log
+artifacts/
+attachments/
+screenshots/
+.DS_Store
+.grok/
+AGENTS.md
+.project_id
+.node_modules.lock

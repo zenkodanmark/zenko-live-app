@@ -1,0 +1,364 @@
+import { FIRM, FIRM_CVR, FIRM_LINE, FIRM_MAIL, FIRM_PHONE, PROJECTS, SEED_KS_REPORTS, findControlPoint } from "./seed.ts";
+import { matchUdbudPart, planForProject, scanForProject, type UdbudPart } from "./udbud-plan.ts";
+import { seedDrivePhotos } from "./ks-drive.ts";
+import { softrKsPhotos } from "./softr-ks.ts";
+import { photoSrc } from "./tf-share.ts";
+import type { KsPhoto, KsReport, KsType, Project } from "./types.ts";
+
+export type KundePart = {
+  code: string;
+  title: string;
+  controlPoint: string;
+};
+
+export type KundePhoto = { id: string; src: string; n: string };
+
+export type KundeReportView = {
+  id: string;
+  number: string;
+  pad: string;
+  createdAt: string;
+  employeeName: string;
+  location: string;
+  point: string;
+  part: KundePart;
+  task: string;
+  qcScope: string;
+  qcMethod: string;
+  criteria: string;
+  deviations: string;
+  photos: KundePhoto[];
+};
+
+export type KundeJobMeta = {
+  slug: string;
+  projectId: string;
+  name: string;
+  client: string;
+  address: string;
+  department: string;
+  trade: string;
+  scope: string;
+  period: string;
+  qualityManager: string;
+  cvr: string;
+  phone: string;
+  mail: string;
+  firm: string;
+  firmLine: string;
+  ksType: KsType;
+};
+
+export type KundeSite = {
+  job: KundeJobMeta;
+  parts: KundePart[];
+  reports: KundeReportView[];
+  published: number;
+};
+
+export const HANDBOOK = {
+  purpose: {
+    n: "01",
+    title: "Formål",
+    body: "Formålet er at sikre den byggetekniske kvalitet — som fastlagt for entreprisen, ellers svarende til normal god håndværksmæssig udførelse.",
+  },
+  duty: {
+    n: "02",
+    title: "Ansvar",
+    body: "Virksomhedsledelsen har det overordnede ansvar for ressourcer til entreprisen. Den sagsansvarlige har ansvaret for at arbejdet udføres konditionsmæssigt, og at kvaliteten dokumenteres som aftalt.",
+  },
+  control: {
+    n: "03",
+    title: "Kontrol på sagen",
+    items: [
+      "Modtagekontrol: materialer kontrolleres ved ankomst for mængde og kvalitet efter kontrolplanen. Dokumenteres.",
+      "Proceskontrol: under udførelsen følges de punkter der gælder for entreprisen. Afvigelser beskrives og udbedres. Dokumenteres med foto.",
+      "Slutkontrol: når arbejdet eller en afgrænset del er afsluttet, foretager den sagsansvarlige en slutkontrol.",
+    ],
+  },
+  docs: {
+    n: "04",
+    title: "Dokumentation",
+    body: "Dokumentationen afleveres til bygherre eller dennes rådgivere efter aftale. Alle dokumenter opbevares i den gældende ansvarsperiode. Kontrolplanen for denne sag er listen på forsiden. Kun de punkter der indgår i entreprisen, og de rapporter der er valgt til kunden, er med.",
+  },
+} as const;
+
+const JOB_SLUGS: Record<string, string> = {
+  "job-hillerodsholm": "hilleroedsholm",
+  "job-islevvaenge": "islevvaenge",
+  "job-kaerhuset": "kaerhuset",
+  "job-provestenen": "proevestenen",
+  "job-klostergaarden": "klostergaarden",
+  "job-solbakkegaard": "solbakkegaard",
+};
+
+const PART_BY_POINT: Record<string, KundePart> = {
+  "5.5": { code: "10.02.01", title: "Puds og reparation af vægge ved altaner", controlPoint: "5.5" },
+  "5.6": { code: "10.02.03", title: "Iboring af renoveringsbindere", controlPoint: "5.6" },
+  "5.7": { code: "10.02.04", title: "Omfugning af murværk", controlPoint: "5.7" },
+};
+
+const OWN_POINT_TITLE: Record<string, string> = {
+  "5.5": "Filsning",
+  "5.7": "Fugning af skorsten",
+};
+
+export const OVRIGE_PART: KundePart = { code: "ovrige", title: "Øvrige KS", controlPoint: "" };
+
+const JOB_META: Record<string, Partial<KundeJobMeta>> = {
+  "job-hillerodsholm": {
+    department: "NAB afd. 4121",
+    trade: "Murværk",
+    qualityManager: "Ole",
+  },
+  "job-islevvaenge": {
+    department: "Rødovre afd. 2304",
+    trade: "Murværk",
+    qualityManager: "Ole",
+  },
+  "job-kaerhuset": {
+    trade: "Murværk",
+    qualityManager: "Ole",
+    scope: "Ruskær 35, ombygning",
+  },
+};
+
+export function slugFromName(name: string) {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/æ/g, "ae")
+    .replace(/ø/g, "oe")
+    .replace(/å/g, "aa")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+}
+
+export function slugForProject(project: { id: string; name: string }) {
+  return JOB_SLUGS[project.id] || slugFromName(project.name);
+}
+
+export function isKundeSlug(value: string) {
+  return /^[a-z0-9-]{2,48}$/.test(value.trim());
+}
+
+export function projectIdFromSlug(slug: string, projects: Project[] = PROJECTS): string | null {
+  const s = slug.trim();
+  const known = Object.entries(JOB_SLUGS).find(([, v]) => v === s);
+  if (known) return known[0];
+  const hit = projects.find((p) => slugForProject(p) === s);
+  return hit?.id ?? null;
+}
+
+export function padReportNo(number: string) {
+  const n = Number(String(number).replace(/\D/g, ""));
+  if (!Number.isFinite(n) || n <= 0) return String(number).replace(/[^A-Za-z0-9]/g, "").slice(-2).padStart(2, "0") || "01";
+  return String(n).padStart(2, "0");
+}
+
+export function pointCodeOf(report: Pick<KsReport, "point" | "task">) {
+  const fromTask = String(report.task || "").match(/(\d+\.\d+\.\d+)/);
+  if (fromTask) return fromTask[1];
+  const fromPoint = String(report.point || "").match(/(\d+\.\d+)/);
+  return fromPoint?.[1] ?? "";
+}
+
+function hayFor(report: Pick<KsReport, "point" | "task" | "location" | "projectId">) {
+  const cp = findControlPoint(report.point, report.projectId);
+  return [report.point, report.task, report.location, cp?.title, cp?.hint, cp?.qcScope].filter(Boolean).join(" ");
+}
+
+function fromPlan(code: string, plan: UdbudPart[]): KundePart | null {
+  const hit = plan.find((p) => p.code === code);
+  if (!hit) return null;
+  return { code: hit.code, title: hit.title, controlPoint: hit.controlPoint };
+}
+
+function partFromOwnField(report: Pick<KsReport, "point" | "task" | "location" | "projectId">, plan: UdbudPart[]): KundePart | null {
+  const task = String(report.task || "");
+  const coded = task.match(/(\d+\.\d+\.\d+)\s*(.*)/);
+  if (coded) {
+    const code = coded[1]!;
+    const planned = fromPlan(code, plan);
+    if (planned) return planned;
+    const rest = (coded[2] || "").trim();
+    return { code, title: rest || `Bygningsdel ${code}`, controlPoint: pointCodeOf(report) };
+  }
+  const pt = String(report.point || "").match(/(\d+\.\d+(?:\.\d+)?)/)?.[1] ?? "";
+  if (!pt) return null;
+  const planned = fromPlan(pt, plan);
+  if (planned) return planned;
+  const mapped = PART_BY_POINT[pt];
+  if (mapped && (!plan.length || plan.some((p) => p.code === mapped.code))) return mapped;
+  const cp = findControlPoint(report.point, report.projectId);
+  const title = cp?.title || OWN_POINT_TITLE[pt] || task || report.point;
+  return { code: pt, title, controlPoint: pt };
+}
+
+function explicitPartCode(report: Pick<KsReport, "point" | "task">) {
+  const blob = `${report.task || ""} ${report.point || ""}`;
+  return blob.match(/(\d+\.\d+\.\d+|\d{3}\.\d{2,3})/)?.[1] ?? "";
+}
+
+export function partForReport(report: Pick<KsReport, "point" | "task" | "location" | "projectId">): KundePart {
+  const plan = planForProject(report.projectId);
+  const explicit = explicitPartCode(report);
+  if (explicit) {
+    const planned = fromPlan(explicit, plan);
+    if (planned) return planned;
+    return partFromOwnField(report, plan) ?? OVRIGE_PART;
+  }
+  const fromUdbud = matchUdbudPart(hayFor(report), plan);
+  if (fromUdbud) {
+    return { code: fromUdbud.code, title: fromUdbud.title, controlPoint: fromUdbud.controlPoint };
+  }
+  return partFromOwnField(report, plan) ?? OVRIGE_PART;
+}
+
+export function isPublished(report: Pick<KsReport, "kundeStatus" | "trashedAt">) {
+  return report.kundeStatus === "med_til_kunden" && !report.trashedAt;
+}
+
+export function kundeMeta(project: Project): KundeJobMeta {
+  const extra = JOB_META[project.id] ?? {};
+  const scan = scanForProject(project.id);
+  const scope = extra.scope || scan.meta.scope || "";
+  return {
+    slug: slugForProject(project),
+    projectId: project.id,
+    name: project.name,
+    client: extra.client || project.customer || "",
+    address: project.address,
+    department: extra.department ?? "",
+    trade: extra.trade ?? "Murværk",
+    scope,
+    period: extra.period ?? "",
+    qualityManager: extra.qualityManager ?? "Ole",
+    cvr: FIRM_CVR,
+    phone: FIRM_PHONE,
+    mail: FIRM_MAIL,
+    firm: FIRM,
+    firmLine: FIRM_LINE,
+    ksType: project.ksType ?? "alm",
+  };
+}
+
+function filledFields(job: KundeJobMeta) {
+  const rows: [string, string][] = [
+    ["Bygherre", job.client],
+    ["Entreprise", job.trade],
+    ["Omfang", job.scope],
+    ["Blok / afdeling", job.department],
+    ["Periode", job.period],
+    ["Kvalitetsansvarlig", job.qualityManager],
+    ["CVR", job.cvr],
+  ];
+  return rows.filter(([, v]) => v.trim());
+}
+
+export function kundeJobFields(job: KundeJobMeta) {
+  return filledFields(job);
+}
+
+function cleanDeviation(raw?: string) {
+  const t = (raw ?? "").trim();
+  if (!t) return "Ingen";
+  if (/ingen/i.test(t)) return "Ingen";
+  if (/fejlfrit/i.test(t)) return "Ingen";
+  if (/overensstemmelse/i.test(t)) return "Ingen";
+  return t;
+}
+
+function photosOf(report: KsReport, photos: KsPhoto[]): KundePhoto[] {
+  const ids = report.photoIds ?? [];
+  const hits = photos.filter((p) => ids.includes(p.id) || ids.includes(p.driveFileId ?? "") || p.id.startsWith(`softr-ks-${report.number}-`));
+  const seen = new Set<string>();
+  const out: KundePhoto[] = [];
+  let i = 0;
+  for (const p of hits) {
+    if (seen.has(p.id)) continue;
+    const src = photoSrc({ dataUrl: p.dataUrl, driveUrl: p.driveUrl, driveFileId: p.driveFileId });
+    if (!src) continue;
+    seen.add(p.id);
+    i += 1;
+    out.push({ id: p.id, src, n: String(i).padStart(2, "0") });
+  }
+  return out;
+}
+
+export function toKundeReport(report: KsReport, job: Project, photos: KsPhoto[]): KundeReportView {
+  const part = partForReport(report);
+  const plan = findControlPoint(report.point, job.id);
+  return {
+    id: report.id,
+    number: report.number,
+    pad: padReportNo(report.number),
+    createdAt: report.createdAt,
+    employeeName: report.employeeName || "Zenko",
+    location: report.location || "",
+    point: pointCodeOf(report) || report.point,
+    part,
+    task: report.task || part.title,
+    qcScope: report.qcScope || plan?.qcScope || plan?.extent || "",
+    qcMethod: report.qcMethod || plan?.method || plan?.controlType || "",
+    criteria: plan?.criteria || "",
+    deviations: cleanDeviation(report.deviations),
+    photos: photosOf(report, photos),
+  };
+}
+
+export function buildKundeSite(opts: {
+  project: Project;
+  reports: KsReport[];
+  photos: KsPhoto[];
+  publishedIds?: string[] | null;
+}): KundeSite {
+  const job = kundeMeta(opts.project);
+  const allow = opts.publishedIds ? new Set(opts.publishedIds) : null;
+  const chosen = opts.reports.filter((r) => {
+    if (r.trashedAt) return false;
+    if (r.projectId !== opts.project.id) return false;
+    if (allow) return allow.has(r.id) || isPublished(r);
+    return isPublished(r);
+  });
+  const views = chosen
+    .map((r) => toKundeReport(r, opts.project, opts.photos))
+    .sort((a, b) => a.part.code.localeCompare(b.part.code) || Number(a.number) - Number(b.number));
+  const parts: KundePart[] = [];
+  const seen = new Set<string>();
+  for (const r of views) {
+    if (seen.has(r.part.code)) continue;
+    seen.add(r.part.code);
+    parts.push(r.part);
+  }
+  parts.sort((a, b) => {
+    if (a.code === OVRIGE_PART.code) return 1;
+    if (b.code === OVRIGE_PART.code) return -1;
+    return a.code.localeCompare(b.code);
+  });
+  return { job, parts, reports: views, published: views.length };
+}
+
+export function bundledKundeInputs() {
+  return { reports: SEED_KS_REPORTS, photos: [...softrKsPhotos(), ...seedDrivePhotos()], projects: PROJECTS };
+}
+
+export function kundePath(slug: string, extra: string[] = []) {
+  return ["/kunde", slug, ...extra].join("/");
+}
+
+export function pdfFilename(job: KundeJobMeta, iso = new Date().toISOString()) {
+  const day = iso.slice(0, 10);
+  const sag = slugFromName(job.name).replace(/-/g, "") || "sag";
+  const trade = slugFromName(job.trade).replace(/-/g, "") || "murvaerk";
+  return `Zenko_KS_${sag}_${trade}_${day}.pdf`;
+}
+
+export type KundeReportPayload = KundeReportView;
+
+export function snapshotKundeReport(report: KsReport, job: Project, photos: KsPhoto[]): KundeReportPayload {
+  return toKundeReport(report, job, photos);
+}
