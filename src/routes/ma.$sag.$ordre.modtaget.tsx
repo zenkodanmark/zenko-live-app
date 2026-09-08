@@ -1,10 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MaReceiptPage, maHead } from "@/components/ma-public";
+import { lazy, Suspense } from "react";
+import { publicHead } from "@/lib/route-guards";
+
+const Inner = lazy(() => import("@/components/ma-desk").then((m) => ({ default: m.MaModtagetRoute })));
 
 export const Route = createFileRoute("/ma/$sag/$ordre/modtaget")({
-  head: ({ params }) => maHead(`Modtagekontrol MA-${params.ordre} · Zenko`, "Modtagekontrol fra Zenko Danmark."),
-  component: function MaModtagetRoute() {
-    const { sag, ordre } = Route.useParams();
-    return <MaReceiptPage slug={sag} nr={ordre} />;
-  },
+  head: ({ params }) => publicHead(`Modtagekontrol MA-${params.ordre} · Zenko`, "Modtagekontrol fra Zenko Danmark.", "#fffaf6"),
+  component: () => (
+    <Suspense fallback={null}>
+      <Inner />
+    </Suspense>
+  ),
 });

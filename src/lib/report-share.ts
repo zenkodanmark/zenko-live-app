@@ -5,8 +5,10 @@ import { softrErReports } from "./softr-er.ts";
 import { softrKsPhotos, softrKsReports } from "./softr-ks.ts";
 import { softrTfReports } from "./softr-tf.ts";
 import type { Entrepreneur, FieldItem, KsPhoto, KsReport, Project, Slip, Tf } from "./types";
+import { isShareKind, isShareSlug, shareKindLabel, type ShareKind } from "./route-guards.ts";
 
-export type ShareKind = "ks" | "as" | "tf" | "er";
+export type { ShareKind };
+export { isShareKind, isShareSlug, shareKindLabel };
 
 export type ReportSharePhoto = TfSharePhoto & { caption?: string };
 
@@ -31,22 +33,11 @@ export type ReportShareRecord = ReportSharePayload & {
   answeredBy: string;
 };
 
-const KIND_RE = /^(ks|as|tf|er)$/;
-const SLUG_RE = /^[A-Za-z0-9._-]{1,40}$/;
-
-export function isShareKind(value: string): value is ShareKind {
-  return KIND_RE.test(value);
-}
-
 export function shareSlug(number: string) {
   const raw = String(number).trim();
   const stripped = raw.replace(/^(AS|TF|ER|KS)[-.\s]*/i, "").replace(/\s+/g, "");
   const slug = (stripped || raw).replace(/[^A-Za-z0-9._-]/g, "");
   return slug.slice(0, 40);
-}
-
-export function isShareSlug(value: string) {
-  return SLUG_RE.test(value.trim());
 }
 
 export function matchesShareSlug(number: string, slug: string) {
@@ -55,13 +46,6 @@ export function matchesShareSlug(number: string, slug: string) {
 
 export function reportSharePath(kind: ShareKind, number: string) {
   return `/r/${kind}/${shareSlug(number)}`;
-}
-
-export function shareKindLabel(kind: ShareKind) {
-  if (kind === "ks") return "Proceskontrol";
-  if (kind === "as") return "Aftaleseddel";
-  if (kind === "tf") return "Teknisk forespørgsel";
-  return "Entreprenørrapport";
 }
 
 export function asShareRecord(payload: ReportSharePayload, extras?: Partial<Pick<ReportShareRecord, "answer" | "answeredAt" | "answeredBy">>): ReportShareRecord {

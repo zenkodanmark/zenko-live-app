@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MaLinePage, MaMissing, maHead } from "@/components/ma-public";
-import { isValidMaLineParam } from "@/lib/ma-public";
+import { lazy, Suspense } from "react";
+import { publicHead } from "@/lib/route-guards";
+
+const Inner = lazy(() => import("@/components/ma-desk").then((m) => ({ default: m.MaLinjeRoute })));
 
 export const Route = createFileRoute("/ma/$sag/$ordre/$linje")({
-  head: ({ params }) => maHead(`MA-${params.ordre} linje ${params.linje} · Zenko`, "Materialebestilling fra Zenko Danmark."),
-  component: function MaLinjeRoute() {
-    const { sag, ordre, linje } = Route.useParams();
-    if (!isValidMaLineParam(linje)) return <MaMissing />;
-    return <MaLinePage slug={sag} nr={ordre} linje={linje} />;
-  },
+  head: ({ params }) => publicHead(`MA-${params.ordre} linje ${params.linje} · Zenko`, "Materialebestilling fra Zenko Danmark.", "#fffaf6"),
+  component: () => (
+    <Suspense fallback={null}>
+      <Inner />
+    </Suspense>
+  ),
 });

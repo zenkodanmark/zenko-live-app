@@ -1,5 +1,5 @@
 import { Outlet, createFileRoute, notFound } from "@tanstack/react-router";
-import { isKundeSlug } from "@/lib/ks-customer";
+import { isKundeSlug } from "@/lib/route-guards";
 
 export const Route = createFileRoute("/kunde/$slug")({
   beforeLoad: ({ params }) => {

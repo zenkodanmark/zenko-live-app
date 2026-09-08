@@ -1,10 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MaHome, maHead } from "@/components/ma-public";
+import { lazy, Suspense } from "react";
+import { publicHead } from "@/lib/route-guards";
+
+const Inner = lazy(() => import("@/components/ma-desk").then((m) => ({ default: m.MaHomeRoute })));
 
 export const Route = createFileRoute("/ma/$sag/$ordre/")({
-  head: ({ params }) => maHead(`MA-${params.ordre} · Zenko`, "Materialebestilling fra Zenko Danmark."),
-  component: function MaHomeRoute() {
-    const { sag, ordre } = Route.useParams();
-    return <MaHome slug={sag} nr={ordre} />;
-  },
+  head: ({ params }) => publicHead(`MA-${params.ordre} · Zenko`, "Materialebestilling fra Zenko Danmark.", "#fffaf6"),
+  component: () => (
+    <Suspense fallback={null}>
+      <Inner />
+    </Suspense>
+  ),
 });

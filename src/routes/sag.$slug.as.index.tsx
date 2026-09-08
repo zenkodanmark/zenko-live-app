@@ -1,16 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SagAsList } from "@/components/sag-pages";
-import { SagMissing, sagHead } from "@/components/sag-shell";
-import { useSagSite } from "@/lib/use-sag-site";
+import { lazy, Suspense } from "react";
+import { sagHead } from "@/components/sag-shell";
+
+const Inner = lazy(() => import("@/components/sag-desk").then((m) => ({ default: m.SagAsListRoute })));
 
 export const Route = createFileRoute("/sag/$slug/as/")({
   head: ({ params }) => sagHead(`Aftalesedler · ${params.slug} · Zenko`, "Aftalesedler fra Zenko Danmark."),
-  component: SagAsListRoute,
+  component: () => (
+    <Suspense fallback={null}>
+      <Inner />
+    </Suspense>
+  ),
 });
-
-function SagAsListRoute() {
-  const { slug } = Route.useParams();
-  const { site, missing } = useSagSite(slug);
-  if (missing) return <SagMissing />;
-  return <SagAsList site={site} />;
-}

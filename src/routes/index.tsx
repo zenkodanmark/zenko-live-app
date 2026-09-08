@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PinLogin } from "@/components/pin-login";
+import { optQuery } from "@/lib/route-guards";
 
 export const Route = createFileRoute("/")({
   validateSearch: (raw: Record<string, unknown>) => ({
-    e: raw.e == null ? "" : String(raw.e),
-    pin: raw.pin == null ? "" : String(raw.pin),
+    e: optQuery(raw.e),
+    pin: optQuery(raw.pin),
   }),
   component: function Home() {
     const { e, pin } = Route.useSearch();

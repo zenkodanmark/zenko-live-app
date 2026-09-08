@@ -1,7 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MaMissing, maHead } from "@/components/ma-public";
+import { lazy, Suspense } from "react";
+import { publicHead } from "@/lib/route-guards";
+
+const MaMissing = lazy(() => import("@/components/ma-desk").then((m) => ({ default: m.MaMissing })));
 
 export const Route = createFileRoute("/ma/")({
-  head: () => maHead("Siden findes ikke · Zenko", "Materialebestilling fra Zenko Danmark."),
-  component: MaMissing,
+  head: () => publicHead("Siden findes ikke · Zenko", "Materialebestilling fra Zenko Danmark.", "#fffaf6"),
+  component: () => (
+    <Suspense fallback={null}>
+      <MaMissing />
+    </Suspense>
+  ),
 });

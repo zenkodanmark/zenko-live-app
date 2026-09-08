@@ -1,6 +1,5 @@
 import { rememberDeviceUser, pathForRole } from "./device-auth";
-import { EMPLOYEES } from "./seed";
-import { useYard } from "./store";
+import { EMPLOYEES } from "./crew";
 import type { Employee } from "./types";
 
 export function pinOf(emp: Employee): string {
@@ -21,11 +20,6 @@ export function acceptPin(empId: string | undefined, pin: string | undefined): E
   const typed = String(pin ?? "").replace(/\D/g, "");
   if (typed.length !== 4 || typed !== pinOf(emp)) return null;
   rememberDeviceUser({ id: emp.id, role: emp.role });
-  try {
-    useYard.getState().login(emp.id);
-  } catch {
-    /* */
-  }
   return emp;
 }
 

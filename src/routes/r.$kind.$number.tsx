@@ -1,23 +1,25 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { ReportSharePage } from "@/components/report-share-page";
-import { isShareKind, isShareSlug, shareKindLabel } from "@/lib/report-share";
+import { lazy, Suspense } from "react";
+import { isShareKind, isShareSlug, publicHead, shareKindLabel } from "@/lib/route-guards";
+
+const ReportSharePage = lazy(() => import("@/components/report-share-page").then((m) => ({ default: m.ReportSharePage })));
 
 export const Route = createFileRoute("/r/$kind/$number")({
-  component: ReportShareRoute,
   beforeLoad: ({ params }) => {
     if (!isShareKind(params.kind) || !isShareSlug(params.number)) throw notFound();
   },
-  head: ({ params }) => ({
-    meta: [
-      { title: `${isShareKind(params.kind) ? shareKindLabel(params.kind) : "Rapport"} ${params.number} · Zenko` },
-      { name: "robots", content: "noindex" },
-      { name: "description", content: "Rapport fra Zenko Danmark. Kun rapporten — ingen login." },
-    ],
-  }),
+  head: ({ params }) =>
+    publicHead(
+      `${isShareKind(params.kind) ? shareKindLabel(params.kind) : "Rapport"} ${params.number} · Zenko`,
+      "Rapport fra Zenko Danmark. Kun rapporten — ingen login.",
+    ),
+  component: function ReportShareRoute() {
+    const { kind, number } = Route.useParams();
+    if (!isShareKind(kind) || !isShareSlug(number)) return null;
+    return (
+      <Suspense fallback={null}>
+        <ReportSharePage kind={kind} number={number} />
+      </Suspense>
+    );
+  },
 });
-
-function ReportShareRoute() {
-  const { kind, number } = Route.useParams();
-  if (!isShareKind(kind) || !isShareSlug(number)) return null;
-  return <ReportSharePage kind={kind} number={number} />;
-}

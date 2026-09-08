@@ -1,10 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MaPdfPage, maHead } from "@/components/ma-public";
+import { lazy, Suspense } from "react";
+import { publicHead } from "@/lib/route-guards";
+
+const Inner = lazy(() => import("@/components/ma-desk").then((m) => ({ default: m.MaPdfRoute })));
 
 export const Route = createFileRoute("/ma/$sag/$ordre/pdf")({
-  head: ({ params }) => maHead(`MA-${params.ordre} PDF · Zenko`, "Materialebestilling fra Zenko Danmark."),
-  component: function MaPdfRoute() {
-    const { sag, ordre } = Route.useParams();
-    return <MaPdfPage slug={sag} nr={ordre} />;
-  },
+  head: ({ params }) => publicHead(`MA-${params.ordre} PDF · Zenko`, "Materialebestilling fra Zenko Danmark.", "#fffaf6"),
+  component: () => (
+    <Suspense fallback={null}>
+      <Inner />
+    </Suspense>
+  ),
 });

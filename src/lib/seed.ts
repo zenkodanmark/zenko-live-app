@@ -27,7 +27,10 @@ import type {
 import { OSVALDO_DATALON } from "./datalon-osvaldo.ts";
 import { snippetFromCorpus } from "./udbud-corpus.ts";
 import { controlPointsFromUdbud } from "./udbud-plan.ts";
-import { softrKsReports } from "./softr-ks.ts";
+import { MASTER_IDS } from "./crew";
+
+export { EMPLOYEES, isCrewRole, isMasterRole, MASTER_IDS } from "./crew";
+
 
 export const FIRM = "Zenko Danmark ApS";
 export const FIRM_LINE = "Aabenraavej 161 · 6400 Sønderborg";
@@ -35,15 +38,6 @@ export const COMPANY_LINE = "Murerarbejde · Sønderborg";
 export const FIRM_MAIL = "zenko.danmark@gmail.com";
 export const FIRM_CVR = "42285757";
 export const FIRM_PHONE = "23 23 23 83";
-
-export const EMPLOYEES: Employee[] = [
-  { id: "emp-ole", name: "Ole", role: "mester", language: "da", pin: "7777", initials: "OL" },
-  { id: "emp-federico", name: "Federico", role: "mester", language: "es", pin: "2222", initials: "FO" },
-  { id: "emp-alex", name: "Alex", role: "laerling", language: "da", pin: "1111", initials: "AL" },
-  { id: "emp-ion", name: "Ion Zafier", role: "svend", language: "ro", pin: "3333", initials: "IZ" },
-  { id: "emp-marius", name: "Marius Pater", role: "svend", language: "pl", pin: "4444", initials: "MP" },
-  { id: "emp-osvaldo", name: "Osvaldo", role: "svend", language: "es", pin: "5555", initials: "OS", payrollNo: "0003" },
-];
 
 export const PROJECTS: Project[] = [
   {
@@ -676,22 +670,12 @@ export const SEED_ENTS: Entrepreneur[] = [];
 export const SEED_PACKS: InvoicePack[] = [];
 
 export const SEED_KS_REPORTS: KsReport[] = [
-  ...softrKsReports(),
   { id: "ksr-grok-55-1sal", number: "Z-KS-2026-004", projectId: "job-hillerodsholm", point: "5.5", createdAt: "2026-09-03T10:29:40.000Z", status: "issued", deviations: "Ingen afvigelser.", approved: true, employeeName: "Grok", crew: "Ole, Grok", process: "Murerarbejde", trade: "Murer", company: FIRM, photoIds: ["1ZiKbWqeeoq0Tl_jGrvyLjHfccUKJ9t-6", "1pmEghtJJ1klHdeatbY3Ma94z-RBB508b", "1wn6gDMv1o3ABgimwghhULCjv8moWrwgD", "1XxryT0Z1cvb0OAbhJs5p1s54WhU8VIQU", "1w7i1dYdCWqVZUWPhRMmg_PXFxerBIHah", "18M5QHnAXopHOIFlkCvGn3syPp-KXoKI5", "1vybpC40GeNarX0wImi1s-q79Y7ab0C2d", "1l42MCrHMZV5mw0EES-ZigQAZJ3h9vv1D", "1yQYQRAbXS6xgQzF5fCfQATG2-i-gto4y", "1GWlyBxvF31wIej_UrQ8fvpl8vVm6aF7d", "1sHtKJiFTXFprT09Rjpq3QqjSkir8ziz2", "1rcF9Zf9JhvPBXqffwRCgZ3K5IVA5l_ra", "1egirDQvCtKZOGUTpyOnbc-uWNy4rQXqu", "1JjEWGiJDbnhVg5VxhA-uGf2sp2b6d0Q2", "1pJCxXZhwOGiteRR0SbBhIqm6sP7wqXwe", "1Hiy6VsZq5XRJEN_Pos3V0efJ4-zlplI9", "1hFFKifft3iFfkbPd3_HDxsqpwnUOYMF3", "1tHa2kaTDT27LECyc5eUyt-rBlcmWyvVr", "15U2PIg_1XRyEeuJ98BgwlEgFdr0aLD4d", "1i9umuTZmLDTc6TO1jmVZ8TbZVdOpPZYe"] },
   { id: "ksr-grok-55", number: "Z-KS-2026-003", projectId: "job-hillerodsholm", point: "5.5", createdAt: "2026-09-03T10:21:00.000Z", status: "issued", deviations: "Ingen afvigelser.", approved: true, employeeName: "Grok", crew: "Ole, Grok", process: "Murerarbejde", trade: "Murer", company: FIRM, photoIds: ["1er3uUXDcvMM352r76VmgOIH8IXYMhQoe", "1SDfetli4LgyLAnDPgKvwCMf7DO6_0yVr", "1qT7i9nHSiDwhIDTYIhmkKkBBsSc-hmWm", "1a_fnHRNdPvGBA0cpHXv1EWDwXYtjfYtp", "1fWgCnVgLo_oS-uqJYnPkg-EfqL2RvJco", "1DUJiTZX8Bd2Riv7SjADsUZDHg5-1FF5C"] },
 ];
 
 export const FLOORS = ["Stuen", "1. sal", "2. sal", "Kælder", "Tag"] as const;
 export const ROOMS = ["Facade øst", "Facade vest", "Gavl nord", "Gavl syd", "Trappe", "Sokkel", "Altan", "Skorsten"] as const;
-
-export function isCrewRole(role: Employee["role"]) {
-  return role === "svend" || role === "laerling";
-}
-export function isMasterRole(role: Employee["role"]) {
-  return role === "mester";
-}
-
-export const MASTER_IDS = ["emp-ole", "emp-federico"] as const;
 
 export function crewOnJob(projectId: string, employees: Employee[], assignments: Assignment[]) {
   const ids = new Set(assignments.filter((a) => a.projectId === projectId).map((a) => a.employeeId));

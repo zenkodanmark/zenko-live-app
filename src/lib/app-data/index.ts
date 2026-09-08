@@ -3,6 +3,7 @@ export {
   ConnectorType,
   GoogleCalendarTools,
   GoogleDriveTools,
+  GmailTools,
 } from "./types.ts";
 export type {
   CallToolOptions,

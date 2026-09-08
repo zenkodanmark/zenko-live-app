@@ -1,9 +1,12 @@
 import { FIRM, FIRM_CVR, FIRM_LINE, FIRM_MAIL, FIRM_PHONE, PROJECTS, SEED_KS_REPORTS, findControlPoint } from "./seed.ts";
 import { matchUdbudPart, planForProject, scanForProject, type UdbudPart } from "./udbud-plan.ts";
 import { seedDrivePhotos } from "./ks-drive.ts";
-import { softrKsPhotos } from "./softr-ks.ts";
+import { softrKsPhotos, softrKsReports } from "./softr-ks.ts";
 import { photoSrc } from "./tf-share.ts";
 import type { KsPhoto, KsReport, KsType, Project } from "./types.ts";
+import { isKundeSlug } from "./route-guards.ts";
+
+export { isKundeSlug };
 
 export type KundePart = {
   code: string;
@@ -139,10 +142,6 @@ export function slugFromName(name: string) {
 
 export function slugForProject(project: { id: string; name: string }) {
   return JOB_SLUGS[project.id] || slugFromName(project.name);
-}
-
-export function isKundeSlug(value: string) {
-  return /^[a-z0-9-]{2,48}$/.test(value.trim());
 }
 
 export function projectIdFromSlug(slug: string, projects: Project[] = PROJECTS): string | null {
@@ -343,7 +342,7 @@ export function buildKundeSite(opts: {
 }
 
 export function bundledKundeInputs() {
-  return { reports: SEED_KS_REPORTS, photos: [...softrKsPhotos(), ...seedDrivePhotos()], projects: PROJECTS };
+  return { reports: [...softrKsReports(), ...SEED_KS_REPORTS], photos: [...softrKsPhotos(), ...seedDrivePhotos()], projects: PROJECTS };
 }
 
 export function kundePath(slug: string, extra: string[] = []) {

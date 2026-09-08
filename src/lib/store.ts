@@ -40,10 +40,6 @@ import { rememberDrive, type DriveMap } from "./drive";
 import { applyArchive, applyReopen, ensureProjectHandover } from "./job-archive";
 import { isMaterialNeed, matchModtagelse, orderLines, scanBehov } from "./material";
 import { seedDrivePhotos } from "./ks-drive";
-import { ensureSoftrKs, softrKsPhotos } from "./softr-ks";
-import { ensureSoftrAs, softrAsFieldItems, softrAsSlips } from "./softr-as";
-import { ensureSoftrEr, softrErReports } from "./softr-er";
-import { ensureSoftrTf, softrTfReports } from "./softr-tf";
 import type {
   Assignment,
   CalEvent,
@@ -296,12 +292,75 @@ function seedEvents(): { at: string; text: string }[] {
 const PERSIST_NAME = "zenko-plads-v32";
 let liveSessionId: string | null = null;
 let yardPushTimer: ReturnType<typeof setTimeout> | null = null;
+let persistPushPaused = true;
+let softrHydrateStarted = false;
+
+function isSoftrRow(row: { id?: string; source?: string } | null | undefined) {
+  if (!row) return false;
+  if (row.source === "softr") return true;
+  const id = String(row.id || "");
+  return id.includes("-softr-") || id.startsWith("softr-");
+}
+function liveRows<T extends { id?: string; source?: string }>(rows: T[] | undefined | null): T[] {
+  return (rows ?? []).filter((r) => !isSoftrRow(r));
+}
+function releasePersistPush() {
+  if (typeof window === "undefined") {
+    persistPushPaused = false;
+    return;
+  }
+  window.setTimeout(() => {
+    persistPushPaused = false;
+  }, 2000);
+}
+function queueSoftrHydrate() {
+  if (softrHydrateStarted || typeof window === "undefined") return;
+  try {
+    if (window.location.pathname === "/") return;
+  } catch {
+    return;
+  }
+  softrHydrateStarted = true;
+  const start = () => {
+    void import("./softr-ks")
+      .then(async (ks) => {
+        const [as, er, tf] = await Promise.all([import("./softr-as"), import("./softr-er"), import("./softr-tf")]);
+        useYard.setState((s) => {
+          const next = {
+            ksReports: [...s.ksReports],
+            slips: [...s.slips],
+            tfs: [...s.tfs],
+            ents: [...s.ents],
+            drivePhotos: [...(s.drivePhotos ?? [])],
+            fieldItems: [...(s.fieldItems ?? [])],
+          };
+          ks.ensureSoftrKs(next);
+          as.ensureSoftrAs(next);
+          er.ensureSoftrEr(next);
+          tf.ensureSoftrTf(next);
+          return next;
+        });
+      })
+      .catch(() => {
+        softrHydrateStarted = false;
+      });
+  };
+  const ric = window.requestIdleCallback?.bind(window);
+  if (ric) ric(start, { timeout: 1200 });
+  else window.setTimeout(start, 60);
+}
 function queueYardPush(json: string) {
   if (typeof window === "undefined") return;
+  if (persistPushPaused) return;
+  try {
+    if (window.location.pathname === "/") return;
+  } catch {
+    return;
+  }
   if (yardPushTimer) window.clearTimeout(yardPushTimer);
   yardPushTimer = window.setTimeout(() => {
     void import("./supabase-sync").then((m) => m.publishYardState(json)).catch(() => {});
-  }, 900);
+  }, 2000);
 }
 function yardStorage() {
   const memory = new Map<string, string>();
@@ -392,9 +451,9 @@ export const useYard = create<YardState>()(
   assignments: ASSIGNMENTS,
   days: seedDays(),
   issues: SEED_ISSUES,
-  slips: [...softrAsSlips(), ...SEED_SLIPS],
-  tfs: [...softrTfReports(), ...SEED_TFS],
-  ents: [...softrErReports(), ...SEED_ENTS],
+  slips: SEED_SLIPS,
+  tfs: SEED_TFS,
+  ents: SEED_ENTS,
   packs: SEED_PACKS,
   ksReports: SEED_KS_REPORTS,
   docs: SEED_DOCS,
@@ -413,8 +472,8 @@ export const useYard = create<YardState>()(
   orders: [],
   receipts: [],
   suppliers: [] as Supplier[],
-  drivePhotos: [...softrKsPhotos(), ...seedDrivePhotos()],
-  fieldItems: [...softrAsFieldItems(), ...SEED_FIELD_ITEMS],
+  drivePhotos: seedDrivePhotos(),
+  fieldItems: SEED_FIELD_ITEMS,
   inboxFolders: {},
   driveMaps: {},
   chatSeenAt: {},
@@ -1837,7 +1896,7 @@ export const useYard = create<YardState>()(
 } as YardState),
     {
       name: PERSIST_NAME,
-  version: 48,
+  version: 49,
   storage: createJSONStorage(() => yardStorage()),
   partialize: (s) => ({
     employeeId: s.employeeId,
@@ -1850,11 +1909,11 @@ export const useYard = create<YardState>()(
       photos: (d.photos ?? []).map(slimUrl)
     }])),
     issues: s.issues,
-    slips: s.slips,
-    tfs: s.tfs,
-    ents: s.ents,
+    slips: liveRows(s.slips),
+    tfs: liveRows(s.tfs),
+    ents: liveRows(s.ents),
     packs: s.packs,
-    ksReports: s.ksReports,
+    ksReports: liveRows(s.ksReports),
     docs: s.docs,
     todos: s.todos,
     problems: s.problems ?? [],
@@ -1872,7 +1931,7 @@ export const useYard = create<YardState>()(
     orders: s.orders ?? [],
     receipts: s.receipts ?? [],
     suppliers: s.suppliers ?? [],
-    fieldItems: (s.fieldItems ?? []).filter((f) => !String(f.id).startsWith("softr-as-")).map(slimUrl),
+    fieldItems: liveRows(s.fieldItems).map(slimUrl),
     inboxFolders: s.inboxFolders,
     driveMaps: s.driveMaps,
     chatSeenAt: s.chatSeenAt,
@@ -1892,9 +1951,9 @@ export const useYard = create<YardState>()(
       assignments: ASSIGNMENTS,
       days: seedDays(),
       issues: SEED_ISSUES,
-      slips: [...softrAsSlips(), ...SEED_SLIPS],
-      tfs: [...softrTfReports(), ...SEED_TFS],
-      ents: [...softrErReports(), ...SEED_ENTS],
+      slips: SEED_SLIPS,
+      tfs: SEED_TFS,
+      ents: SEED_ENTS,
       packs: SEED_PACKS,
       ksReports: SEED_KS_REPORTS,
       docs: SEED_DOCS,
@@ -1913,8 +1972,8 @@ export const useYard = create<YardState>()(
       orders: [],
       receipts: [],
       suppliers: [] as Supplier[],
-      drivePhotos: [...softrKsPhotos(), ...seedDrivePhotos()],
-      fieldItems: [...softrAsFieldItems(), ...SEED_FIELD_ITEMS],
+      drivePhotos: seedDrivePhotos(),
+      fieldItems: SEED_FIELD_ITEMS,
       inboxFolders: {},
       driveMaps: {},
       chatSeenAt: {},
@@ -1950,10 +2009,12 @@ export const useYard = create<YardState>()(
     ensureBotWeek37(next);
     mergeAliasJobs(next);
     ensureMastersOnJobs(next);
-    if (Array.isArray(next.ksReports)) ensureSoftrKs(next);
-    if (Array.isArray(next.slips)) ensureSoftrAs(next);
-    if (Array.isArray(next.ents) || Array.isArray(next.slips)) ensureSoftrEr(next);
-    if (Array.isArray(next.tfs) || Array.isArray(next.slips)) ensureSoftrTf(next);
+    if (Array.isArray(next.ksReports)) next.ksReports = liveRows(next.ksReports);
+    if (Array.isArray(next.slips)) next.slips = liveRows(next.slips);
+    if (Array.isArray(next.ents)) next.ents = liveRows(next.ents);
+    if (Array.isArray(next.tfs)) next.tfs = liveRows(next.tfs);
+    if (Array.isArray(next.fieldItems)) next.fieldItems = liveRows(next.fieldItems);
+    if (Array.isArray(next.drivePhotos)) next.drivePhotos = liveRows(next.drivePhotos);
     if (Array.isArray(next.docs) && !next.docs.some((d) => d.id === "doc-islev-mur")) next.docs = [...SEED_DOCS.filter((d) => d.id.startsWith("doc-islev")), ...next.docs];
     if (Array.isArray(next.todos)) next.todos = next.todos.filter((td) => td.id !== "td-lang-ion");
     if (!next.threadSeenAt || typeof next.threadSeenAt !== "object") next.threadSeenAt = {};
@@ -1990,17 +2051,19 @@ export const useYard = create<YardState>()(
       });
     }
     if (!state.days || typeof state.days !== "object") state.days = seedDays();
-    if (!Array.isArray(state.tfs)) state.tfs = [...softrTfReports(), ...SEED_TFS];
+    if (!Array.isArray(state.tfs)) state.tfs = SEED_TFS;
     if (!state.drivePhotos?.length) state.drivePhotos = seedDrivePhotos();
     if (Array.isArray(state.projects) && Array.isArray(state.assignments) && Array.isArray(state.plans)) {
       ensureBotWeek37(state);
       mergeAliasJobs(state);
       ensureMastersOnJobs(state);
     }
-    if (Array.isArray(state.ksReports)) ensureSoftrKs(state);
-    if (Array.isArray(state.slips)) ensureSoftrAs(state);
-    if (Array.isArray(state.ents) || Array.isArray(state.slips)) ensureSoftrEr(state);
-    if (Array.isArray(state.tfs) || Array.isArray(state.slips)) ensureSoftrTf(state);
+    if (Array.isArray(state.ksReports)) state.ksReports = liveRows(state.ksReports);
+    if (Array.isArray(state.slips)) state.slips = liveRows(state.slips);
+    if (Array.isArray(state.ents)) state.ents = liveRows(state.ents);
+    if (Array.isArray(state.tfs)) state.tfs = liveRows(state.tfs);
+    if (Array.isArray(state.fieldItems)) state.fieldItems = liveRows(state.fieldItems);
+    if (Array.isArray(state.drivePhotos)) state.drivePhotos = liveRows(state.drivePhotos);
     if (Array.isArray(state.docs) && !state.docs.some((d) => d.id === "doc-islev-mur")) state.docs = [...SEED_DOCS.filter((d) => d.id.startsWith("doc-islev")), ...state.docs];
     if (Array.isArray(state.todos)) state.todos = state.todos.filter((td) => td.id !== "td-lang-ion");
     if (Array.isArray(state.chats)) state.chats = state.chats.filter((c) => c.id !== "ch-lang-ion" && c.id !== "ch-lang-osvaldo" && c.id !== "ch-mat-ion");
@@ -2022,10 +2085,25 @@ export const useYard = create<YardState>()(
     } catch {
       if (liveSessionId) state.employeeId = liveSessionId;
     }
+    queueSoftrHydrate();
+    releasePersistPush();
   }
     },
   ),
 );
+
+try {
+  if (typeof window !== "undefined") {
+    const kick = () => {
+      queueSoftrHydrate();
+      releasePersistPush();
+    };
+    if (useYard.persist.hasHydrated()) kick();
+    else useYard.persist.onFinishHydration(kick);
+  }
+} catch {
+  /* */
+}
 
 export function useSessionEmployee() {
   return useYard((s) => {

@@ -3,7 +3,6 @@ import { flushAdminSnapshot, queueAdminSnapshot } from "@/lib/admin-backup";
 import { pushSoftrPhotoBatch } from "@/lib/drive.functions";
 import { driveFor, driveMapIncomplete } from "@/lib/drive";
 import { attachSagDrive, flushLocalKsPhotos } from "@/lib/sag-drive";
-import { softrDriveJobs, softrKsDriveJobs } from "@/lib/softr-drive-push";
 import { useYard } from "@/lib/store";
 
 export function LiveDriveBootstrap() {
@@ -14,53 +13,59 @@ export function LiveDriveBootstrap() {
 
   useEffect(() => {
     let stop = false;
-    void (async () => {
-      const now = Date.now();
-      for (const p of projects) {
-        if (stop) return;
-        const known = driveFor(p.id) ?? useYard.getState().driveMaps?.[p.id];
-        if (!driveMapIncomplete(known)) continue;
-        const last = triedAt.current.get(p.id) ?? 0;
-        if (now - last < 20_000) continue;
-        triedAt.current.set(p.id, now);
-        try {
-          const res = await attachSagDrive(p.id, p.name);
-          if (!res.ok) triedAt.current.delete(p.id);
-          if (res.loginRequired) return;
-        } catch {
-          triedAt.current.delete(p.id);
-          useYard.setState({ toast: `Drive: kunne ikke oprette ${p.name}` });
-        }
-      }
-      if (stop) return;
-      try {
-        await flushLocalKsPhotos();
-      } catch {
-        /* toast i flush */
-      }
-      if (softrRan.current) return;
-      softrRan.current = true;
-      if (!stop) await flushAdminSnapshot();
-      async function drain(key: string, jobs: { folderId: string; name: string; rel: string }[]) {
-        let i = Number(window.localStorage.getItem(key) || "0");
-        while (!stop && i < jobs.length) {
-          const slice = jobs.slice(i, i + 4);
+    const begin = window.setTimeout(() => {
+      void (async () => {
+        const now = Date.now();
+        for (const p of projects) {
+          if (stop) return;
+          const known = driveFor(p.id) ?? useYard.getState().driveMaps?.[p.id];
+          if (!driveMapIncomplete(known)) continue;
+          const last = triedAt.current.get(p.id) ?? 0;
+          if (now - last < 20_000) continue;
+          triedAt.current.set(p.id, now);
           try {
-            const res = await pushSoftrPhotoBatch({ data: { items: slice } });
-            if (res.loginRequired) return true;
-            i += slice.length;
-            window.localStorage.setItem(key, String(i));
+            const res = await attachSagDrive(p.id, p.name);
+            if (!res.ok) triedAt.current.delete(p.id);
+            if (res.loginRequired) return;
           } catch {
-            return true;
+            triedAt.current.delete(p.id);
+            useYard.setState({ toast: `Drive: kunne ikke oprette ${p.name}` });
           }
         }
-        return false;
-      }
-      if (await drain("zenko-softr-ks-drive-i", softrKsDriveJobs())) return;
-      await drain("zenko-softr-drive-i", softrDriveJobs().filter((j) => j.kind !== "KS"));
-    })();
+        if (stop) return;
+        try {
+          await flushLocalKsPhotos();
+        } catch {
+          /* toast i flush */
+        }
+        if (softrRan.current) return;
+        softrRan.current = true;
+        if (!stop) await flushAdminSnapshot();
+        await new Promise((r) => window.setTimeout(r, 8000));
+        if (stop) return;
+        const { softrDriveJobs, softrKsDriveJobs } = await import("@/lib/softr-drive-push");
+        async function drain(key: string, jobs: { folderId: string; name: string; rel: string }[]) {
+          let i = Number(window.localStorage.getItem(key) || "0");
+          while (!stop && i < jobs.length) {
+            const slice = jobs.slice(i, i + 4);
+            try {
+              const res = await pushSoftrPhotoBatch({ data: { items: slice } });
+              if (res.loginRequired) return true;
+              i += slice.length;
+              window.localStorage.setItem(key, String(i));
+            } catch {
+              return true;
+            }
+          }
+          return false;
+        }
+        if (await drain("zenko-softr-ks-drive-i", softrKsDriveJobs())) return;
+        await drain("zenko-softr-drive-i", softrDriveJobs().filter((j) => j.kind !== "KS"));
+      })();
+    }, 2500);
     return () => {
       stop = true;
+      window.clearTimeout(begin);
     };
   }, [projectKey, projects]);
 

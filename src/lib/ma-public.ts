@@ -3,7 +3,9 @@ import { orderLines } from "./material";
 import { toSupplierThread } from "./ma-thread";
 import { FIRM_PHONE, PROJECTS, projectById } from "./seed";
 import type { MaShareStatus, MaThreadMsg, MaterialLine, MaterialOrder, MaterialReceipt, Project } from "./types";
+import { isValidMaLineParam, isValidMaNr, isValidMaSlug } from "./route-guards.ts";
 
+export { isValidMaLineParam, isValidMaNr, isValidMaSlug };
 export { maThreadOriginal, shownMaThreadText, toSupplierThread } from "./ma-thread";
 
 export type MaPublicLine = {
@@ -272,17 +274,5 @@ export function supplierMailBody(order: MaPublicOrder, origin: string) {
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-}
-
-export function isValidMaSlug(value: string) {
-  return /^[a-z0-9-]{2,48}$/.test(value.trim());
-}
-
-export function isValidMaNr(value: string) {
-  return /^\d{1,4}$/.test(value.trim());
-}
-
-export function isValidMaLineParam(value: string) {
-  return /^\d{1,3}$/.test(value.trim());
 }
 
