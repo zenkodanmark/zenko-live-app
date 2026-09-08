@@ -1,17 +1,9 @@
 # Supabase — Zenko Plads
 
-Bucket `plads` er oprettet og er public read.
+Kør **`schema.sql`** i Dashboard → SQL Editor (hele filen, én gang).
 
-JSON-tabeller (live nu, uden at I opretter kolonner):
+Den opretter rigtige tabeller med kolonner og lægger seed ind (6 ansatte, 8 sager, tildelinger, serienumre).
 
-- `employees`, `projects`, `assignments`
-- `todos`, `tfs`, `slips`, `ents`, `ks_reports`
-- `orders`, `messages`, `plan_blocks`, `day_logs`
-- `notices`, `needs`, `receipts`, `field_items`, `issues`
-- `serials`, `yard_state`, `files`, `push_subs`
-
-Hver række er `tables/{navn}/{id}.json`.
-
-`schema.sql` er det samme skema som rigtige Postgres-tabeller. Kør den i Dashboard → SQL Editor, hvis I vil have REST `/rest/v1/employees` osv.
+Appen bruger `@supabase/supabase-js` mod `/rest/v1/…`. Storage-bucket `plads` er kun til fotos og filer.
 
 **Secret-nøglen må aldrig i sitet eller i GitHub.**

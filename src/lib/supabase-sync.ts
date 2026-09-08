@@ -1,14 +1,26 @@
 import { pushYardState, saveYardRow, uploadPladsFile } from "./supabase.functions";
-import { sbPublicUrl } from "./supabase";
+import { supabase } from "./supabase";
+import {
+  assignmentFromRow,
+  empFromRow,
+  projectFromRow,
+} from "./sb-rows";
+import type { Assignment, Employee, Project } from "./types";
 
 export async function pullYardState(): Promise<Record<string, unknown> | null> {
   try {
-    const res = await fetch(`${sbPublicUrl("yard/state.json")}?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (!json || typeof json !== "object") return null;
-    if (json.state && typeof json.state === "object") return json.state as Record<string, unknown>;
-    return json as Record<string, unknown>;
+    const sb = supabase();
+    const [employees, projects, assignments] = await Promise.all([
+      sb.from("employees").select("*"),
+      sb.from("projects").select("*"),
+      sb.from("assignments").select("*"),
+    ]);
+    if (employees.error || projects.error) return null;
+    return {
+      employees: (employees.data ?? []).map((r) => empFromRow(r)),
+      projects: (projects.data ?? []).map((r) => projectFromRow(r)),
+      assignments: (assignments.data ?? []).map((r) => assignmentFromRow(r)),
+    } as { employees: Employee[]; projects: Project[]; assignments: Assignment[] };
   } catch {
     return null;
   }

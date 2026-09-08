@@ -1,6 +1,7 @@
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { env } from "./env.server";
-import { SB_BUCKET, SB_URL, sbPublicUrl } from "./supabase";
+import { SB_ANON, SB_BUCKET, SB_URL, sbPublicUrl } from "./supabase";
 
 /** Server-only. Never import this module from client components. Never log the value. */
 export function sbSecret(): string {
@@ -17,27 +18,48 @@ export function sbSecret(): string {
   return "";
 }
 
+let admin: SupabaseClient | null = null;
+
+/** Service client. Uses secret on the server, never shipped to the browser. */
+export function sbAdmin(): SupabaseClient {
+  if (!admin) {
+    const key = sbSecret() || SB_ANON;
+    admin = createClient(SB_URL, key, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+  }
+  return admin;
+}
+
+export function tablesMissing(err?: { code?: string; message?: string } | null) {
+  if (!err) return false;
+  const msg = `${err.code ?? ""} ${err.message ?? ""}`;
+  return /PGRST205|42P01|schema cache|does not exist/i.test(msg);
+}
+
+export async function sbUpsert(table: string, rows: Record<string, unknown> | Record<string, unknown>[]) {
+  const list = Array.isArray(rows) ? rows : [rows];
+  if (!list.length) return { ok: true as const, error: "" };
+  const { error } = await sbAdmin().from(table).upsert(list);
+  if (error) return { ok: false as const, error: error.message };
+  return { ok: true as const, error: "" };
+}
+
+export async function sbSelect<T = Record<string, unknown>>(table: string, limit = 500) {
+  const { data, error } = await sbAdmin().from(table).select("*").limit(limit);
+  if (error) return { ok: false as const, rows: [] as T[], error: error.message, missing: tablesMissing(error) };
+  return { ok: true as const, rows: (data ?? []) as T[], error: "", missing: false };
+}
+
 export async function sbUpload(path: string, body: string | Uint8Array, mime: string) {
-  const key = sbSecret();
-  if (!key) return { ok: false as const, url: "", error: "Supabase-secret mangler på serveren" };
   const clean = path.replace(/^\/+/, "");
-  const payload = typeof body === "string" ? body : Buffer.from(body);
-  const headers: Record<string, string> = {
-    apikey: key,
-    Authorization: `Bearer ${key}`,
-    "Content-Type": mime || "application/octet-stream",
-    "x-upsert": "true",
-    "cache-control": mime.includes("json") ? "no-cache" : "public, max-age=3600",
-  };
-  const url = `${SB_URL}/storage/v1/object/${SB_BUCKET}/${clean}`;
-  let res = await fetch(url, { method: "POST", headers, body: payload });
-  if (!res.ok) {
-    res = await fetch(url, { method: "PUT", headers, body: payload });
-  }
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    return { ok: false as const, url: "", error: text.slice(0, 240) || `HTTP ${res.status}` };
-  }
+  const payload = typeof body === "string" ? Buffer.from(body) : Buffer.from(body);
+  const { error } = await sbAdmin().storage.from(SB_BUCKET).upload(clean, payload, {
+    upsert: true,
+    contentType: mime || "application/octet-stream",
+    cacheControl: mime.includes("json") ? "0" : "3600",
+  });
+  if (error) return { ok: false as const, url: "", error: error.message };
   return { ok: true as const, url: sbPublicUrl(clean), error: "" };
 }
 

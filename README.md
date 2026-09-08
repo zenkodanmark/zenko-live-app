@@ -6,25 +6,19 @@ Felt-app til Zenko Danmark. Én PWA: PIN-login, mester- og svend-tavle, To-do / 
 
 ## Data (Supabase)
 
-Ny data og nye filer ligger i Supabase Storage-bucket `plads`:
+Appen bruger **rigtige SQL-tabeller** via supabase-klienten (`@supabase/supabase-js`).
 
-| Sti | Indhold |
-| --- | --- |
-| `yard/state.json` | Hele plads-snapshot (to-do, chat, KS, dage, ordrer …) |
-| `tables/{tabel}/{id}.json` | En række pr. fil (`employees`, `projects`, `todos`, …) |
-| `sager/{sag}/ks/…` | Nye KS-fotos |
+1. Åbn Supabase Dashboard → **SQL Editor**.
+2. Kør hele filen [`supabase/schema.sql`](supabase/schema.sql) (opretter tabeller + seed: ansatte, sager, tildelinger).
+3. Bagefter skriver appen to-do, chat, KS, dage og ordrer ind i tabellerne.
 
-Gamle Google Drive-filer kan stadig vises. Nye uploads går til Supabase.
+Fotos gemmes i Storage-bucket `plads`. Ikke JSON-filer som database.
 
 Publishable-nøglen (anon) ligger i `src/lib/supabase.ts`. Den er beregnet til klienten.
 
 ## Secret-nøglen må aldrig i sitet
 
-Supabase **secret key** må **ikke** lægges i koden, i GitHub, i README eller i en committed `.env`. Kun som server-miljøvariabel `SUPABASE_SECRET_KEY` (eller filen `.local/supabase-secret`, som er gitignored).
-
-Secret-nøglen kan skrive til Storage. Den kan **ikke** køre `CREATE TABLE` — det er en begrænsning i Supabase API, ikke i appen.
-
-Postgres-skemaet ligger i [`supabase/schema.sql`](supabase/schema.sql). Hvis I vil have rigtige SQL-tabeller: åbn SQL Editor i Supabase Dashboard og kør den fil. Appen kører uden det, fordi JSON-tabellerne i `plads` allerede er live.
+Supabase **secret key** må **ikke** lægges i koden, i GitHub, i README eller i en committed `.env`. Kun som server-miljøvariabel `SUPABASE_SECRET_KEY`.
 
 ## Start
 

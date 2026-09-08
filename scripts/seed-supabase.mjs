@@ -1,46 +1,37 @@
 #!/usr/bin/env node
 /**
- * Uploads seed rows to the public `plads` bucket.
+ * Upserts seed rows into Postgres via supabase-js REST.
+ * Run AFTER schema.sql has been executed in SQL Editor.
  * Reads SUPABASE_SECRET_KEY from env or .local/supabase-secret.
- * Never writes the secret to disk outside .local/.
+ * Never writes the secret into the site.
  */
+import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { EMPLOYEES, PROJECTS, ASSIGNMENTS } from "../src/lib/seed.ts";
 
 const URL = "https://jauggqxhemjnbxoxkpeh.supabase.co";
-const BUCKET = "plads";
 
 function secret() {
   const env = (process.env.SUPABASE_SECRET_KEY || process.env.SB_SECRET || "").trim();
   if (env) return env;
-  try {
-    return readFileSync(new URL("../.local/supabase-secret", import.meta.url), "utf8").trim();
-  } catch {
+  for (const file of [new URL("../.local/supabase-secret", import.meta.url), "/workspace/.local/supabase-secret"]) {
     try {
-      return readFileSync("/workspace/.local/supabase-secret", "utf8").trim();
+      const v = readFileSync(file, "utf8").trim();
+      if (v) return v;
     } catch {
-      return "";
+      /* skip */
     }
   }
+  return "";
 }
 
-async function put(path, body, mime = "application/json") {
-  const key = secret();
-  if (!key) throw new Error("SUPABASE_SECRET_KEY mangler (ikke i sitet — kun env/.local)");
-  const payload = typeof body === "string" ? body : JSON.stringify(body);
-  const headers = {
-    apikey: key,
-    Authorization: `Bearer ${key}`,
-    "Content-Type": mime,
-    "x-upsert": "true",
-    "cache-control": "no-cache",
-  };
-  const url = `${URL}/storage/v1/object/${BUCKET}/${path}`;
-  let res = await fetch(url, { method: "POST", headers, body: payload });
-  if (!res.ok) res = await fetch(url, { method: "PUT", headers, body: payload });
-  if (!res.ok) throw new Error(`${path} ${res.status} ${await res.text()}`);
-  return path;
+const key = secret();
+if (!key) {
+  console.error("SUPABASE_SECRET_KEY mangler (ikke i sitet — kun env/.local)");
+  process.exit(1);
 }
+
+const sb = createClient(URL, key, { auth: { persistSession: false, autoRefreshToken: false } });
 
 const employees = EMPLOYEES.map((e) => ({
   id: e.id,
@@ -48,8 +39,8 @@ const employees = EMPLOYEES.map((e) => ({
   role: e.role,
   language: e.language,
   pin: e.pin,
-  initials: e.initials,
-  payrollNo: e.payrollNo ?? null,
+  initials: e.initials ?? "",
+  payroll_no: e.payrollNo ?? null,
 }));
 const projects = PROJECTS.map((p) => ({
   id: p.id,
@@ -57,67 +48,47 @@ const projects = PROJECTS.map((p) => ({
   address: p.address,
   lat: p.lat,
   lng: p.lng,
-  radiusM: p.radiusM,
+  radius_m: p.radiusM,
   brief: p.brief,
   huddle: p.huddle,
-  nextTask: p.nextTask,
+  next_task: p.nextTask,
   status: p.status,
-  customer: p.customer,
-  createdBy: p.createdBy,
-  source: p.source,
-  ksType: p.ksType,
-  trade: p.trade,
-  period: p.period,
+  customer: p.customer ?? null,
+  created_by: p.createdBy ?? null,
+  udbud_folder_id: p.udbudFolderId ?? null,
+  drive_root_id: p.driveRootId ?? null,
+  source: p.source ?? null,
+  ks_type: p.ksType ?? null,
+  trade: p.trade ?? null,
+  period: p.period ?? null,
+  quality_manager: p.qualityManager ?? null,
+  handed_over_at: p.handedOverAt ?? null,
+  archived_at: p.archivedAt ?? null,
 }));
-const serial = { as: 6, tf: 7, er: 1, ks: 5, fb: 1, mo: 1 };
+const assignments = ASSIGNMENTS.map((a) => ({ employee_id: a.employeeId, project_id: a.projectId }));
+const serials = [
+  { kind: "as", next: 6, year: 2026 },
+  { kind: "tf", next: 7, year: 2026 },
+  { kind: "er", next: 1, year: 2026 },
+  { kind: "ks", next: 5, year: 2026 },
+  { kind: "mo", next: 1, year: 2026 },
+  { kind: "fb", next: 1, year: 2026 },
+];
 
-const jobs = [];
-for (const row of employees) jobs.push(put(`tables/employees/${row.id}.json`, row));
-for (const row of projects) jobs.push(put(`tables/projects/${row.id}.json`, row));
-for (const row of ASSIGNMENTS) jobs.push(put(`tables/assignments/${row.employeeId}__${row.projectId}.json`, row));
-jobs.push(put("tables/serials/current.json", serial));
-jobs.push(
-  put("yard/state.json", {
-    updatedAt: new Date().toISOString(),
-    state: {
-      employees,
-      projects,
-      assignments: ASSIGNMENTS,
-      serial,
-      todos: [],
-      chats: [],
-      ksReports: [],
-      days: {},
-      needs: [],
-      orders: [],
-    },
-  }),
-);
-jobs.push(
-  put("system/tables.json", {
-    note: "JSON-tabeller i bucket plads. Secret-nøglen må aldrig i sitet.",
-    tables: [
-      "employees",
-      "projects",
-      "assignments",
-      "todos",
-      "tfs",
-      "slips",
-      "ents",
-      "ks_reports",
-      "orders",
-      "messages",
-      "plan_blocks",
-      "day_logs",
-      "notices",
-      "needs",
-      "receipts",
-      "field_items",
-      "issues",
-      "serials",
-    ],
-  }),
-);
+async function upsert(table, rows) {
+  const { error } = await sb.from(table).upsert(rows);
+  if (error) {
+    if (/PGRST205|schema cache|does not exist/i.test(error.message)) {
+      throw new Error(`Tabel ${table} findes ikke. Kør supabase/schema.sql i SQL Editor først.`);
+    }
+    throw new Error(`${table}: ${error.message}`);
+  }
+  return rows.length;
+}
 
-const done = await Promise.all(jobs);
-console.log(`seed ok · ${done.length} filer`);
+const n =
+  (await upsert("employees", employees)) +
+  (await upsert("projects", projects)) +
+  (await upsert("assignments", assignments)) +
+  (await upsert("serials", serials));
+console.log(`seed ok · ${n} rækker i SQL-tabeller`);

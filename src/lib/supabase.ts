@@ -1,7 +1,21 @@
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
 /** Public Supabase config. The secret key never lives in this file or anywhere in the client bundle. */
 export const SB_URL = "https://jauggqxhemjnbxoxkpeh.supabase.co";
 export const SB_ANON = "sb_publishable_GDFhOi3Ek3XmECz2NHQC0g_3qPvPC93";
 export const SB_BUCKET = "plads";
+
+let browserClient: SupabaseClient | null = null;
+
+/** Anon/publishable client. Safe in the browser. Secret key is never used here. */
+export function supabase(): SupabaseClient {
+  if (!browserClient) {
+    browserClient = createClient(SB_URL, SB_ANON, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+  }
+  return browserClient;
+}
 
 export function sbPublicUrl(path: string) {
   return `${SB_URL}/storage/v1/object/public/${SB_BUCKET}/${String(path).replace(/^\/+/, "")}`;
