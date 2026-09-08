@@ -136,8 +136,9 @@ export function threadPeopleIds(msgs: ChatMessage[]): string[] {
   return [...ids];
 }
 
-export function threadPeopleLabel(msgs: ChatMessage[], people: Employee[]) {
+export function threadPeopleLabel(msgs: ChatMessage[], people: Employee[], exceptId?: string) {
   return threadPeopleIds(msgs)
+    .filter((id) => id !== exceptId)
     .map((id) => people.find((p) => p.id === id)?.name ?? "")
     .filter(Boolean)
     .join(", ");
@@ -151,6 +152,7 @@ export type ChatListRow = {
   id: string;
   title: string;
   peopleLabel: string;
+  peopleIds: string[];
   at: string;
   saved: boolean;
   rootId: string;
@@ -181,10 +183,12 @@ export function listChatRows(
     const rowId = th?.id ?? key;
     const seen = threadSeenAt[`${viewer.id}::${rowId}`] ?? threadSeenAt[`${viewer.id}::${key}`] ?? "";
     const unread = msgs.filter((m) => m.fromId !== viewer.id && (!seen || m.at > seen)).length;
+    const others = threadPeopleIds(msgs).filter((id) => id !== viewer.id);
     rows.push({
       id: rowId,
       title: th?.title ?? shownText(last, viewer.language, viewer.role).slice(0, 72),
-      peopleLabel: threadPeopleLabel(msgs, people),
+      peopleLabel: others.map((id) => people.find((p) => p.id === id)?.name ?? "").filter(Boolean).join(", "),
+      peopleIds: others,
       at: lastMessageAt(msgs),
       saved: Boolean(th?.savedAt),
       rootId: th?.rootId ?? last.id,

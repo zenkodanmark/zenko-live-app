@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { pullChats, publishChat } from "@/lib/chat-live";
 import { onYardEvent } from "@/lib/yard-bus";
 import { mergeById, mergeChats, mergeDays, slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "@/lib/yard-slim";
 import { pullYard, saveYardChat, saveYardDay, saveYardKs, saveYardNeed, saveYardOrder, saveYardTodo } from "@/lib/yard-sync.functions";
@@ -9,30 +10,39 @@ const DUMMY_CHAT = new Set(["ch-lang-ion", "ch-lang-osvaldo", "ch-mat-ion"]);
 const DUMMY_TODO = new Set(["td-lang-ion"]);
 
 async function applyPull() {
-  const remote = await pullYard();
-  if (!remote.ok) return;
+  const remote = await pullYard().catch(() => ({
+    ok: false as const,
+    todos: [] as Todo[],
+    chats: [] as ChatMessage[],
+    ksReports: [] as KsReport[],
+    days: [] as DayLog[],
+    needs: [] as MaterialNeed[],
+    orders: [] as MaterialOrder[],
+  }));
+  const clientChats = await pullChats();
   const s = useYard.getState();
-  if (!remote.todos.length && !remote.chats.length && !remote.ksReports.length && !remote.days.length && !remote.needs.length && !remote.orders.length) {
+  const cloudChats = mergeChats(remote.ok ? remote.chats : [], clientChats ?? []);
+  if (!remote.ok && !cloudChats.length) {
     const actor = "seed";
     await Promise.all([
-      ...s.todos.filter((row) => !DUMMY_TODO.has(row.id)).slice(0, 40).map((row) => saveYardTodo({ data: { todo: slimTodo(row), isNew: false, actorId: actor } })),
-      ...s.chats.filter((row) => !DUMMY_CHAT.has(row.id)).slice(0, 40).map((row) => saveYardChat({ data: { chat: slimChat(row), actorId: actor } })),
-      ...s.ksReports.slice(0, 40).map((row) => saveYardKs({ data: { report: slimKs(row), isNew: false, actorId: actor } })),
+      ...s.todos.filter((row) => !DUMMY_TODO.has(row.id)).slice(0, 40).map((row) => saveYardTodo({ data: { todo: slimTodo(row), isNew: false, actorId: actor } }).catch(() => {})),
+      ...s.chats.filter((row) => !DUMMY_CHAT.has(row.id)).slice(0, 40).map((row) => publishChat(slimChat(row))),
+      ...s.ksReports.slice(0, 40).map((row) => saveYardKs({ data: { report: slimKs(row), isNew: false, actorId: actor } }).catch(() => {})),
       ...Object.values(s.days).slice(0, 20).map((row) =>
-        saveYardDay({ data: { id: `${row.employeeId}:${row.date}`, day: slimDay(row), event: null, actorId: actor } }),
+        saveYardDay({ data: { id: `${row.employeeId}:${row.date}`, day: slimDay(row), event: null, actorId: actor } }).catch(() => {}),
       ),
-      ...(s.needs ?? []).slice(0, 40).map((row) => saveYardNeed({ data: { need: slimNeed(row), actorId: actor } })),
-      ...(s.orders ?? []).slice(0, 40).map((row) => saveYardOrder({ data: { order: slimOrder(row), actorId: actor } })),
+      ...(s.needs ?? []).slice(0, 40).map((row) => saveYardNeed({ data: { need: slimNeed(row), actorId: actor } }).catch(() => {})),
+      ...(s.orders ?? []).slice(0, 40).map((row) => saveYardOrder({ data: { order: slimOrder(row), actorId: actor } }).catch(() => {})),
     ]);
     return;
   }
   useYard.setState({
-    todos: mergeById(s.todos, remote.todos),
-    chats: mergeChats(s.chats, remote.chats),
-    ksReports: mergeById(s.ksReports, remote.ksReports),
-    days: mergeDays(s.days, remote.days),
-    needs: mergeById(s.needs ?? [], remote.needs ?? []),
-    orders: mergeById(s.orders ?? [], remote.orders ?? []),
+    todos: remote.ok ? mergeById(s.todos, remote.todos) : s.todos,
+    chats: mergeChats(s.chats, cloudChats),
+    ksReports: remote.ok ? mergeById(s.ksReports, remote.ksReports) : s.ksReports,
+    days: remote.ok ? mergeDays(s.days, remote.days) : s.days,
+    needs: remote.ok ? mergeById(s.needs ?? [], remote.needs ?? []) : s.needs,
+    orders: remote.ok ? mergeById(s.orders ?? [], remote.orders ?? []) : s.orders,
   });
 }
 
@@ -44,9 +54,13 @@ export function YardSyncHost() {
     const unsub = onYardEvent((ev) => {
       if (!live) return;
       const actor = ev.actorId;
-      if (ev.kind === "todo") void saveYardTodo({ data: { todo: ev.payload as Todo, isNew: ev.isNew, actorId: actor } });
-      if (ev.kind === "chat") void saveYardChat({ data: { chat: ev.payload as ChatMessage, actorId: actor } });
-      if (ev.kind === "ks") void saveYardKs({ data: { report: ev.payload as KsReport, isNew: ev.isNew, actorId: actor } });
+      if (ev.kind === "todo") void saveYardTodo({ data: { todo: ev.payload as Todo, isNew: ev.isNew, actorId: actor } }).catch(() => {});
+      if (ev.kind === "chat") {
+        const row = ev.payload as ChatMessage;
+        void publishChat(row);
+        void saveYardChat({ data: { chat: row, actorId: actor } }).catch(() => {});
+      }
+      if (ev.kind === "ks") void saveYardKs({ data: { report: ev.payload as KsReport, isNew: ev.isNew, actorId: actor } }).catch(() => {});
       if (ev.kind === "day") {
         void saveYardDay({
           data: {
@@ -56,10 +70,10 @@ export function YardSyncHost() {
             actorId: actor,
             name: ev.name,
           },
-        });
+        }).catch(() => {});
       }
-      if (ev.kind === "need") void saveYardNeed({ data: { need: ev.payload as MaterialNeed, actorId: actor } });
-      if (ev.kind === "order") void saveYardOrder({ data: { order: ev.payload as MaterialOrder, actorId: actor } });
+      if (ev.kind === "need") void saveYardNeed({ data: { need: ev.payload as MaterialNeed, actorId: actor } }).catch(() => {});
+      if (ev.kind === "order") void saveYardOrder({ data: { order: ev.payload as MaterialOrder, actorId: actor } }).catch(() => {});
     });
     const tick = window.setInterval(() => {
       if (document.visibilityState === "hidden") return;

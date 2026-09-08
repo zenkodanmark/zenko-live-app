@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { Square, Volume2 } from "lucide-react";
 import { DriveFileThumb } from "@/components/drive-photo";
+import { FacePhoto } from "@/components/face-photo";
 import { NeedOrderSheet } from "@/components/material-pane";
 import { GpsLink } from "@/components/photo-strip";
 import { UserText } from "@/components/user-text";
@@ -120,14 +121,15 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
   if (!emp) return null;
   const me = emp;
   const master = isMasterRole(me.role);
-  const people = employees;
+  const people = employees.filter((e) => e.id !== me.id);
   const inThread = composing || Boolean(threadId);
 
   function currentTarget(): ChatTarget | null {
-    if (picked.length === 1) return { kind: "employee", id: picked[0]! };
-    if (picked.length > 1) return { kind: "employees", ids: picked };
+    const pickedIds = picked.filter((id) => id !== me.id);
+    if (pickedIds.length === 1) return { kind: "employee", id: pickedIds[0]! };
+    if (pickedIds.length > 1) return { kind: "employees", ids: pickedIds };
     if (threadId) {
-      const ids = threadPeopleIds(visible).filter(Boolean);
+      const ids = threadPeopleIds(visible).filter((id) => id && id !== me.id);
       if (ids.length === 1) return { kind: "employee", id: ids[0]! };
       if (ids.length > 1) return { kind: "employees", ids: ids };
     }
@@ -151,7 +153,7 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
 
   function openRow(id: string, rootId: string) {
     const msgs = chats.filter((m) => m.threadId === id || m.id === rootId || `msg-${m.id}` === id);
-    const ids = threadPeopleIds(msgs.length ? msgs : chats.filter((m) => m.id === rootId));
+    const ids = threadPeopleIds(msgs.length ? msgs : chats.filter((m) => m.id === rootId)).filter((id) => id !== me.id);
     setPicked(ids);
     setComposing(true);
     const withThread = msgs.find((m) => m.threadId)?.threadId;
@@ -676,7 +678,7 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
           <div className="shrink-0 px-3 pb-2">
             <div className="flex flex-wrap gap-1.5">
               {people.map((p) => (
-                <TargetChip key={p.id} active={picked.includes(p.id)} onClick={() => togglePerson(p.id)}>
+                <TargetChip key={p.id} active={picked.includes(p.id)} onClick={() => togglePerson(p.id)} testId={`chat-to-${p.id}`}>
                   {p.name}
                 </TargetChip>
               ))}
@@ -738,6 +740,7 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
                 disabled={busy || (!text.trim() && !photos.length && !files.length)}
                 onClick={() => void send(text, false)}
                 aria-label={t(lang, "chatSend")}
+                data-testid="chat-send"
               >
                 <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden>
                   <path fill="#fff" d="M3.2 20.7 21.5 12 3.2 3.3v6.6l11.2 2.1L3.2 14.1z" />
@@ -960,6 +963,8 @@ function ChatSwipeRow({
 }
 
 function ChatListButton({ row, lang, onOpen }: { row: ChatListRow; lang: Lang; onOpen: () => void }) {
+  const employees = useYard((s) => s.employees);
+  const other = employees.find((e) => e.id === row.peopleIds[0]);
   const hot = row.unread > 0;
   const initials = (row.peopleLabel || row.title)
     .split(",")[0]
@@ -975,13 +980,20 @@ function ChatListButton({ row, lang, onOpen }: { row: ChatListRow; lang: Lang; o
       className={`flex min-h-16 w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left ${hot ? "bg-brick text-sand ring-2 ring-brick-soft" : "bg-paper text-ink shadow-card"}`}
       onClick={onOpen}
     >
-      <span className={`relative inline-flex size-12 shrink-0 items-center justify-center rounded-full font-display text-base font-semibold ${hot ? "bg-sand text-brick" : "bg-navy text-sand"}`}>
-        {initials}
-        {hot ? <span className="absolute -right-0.5 -top-0.5 size-3 rounded-full bg-sand ring-2 ring-brick" /> : null}
-      </span>
+      {other ? (
+        <span className="relative shrink-0">
+          <FacePhoto employee={other} px={48} />
+          {hot ? <span className="absolute -right-0.5 -top-0.5 size-3 rounded-full bg-sand ring-2 ring-brick" /> : null}
+        </span>
+      ) : (
+        <span className={`relative inline-flex size-12 shrink-0 items-center justify-center rounded-full font-display text-base font-semibold ${hot ? "bg-sand text-brick" : "bg-navy text-sand"}`}>
+          {initials}
+          {hot ? <span className="absolute -right-0.5 -top-0.5 size-3 rounded-full bg-sand ring-2 ring-brick" /> : null}
+        </span>
+      )}
       <span className="min-w-0 flex-1">
         <span className="flex items-center justify-between gap-2">
-          <span className="truncate font-display text-title text-ink">{row.peopleLabel || row.title}</span>
+          <span className={`truncate font-display text-title ${hot ? "text-sand" : "text-ink"}`}>{row.peopleLabel || row.title}</span>
           <span className={`shrink-0 text-sender ${hot ? "font-bold text-sand" : "text-ink"}`}>{copenhagenTime(row.at)}</span>
         </span>
         <span className={`mt-0.5 block truncate text-list leading-[1.4] ${hot ? "font-semibold text-sand" : "text-ink"}`}>{row.title}</span>
@@ -1083,10 +1095,11 @@ function ThreadBack({ onClick, label }: { onClick: () => void; label: string }) 
   );
 }
 
-function TargetChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {
+function TargetChip({ active, onClick, children, testId }: { active: boolean; onClick: () => void; children: string; testId?: string }) {
   return (
     <button
       type="button"
+      data-testid={testId}
       onClick={onClick}
       className={`min-h-9 rounded-full px-3 text-xs font-medium ${active ? "bg-[#fffaf6] text-[#1c1917]" : "border border-[#fffaf6]/70 bg-transparent text-[#fffaf6]"}`}
     >

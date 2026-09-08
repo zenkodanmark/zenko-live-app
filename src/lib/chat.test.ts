@@ -144,6 +144,8 @@ test("ulæst chat er rød på listen indtil tråden åbnes", () => {
   a.fromId = "emp-alex";
   const rows = listChatRows([a], [{ id: "thr-new", title: "Hej", rootId: "ch-new", projectId: "job-hillerodsholm", createdAt: a.at }], people, ole, assignments, {});
   assert.equal(rows.active[0]?.unread, 1);
+  assert.equal(rows.active[0]?.peopleLabel, "Alex");
+  assert.deepEqual(rows.active[0]?.peopleIds, ["emp-alex"]);
   const seen = listChatRows([a], [{ id: "thr-new", title: "Hej", rootId: "ch-new", projectId: "job-hillerodsholm", createdAt: a.at }], people, ole, assignments, { "emp-ole::thr-new": "2026-09-05T12:00:00.000Z" });
   assert.equal(seen.active[0]?.unread, 0);
 });
