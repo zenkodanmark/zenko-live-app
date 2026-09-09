@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** Capture the prerendered SPA shell and write index.html + 404.html for GitHub Pages. */
-import { existsSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -11,7 +11,8 @@ if (!existsSync(join(pub, "assets")) || !existsSync(prerender)) {
   process.exit(1);
 }
 
-const base = (process.env.ZENKO_PAGES_BASE || "/zenko-live-app/").replace(/\/?$/, "/");
+const rawBase = process.env.ZENKO_PAGES_BASE || "/";
+const base = rawBase === "/" ? "/" : rawBase.replace(/\/?$/, "/");
 const pageUrl = `http://127.0.0.1${base}`;
 
 const mod = await import(pathToFileURL(prerender).href);
@@ -24,7 +25,9 @@ if (!html.includes("login-emp-ole") || html.length < 500) {
 }
 
 if (base !== "/") {
-  html = html.replaceAll(/(href|src)="\/(?!zenko-live-app\/|https?:)/g, '$1="/zenko-live-app/');
+  const prefix = base.slice(1);
+  const re = new RegExp(`(href|src)="/(?!${prefix}|https?:)`, "g");
+  html = html.replaceAll(re, `$1="${base}`);
 }
 
 writeFileSync(join(pub, "index.html"), html);
@@ -35,4 +38,13 @@ try {
   /* */
 }
 writeFileSync(join(pub, ".nojekyll"), "");
+
+if (base === "/") {
+  mkdirSync(join(pub, "zenko-live-app"), { recursive: true });
+  writeFileSync(
+    join(pub, "zenko-live-app", "index.html"),
+    `<!DOCTYPE html><html lang="da"><head><meta charset="utf-8"/><meta http-equiv="refresh" content="0;url=/"/><link rel="canonical" href="/"/><title>Zenko Plads</title><script>location.replace("/");</script></head><body><a href="/">Zenko Plads</a></body></html>\n`,
+  );
+}
+
 console.log("[pages] wrote index.html + 404.html", html.length, "bytes from", pageUrl);
