@@ -5,6 +5,7 @@ import { TodoActions, CrewTodoOpen } from "@/components/complete-todo";
 import { GpsLink, ReportThumb, TodoPhotos } from "@/components/photo-strip";
 import { UserText } from "@/components/user-text";
 import { Card, Chip, GhostButton, PrimaryButton, SectionLabel } from "@/components/zenko";
+import { TodoLedelseHak, isTodoLedelseOn } from "@/components/todo-ledelse-hak";
 import { shownTodoText } from "@/lib/chat";
 import { t } from "@/lib/i18n";
 import { printDoc } from "@/lib/print";
@@ -25,7 +26,7 @@ export function OpenTodosCard({ lang }: { lang: Lang }) {
   return (
     <>
       <Card className="rounded-[20px]">
-        <button type="button" className="flex min-h-14 w-full items-center justify-between gap-3 text-left" onClick={() => setOpenList(true)}>
+        <button type="button" className="flex min-h-14 w-full items-center justify-between gap-3 text-left" onClick={() => setOpenList(true)} data-testid="todo-open-board">
           <span>
             <SectionLabel>{t(lang, "todoOpenBoard")}</SectionLabel>
             <span className="text-list leading-[1.4] text-ink">{open.length ? t(lang, "todoOpenTap") : t(lang, "todoNone")}</span>
@@ -112,20 +113,25 @@ function TodoLine({ td, lang, onOpen }: { td: Todo; lang: Lang; onOpen?: () => v
   const who = todoPeopleLine(td, employees) || employees.find((e) => e.id === td.assigneeId)?.name || "";
   const heading = shownTodoText(td, lang, me?.role);
   const ids = todoAllPhotoIds(td);
+  const onLedelse = isTodoLedelseOn(td);
   function openView() {
     if (onOpen) onOpen();
     else setOpen(true);
   }
   return (
-    <div className="rounded-xl bg-sand px-3 py-2">
+    <div
+      className={`rounded-xl px-3 py-2 ${onLedelse ? "bg-sand" : "bg-sand/80 ring-1 ring-brick/35"}`}
+      data-testid={`todo-line-${td.id}`}
+      data-ledelse={onLedelse ? "on" : "off"}
+    >
       <div className="flex items-center gap-1">
         <PencilBtn lang={lang} todoId={td.id} onClick={() => setEdit(true)} />
         <button type="button" className="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-left" onClick={openView}>
           <FacePhoto employee={employees.find((e) => e.id === td.assigneeId)} px={32} />
           {ids.length ? <ReportThumb ids={ids} /> : null}
           <span className="min-w-0 flex-1">
-            <p className="font-display text-title font-semibold text-ink">{heading}</p>
-            <p className="text-list leading-[1.4] text-ink">
+            <p className={`font-display text-title font-semibold ${onLedelse ? "text-ink" : "text-brick/80"}`}>{heading}</p>
+            <p className={`text-list leading-[1.4] ${onLedelse ? "text-ink" : "text-muted"}`}>
               {todoJobLabel(td.projectId, lang)} · {who}
               {td.due ? ` · ${td.due}` : ""}
               {ids.length ? ` · ${ids.length} foto` : ""}
@@ -134,6 +140,7 @@ function TodoLine({ td, lang, onOpen }: { td: Todo; lang: Lang; onOpen?: () => v
           </span>
         </button>
       </div>
+      <TodoLedelseHak todo={td} lang={lang} />
       <GhostButton
         className="mt-1 min-h-9 px-2 text-xs"
         onClick={() => {

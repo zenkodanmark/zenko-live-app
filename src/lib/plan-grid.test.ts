@@ -8,10 +8,11 @@ import {
   isLedelseTodo,
   planDaysOf,
   printWeekNums,
+  visibleGridPlans,
   sortTodosForDropdown,
   toggleDay,
 } from "./plan-grid.ts";
-import type { Todo } from "./types.ts";
+import type { PlanBlock, Todo } from "./types.ts";
 
 test("uge 32–37 ligger i gitteret", () => {
   const weeks = gridWeeks("2026-08-03", 12);
@@ -66,6 +67,24 @@ test("kun hakket to-do vises hos byggeleder", () => {
   assert.equal(isLedelseTodo({ ledelseStatus: "skjult", done: false }), false);
   assert.equal(isLedelseTodo({ done: false }), false);
   assert.equal(isLedelseTodo({ ledelseStatus: "med_til_ledelse", done: true }), false);
+});
+
+test("nye rækker ligger under de gamle, og unhakket er væk", () => {
+  const todos = [
+    { id: "a", title: "Ryd stillads", ledelseStatus: "med_til_ledelse", done: false },
+    { id: "b", title: "Ryd bag skuret", ledelseStatus: "med_til_ledelse", done: false },
+    { id: "c", title: "Skjult", ledelseStatus: "skjult", done: false },
+  ] as Todo[];
+  const rows = [
+    { id: "p2", title: "Ryd bag skuret", todoId: "b", source: "plan-grid", createdAt: "2026-09-09T10:00:00.000Z" },
+    { id: "p1", title: "Ryd stillads", todoId: "a", source: "plan-grid", createdAt: "2026-09-09T09:00:00.000Z" },
+    { id: "p3", title: "Skjult", todoId: "c", source: "plan-grid", createdAt: "2026-09-09T11:00:00.000Z" },
+  ] as PlanBlock[];
+  const shown = visibleGridPlans(rows, todos);
+  assert.deepEqual(
+    shown.map((p) => p.todoId),
+    ["a", "b"],
+  );
 });
 
 test("mandskab-rækker er ikke uge-gitter", () => {

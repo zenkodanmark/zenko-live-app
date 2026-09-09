@@ -80,6 +80,36 @@ export function sortTodosForDropdown(todos: Todo[], usedIds: Set<string>): Todo[
   return [...unused, ...used];
 }
 
+export function uniqueGridRows(rows: PlanBlock[]): PlanBlock[] {
+  const seen = new Set<string>();
+  const newest = [...rows].sort(
+    (a, b) =>
+      (b.updatedAt || b.createdAt || "").localeCompare(a.updatedAt || a.createdAt || "") || a.id.localeCompare(b.id),
+  );
+  const unique = newest.filter((row) => {
+    const keys = [row.todoId ? `todo:${row.todoId}` : "", `title:${(row.title || "").trim().toLowerCase()}`].filter(Boolean);
+    if (keys.some((k) => seen.has(k))) return false;
+    for (const k of keys) seen.add(k);
+    return true;
+  });
+  return unique.sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || "") || a.id.localeCompare(b.id));
+}
+
+export function visibleGridPlans(
+  rows: PlanBlock[],
+  todos: Pick<Todo, "id" | "title" | "ledelseStatus" | "done">[],
+): PlanBlock[] {
+  const hakked = todos.filter(isLedelseTodo);
+  const ids = new Set(hakked.map((t) => t.id));
+  const titles = new Set(hakked.map((t) => t.title.trim().toLowerCase()));
+  return uniqueGridRows(
+    rows.filter((p) => {
+      if (p.todoId) return ids.has(p.todoId);
+      return titles.has((p.title || "").trim().toLowerCase());
+    }),
+  );
+}
+
 export function firstMasterId(employees: { id: string; role: string }[]) {
   return employees.find((e) => e.role === "mester")?.id || "emp-ole";
 }

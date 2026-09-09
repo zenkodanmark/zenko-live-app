@@ -294,6 +294,13 @@
   box-shadow: inset 2px 0 0 var(--color-navy);
 }
 
+@media print {
+  [data-testid="plan-page"] {
+    height: auto !important;
+    overflow: visible !important;
+  }
+}
+
 @page plan-a3 {
   size: A3 landscape;
   margin: 8mm;

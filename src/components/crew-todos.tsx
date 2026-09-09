@@ -4,6 +4,7 @@ import { PlusBtn } from "@/components/sag-icons";
 import { GhostButton, SectionLabel } from "@/components/zenko";
 import { QuickCompose } from "@/components/quick-compose";
 import { PencilBtn, TodoEditSheet, TodoSheet } from "@/components/todo-board";
+import { TodoLedelseHak, isTodoLedelseOn } from "@/components/todo-ledelse-hak";
 import { shownTodoText } from "@/lib/chat";
 import { crewHomeTodos, crewSagTodos, isPersonalTodo, todoJobLabel } from "@/lib/crew-todo";
 import { t } from "@/lib/i18n";
@@ -87,9 +88,14 @@ function TodoHeading({
   const heading = shownTodoText(todo, lang, me?.role);
   const status = todo.done ? t(lang, "todoStatusDone") : t(lang, "todoStatusOpen");
   const sagLine = isPersonalTodo(todo.projectId) ? t(lang, "todoNoJob") : todoJobLabel(todo.projectId, lang);
+  const onLedelse = isTodoLedelseOn(todo);
   return (
     <li>
-      <div className="flex items-start gap-1 rounded-[18px] bg-paper px-2 py-2 shadow-card">
+      <div
+        className={`flex items-start gap-1 rounded-[18px] px-2 py-2 shadow-card ${onLedelse ? "bg-paper" : "bg-paper ring-1 ring-brick/35"}`}
+        data-testid={`todo-line-${todo.id}`}
+        data-ledelse={onLedelse ? "on" : "off"}
+      >
         {!todo.done ? <PencilBtn lang={lang} todoId={todo.id} onClick={() => setEdit(true)} /> : null}
         <button
           type="button"
@@ -100,13 +106,16 @@ function TodoHeading({
           <span className="flex items-start gap-3">
             <FacePhoto employee={employees.find((e) => e.id === todo.assigneeId)} px={32} />
             <span className="min-w-0 flex-1">
-              <p className="font-display text-title font-semibold text-ink">{heading}</p>
-              <p className="mt-0.5 text-list leading-[1.4] text-ink">
+              <p className={`font-display text-title font-semibold ${onLedelse ? "text-ink" : "text-brick/80"}`}>{heading}</p>
+              <p className={`mt-0.5 text-list leading-[1.4] ${onLedelse ? "text-ink" : "text-muted"}`}>
                 {sag ? [who || "—", status].filter(Boolean).join(" · ") : [sagLine, status].filter(Boolean).join(" · ")}
               </p>
             </span>
           </span>
         </button>
+      </div>
+      <div className="px-2">
+        <TodoLedelseHak todo={todo} lang={lang} />
       </div>
       {edit ? <TodoEditSheet td={todo} lang={lang} onClose={() => setEdit(false)} /> : null}
     </li>
