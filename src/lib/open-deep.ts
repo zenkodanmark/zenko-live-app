@@ -6,7 +6,17 @@ export function useDeepOpen(setTab: (id: string) => void, master: boolean) {
     const q = new URLSearchParams(window.location.search);
     const open = q.get("open");
     if (!open) return;
-    if (open === "chat") setTab("chat");
+    if (open === "sager") {
+      setTab("sager");
+      const job = q.get("job");
+      if (job) {
+        try {
+          window.sessionStorage.setItem("zenko-open-job", job);
+        } catch {
+          /* */
+        }
+      }
+    } else if (open === "chat") setTab("chat");
     else if (open === "todo") setTab(master ? "board" : "today");
     else if (open === "ks") setTab(master ? "reports" : "ks");
     else if (open === "folk" || open === "tid") setTab(master ? "folk" : "today");

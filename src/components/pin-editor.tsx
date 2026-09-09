@@ -6,15 +6,13 @@ import type { Employee, Lang } from "@/lib/types";
 
 export function PinEditor({ emp, lang }: { emp: Employee; lang: Lang }) {
   const live = useYard((s) => s.employees.find((e) => e.id === emp.id) ?? emp);
-  const employees = useYard((s) => s.employees);
   const patchEmployee = useYard((s) => s.patchEmployee);
   const [pin, setPin] = useState(live.pin);
   const [note, setNote] = useState("");
   useEffect(() => {
     setPin(live.pin);
   }, [live.id, live.pin]);
-  const taken = employees.some((e) => e.id !== live.id && e.pin === pin);
-  const ready = pin.length === 4 && pin !== live.pin && !taken;
+  const ready = pin.length === 4 && pin !== live.pin;
 
   return (
     <div className="mt-3" data-testid="pin-editor">
@@ -46,7 +44,6 @@ export function PinEditor({ emp, lang }: { emp: Employee; lang: Lang }) {
           {t(lang, "save")}
         </PrimaryButton>
       </div>
-      {taken && pin.length === 4 ? <p className="mt-1 text-xs text-brick">{t(lang, "pinTaken")}</p> : null}
       {note ? <p className="mt-1 text-xs text-moss">{note}</p> : null}
     </div>
   );

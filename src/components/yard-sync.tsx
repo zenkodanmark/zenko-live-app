@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react";
 import { pullChats, publishChat } from "@/lib/chat-live";
 import { pullTodos, publishTodo } from "@/lib/todo-live";
+import { pullEnts, pullOrders, pullProjects, pullSlips, pullTfs, publishOrder } from "@/lib/sb-live";
 import { onYardEvent } from "@/lib/yard-bus";
 import { mergeById, mergeChats, mergeDays, slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "@/lib/yard-slim";
 import { pullYard, saveYardChat, saveYardDay, saveYardKs, saveYardNeed, saveYardOrder, saveYardTodo } from "@/lib/yard-sync.functions";
 import { useYard } from "@/lib/store";
-import type { ChatMessage, DayLog, KsReport, MaterialNeed, MaterialOrder, Todo } from "@/lib/types";
+import type { ChatMessage, DayLog, Entrepreneur, KsReport, MaterialNeed, MaterialOrder, Project, Slip, Tf, Todo } from "@/lib/types";
 
 const DUMMY_CHAT = new Set(["ch-lang-ion", "ch-lang-osvaldo", "ch-mat-ion"]);
 const DUMMY_TODO = new Set(["td-lang-ion"]);
@@ -22,10 +23,16 @@ async function applyPull() {
   }));
   const clientChats = await pullChats();
   const clientTodos = await pullTodos();
+  const clientProjects = await pullProjects();
+  const clientTfs = await pullTfs();
+  const clientSlips = await pullSlips();
+  const clientEnts = await pullEnts();
+  const clientOrders = await pullOrders();
   const s = useYard.getState();
   const cloudChats = mergeChats(remote.ok ? remote.chats : [], clientChats ?? []);
   const cloudTodos = mergeById(remote.ok ? remote.todos : [], clientTodos ?? []);
-  if (!remote.ok && !cloudChats.length && !cloudTodos.length) {
+  const cloudOrders = mergeById(remote.ok ? remote.orders ?? [] : [], clientOrders ?? []);
+  if (!remote.ok && !cloudChats.length && !cloudTodos.length && !(clientProjects ?? []).length) {
     const actor = "seed";
     await Promise.all([
       ...s.todos.filter((row) => !DUMMY_TODO.has(row.id)).slice(0, 40).map((row) => publishTodo(slimTodo(row))),
@@ -45,7 +52,11 @@ async function applyPull() {
     ksReports: remote.ok ? mergeById(s.ksReports, remote.ksReports) : s.ksReports,
     days: remote.ok ? mergeDays(s.days, remote.days) : s.days,
     needs: remote.ok ? mergeById(s.needs ?? [], remote.needs ?? []) : s.needs,
-    orders: remote.ok ? mergeById(s.orders ?? [], remote.orders ?? []) : s.orders,
+    orders: mergeById(s.orders ?? [], cloudOrders),
+    projects: clientProjects ? mergeById(s.projects, clientProjects as Project[]) : s.projects,
+    tfs: clientTfs ? mergeById(s.tfs, clientTfs as Tf[]) : s.tfs,
+    slips: clientSlips ? mergeById(s.slips, clientSlips as Slip[]) : s.slips,
+    ents: clientEnts ? mergeById(s.ents, clientEnts as Entrepreneur[]) : s.ents,
   });
 }
 
@@ -80,7 +91,11 @@ export function YardSyncHost() {
         }).catch(() => {});
       }
       if (ev.kind === "need") void saveYardNeed({ data: { need: ev.payload as MaterialNeed, actorId: actor } }).catch(() => {});
-      if (ev.kind === "order") void saveYardOrder({ data: { order: ev.payload as MaterialOrder, actorId: actor } }).catch(() => {});
+      if (ev.kind === "order") {
+        const row = ev.payload as MaterialOrder;
+        void publishOrder(row);
+        void saveYardOrder({ data: { order: row, actorId: actor } }).catch(() => {});
+      }
     });
     const tick = window.setInterval(() => {
       if (document.visibilityState === "hidden") return;

@@ -2,18 +2,14 @@ import { useRef, useState } from "react";
 import { Camera, ImagePlus } from "lucide-react";
 import { Card, GhostButton, PrimaryButton } from "@/components/zenko";
 import { CloseX } from "@/components/sag-icons";
-import { peekReportNumber, reportDriveFolder } from "@/lib/drive-commit";
+import { peekReportNumber } from "@/lib/drive-commit";
 import { t } from "@/lib/i18n";
-import { connectorUserText } from "@/lib/connector-msg";
 import { siteFallback } from "@/lib/geo";
 import { gpsPatch, stampPhotoFiles } from "@/lib/photo-meta";
 import { copenhagenDate } from "@/lib/seed";
 import { lookupProject, useSessionEmployee, useYard } from "@/lib/store";
-import { fillTodoTranslations, uploadTodoPhotos } from "@/lib/todo-drive";
-import { uploadVoicePhoto } from "@/lib/voice-agent.functions";
-import { splitDataUrl } from "@/lib/voice-agent";
+import { fillTodoTranslations, uploadDraftsToFolder, uploadTodoPhotos } from "@/lib/todo-drive";
 import { isPersonalTodo } from "@/lib/crew-todo";
-import { writeJobNote } from "@/lib/drive.functions";
 import type { Lang } from "@/lib/types";
 
 export type ComposeKind = "todo" | "ks" | "tf" | "as" | "er";
@@ -132,55 +128,13 @@ export function QuickCompose({
           : kind === "tf" ? peekReportNumber("tf", serial)
           : kind === "as" ? peekReportNumber("as", serial)
           : peekReportNumber("er", serial);
-        const folderName =
-          kind === "ks" ? reportDriveFolder("ks", number, "div")
-          : kind === "tf" ? reportDriveFolder("tf", number)
-          : kind === "as" ? reportDriveFolder("as", number)
-          : reportDriveFolder("er", number);
-        const photoFileIds: string[] = [];
-        for (const d of drafts) {
-          const split = splitDataUrl(d.dataUrl);
-          if (!split.base64) continue;
-          const up = await uploadVoicePhoto({
-            data: {
-              projectId: sagId,
-              projectName: job?.name,
-              name: d.name,
-              mimeType: split.mime,
-              contentBase64: split.base64,
-              folderName,
-            },
-          });
-          if (up.fileId) photoFileIds.push(up.fileId);
-        }
-        if (drafts.length && photoFileIds.length < drafts.length) {
-          setErr(t(lang, "driveFail"));
-          return;
-        }
-        const note = await timed(
-          writeJobNote({
-            data: {
-              projectId: sagId,
-              projectName: job?.name,
-              folderName,
-              name: `${number}.json`,
-              text: JSON.stringify({
-                number,
-                kind,
-                title: heading,
-                body: text,
-                createdAt: new Date().toISOString(),
-                by: me?.name,
-                photoFileIds,
-              }, null, 2),
-            },
-          }),
-          12000,
-          { ok: false as const, fileId: "", error: t(lang, "driveFail") },
-        );
-        if (!note.ok) {
-          setErr(connectorUserText(lang, note.error, "loginRequired" in note ? Boolean(note.loginRequired) : false));
-          return;
+        let photoFileIds: string[] = [];
+        if (drafts.length) {
+          photoFileIds = await timed(
+            uploadDraftsToFolder({ projectId: sagId, folderName: kind, drafts }),
+            12000,
+            [],
+          );
         }
         if (kind === "ks") {
           id = addKsReport(sagId, "div", { deviations: text, task: heading, photoIds: photoFileIds, number }).id;
@@ -206,7 +160,7 @@ export function QuickCompose({
       onCreated?.(id);
       onClose();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t(lang, "driveFail"));
+      setErr(e instanceof Error && !/invariant/i.test(e.message) ? e.message : t(lang, "saveFail"));
     } finally {
       setBusy(false);
     }

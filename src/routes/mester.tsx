@@ -11,6 +11,9 @@ export const Route = createFileRoute("/mester")({
     return {
       e: optQuery(raw.e),
       p: p || undefined,
+      open: optQuery(raw.open),
+      job: optQuery(raw.job),
+      id: optQuery(raw.id),
     };
   },
   pendingComponent: LoginSplash,

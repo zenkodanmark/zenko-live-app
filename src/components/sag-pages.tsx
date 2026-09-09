@@ -18,6 +18,8 @@ import {
 import { BackArrow } from "@/components/sag-icons";
 import { SagBack, SagMetaGrid, SagMissing, SagPhotos, SagRow, SagShell } from "@/components/sag-shell";
 import { useYard } from "@/lib/store";
+import { t } from "@/lib/i18n";
+import { projectIdFromSlug } from "@/lib/ks-customer";
 
 function dmy(iso: string) {
   const d = new Date(iso);
@@ -43,6 +45,7 @@ export function SagHome({ site }: { site: SagSite | null }) {
 
   return (
     <SagShell job={job} hero>
+      <UdforselBack slug={job.slug} />
       <SagMetaGrid rows={sagJobFields(job)} />
       <nav className="mt-16">
         <SagRow n="01" href={sagPath(job.slug, ["tf"])}>
@@ -67,6 +70,19 @@ export function SagHome({ site }: { site: SagSite | null }) {
         </p>
       </footer>
     </SagShell>
+  );
+}
+
+function UdforselBack({ slug }: { slug: string }) {
+  const projects = useYard((s) => s.projects);
+  const emp = useYard((s) => s.employees.find((e) => e.id === s.employeeId));
+  const lang = emp?.language ?? "da";
+  const jobId = projectIdFromSlug(slug, projects) || "";
+  const href = jobId ? `/mester?open=sager&job=${encodeURIComponent(jobId)}` : "/mester?open=sager";
+  return (
+    <a href={href} className="kunde-no-print mb-6 mt-2 inline-block text-base font-bold text-kunde-ink no-underline" data-testid="udfoersel-back">
+      {t(lang, "back")}
+    </a>
   );
 }
 

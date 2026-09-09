@@ -1,15 +1,9 @@
 import { useState } from "react";
 import { Card, GhostButton, PrimaryButton, SectionLabel } from "@/components/zenko";
-import { connectorUserText } from "@/lib/connector-msg";
 import { t } from "@/lib/i18n";
 import { createSagOnDrive } from "@/lib/sag-drive";
-import { writeSagJson } from "@/lib/drive.functions";
-import { flushAdminSnapshot } from "@/lib/admin-backup";
 import { askGps } from "@/lib/geo";
 import { reverseGeocode } from "@/lib/geo.functions";
-import { slugForProject } from "@/lib/ks-customer";
-import { saveSagFields } from "@/lib/sag-ledelse.functions";
-import { useYard } from "@/lib/store";
 import type { Lang } from "@/lib/types";
 
 export function CreateJobForm({
@@ -23,7 +17,6 @@ export function CreateJobForm({
   onDone?: (id: string) => void;
   simple?: boolean;
 }) {
-  const employees = useYard((s) => s.employees);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [client, setClient] = useState("");
@@ -61,7 +54,6 @@ export function CreateJobForm({
   return (
     <Card className="rounded-[20px]">
       <SectionLabel>{t(lang, simple ? "newJob" : "createSmallJob")}</SectionLabel>
-      <p className="mt-1 text-sm text-muted">{simple ? t(lang, "crewNewJobHint") : t(lang, "sagTreeHint")}</p>
       <label className="mt-2 block text-xs text-muted">
         {t(lang, "jobName")}
         <input
@@ -119,7 +111,6 @@ export function CreateJobForm({
             if (!jobName) return;
             setBusy(true);
             setNote("");
-            const who = employees.find((e) => e.id === createdBy)?.name ?? createdBy;
             try {
               const res = await createSagOnDrive({
                 name: jobName,
@@ -133,44 +124,13 @@ export function CreateJobForm({
                 qualityManager: qualityManager.trim(),
                 lang,
               });
-              if (!res.ok) {
-                setNote(connectorUserText(lang, res.error, res.loginRequired));
+              if (!res.ok || !res.id) {
+                setNote(t(lang, "saveFail"));
                 return;
               }
-              const id = res.id;
-              const slug = slugForProject({ id, name: jobName });
-              void saveSagFields({
-                data: {
-                  slug,
-                  projectId: id,
-                  fields: {
-                    name: jobName,
-                    client: client.trim(),
-                    address: address.trim(),
-                    trade: trade.trim(),
-                    period: period.trim(),
-                    qualityManager: qualityManager.trim(),
-                  },
-                },
-              });
-              await writeSagJson({
-                data: {
-                  projectId: id,
-                  payload: {
-                    navn: jobName,
-                    lat,
-                    lng,
-                    adresse: address.trim(),
-                    tidspunkt: new Date().toISOString(),
-                    oprettetAf: who,
-                  },
-                },
-              });
-              setNote(t(lang, "sagFoldersOk"));
-              void flushAdminSnapshot();
-              onDone?.(id);
+              onDone?.(res.id);
             } catch {
-              setNote(t(lang, "sagFoldersFail"));
+              setNote(t(lang, "saveFail"));
             } finally {
               setBusy(false);
             }
@@ -180,7 +140,6 @@ export function CreateJobForm({
         </PrimaryButton>
       </div>
       {note ? <p className="mt-2 text-list leading-[1.4] text-ink" data-testid="job-gps-note">{note}</p> : null}
-      {busy ? <p className="mt-2 text-xs text-muted">Opretter mapper i Google Drive…</p> : null}
     </Card>
   );
 }

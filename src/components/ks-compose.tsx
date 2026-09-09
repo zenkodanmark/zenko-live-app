@@ -83,7 +83,7 @@ export function KsCompose({
         const name = `KS-Grok-${point}-${slug}-${stamp}-${i + 1}.jpg`;
         const base64 = d.dataUrl.split(",")[1] ?? "";
         if (!base64) {
-          setErr(t(lang, "driveFail"));
+          setErr(t(lang, "saveFail"));
           return;
         }
         const res = await uploadPladsBytes({
@@ -95,7 +95,7 @@ export function KsCompose({
           name,
         });
         if (!res.ok || !res.fileId) {
-          setErr(res.error || t(lang, "driveFail"));
+          setErr(res.error || t(lang, "saveFail"));
           return;
         }
         photoIds.push(res.fileId);
@@ -117,7 +117,7 @@ export function KsCompose({
       const row = addKsReport(projectId, point, { photoIds, deviations: dev.trim() || "Ingen afvigelser." });
       onCreated(row.id);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t(lang, "driveFail"));
+      setErr(e instanceof Error && !/invariant/i.test(e.message) ? e.message : t(lang, "saveFail"));
     } finally {
       setBusy(false);
     }

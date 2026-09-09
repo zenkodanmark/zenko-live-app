@@ -1,51 +1,18 @@
 import { pladsPath, uploadPladsBytes } from "@/lib/plads-file";
 import { driveFor, type DriveMap } from "@/lib/drive";
-import { connectorUserText, isConnectorAuthError } from "@/lib/connector-msg";
 import { t } from "@/lib/i18n";
 import { useYard } from "@/lib/store";
 import { splitDataUrl } from "@/lib/voice-agent";
 import type { Lang } from "@/lib/types";
 
 let skipConnectors = false;
-let authToastShown = false;
-
-function sessionLang(fallback: Lang = "da"): Lang {
-  const s = useYard.getState();
-  return s.langOverride ?? s.employees.find((e) => e.id === s.employeeId)?.language ?? fallback;
-}
-
-function toastConnector(lang: Lang, error?: string, loginRequired?: boolean) {
-  const text = connectorUserText(lang, error, loginRequired);
-  if (isConnectorAuthError(error, loginRequired)) {
-    if (authToastShown) return;
-    authToastShown = true;
-  }
-  useYard.setState({ toast: text });
-}
 
 export function connectorsOffline() {
   return skipConnectors;
 }
 
-export async function attachSagDrive(projectId: string, name: string, lang: Lang = "da") {
-  const uiLang = sessionLang(lang);
-  if (skipConnectors) {
-    return { ok: false as const, error: "missing_connector_token", loginRequired: true, map: undefined, rootId: undefined };
-  }
-  const res = await ensureSagFolders({
-    data: { projectId, name, known: driveFor(projectId) ?? undefined },
-  });
-  if (res.ok && res.map?.root) {
-    useYard.getState().setDriveMap(projectId, res.map);
-    return res;
-  }
-  if (isConnectorAuthError(res.error, res.loginRequired)) {
-    skipConnectors = true;
-    toastConnector(uiLang, res.error, res.loginRequired);
-    return res;
-  }
-  toastConnector(uiLang, res.error || t(uiLang, "sagFoldersFail"), res.loginRequired);
-  return res;
+export async function attachSagDrive(_projectId: string, _name: string, _lang: Lang = "da") {
+  return { ok: false as const, error: "", loginRequired: false, map: undefined, rootId: undefined };
 }
 
 const EMPTY_MAP: DriveMap = {

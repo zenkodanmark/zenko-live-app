@@ -8,7 +8,6 @@ import { translateMessage } from "@/lib/ai.functions";
 import { ORDERS_FOLDER_NAME, RECEIPTS_FOLDER_NAME } from "@/lib/drive";
 import { compressImageFile } from "@/lib/field-media";
 import { t } from "@/lib/i18n";
-import { connectorUserText } from "@/lib/connector-msg";
 import { slugForProject } from "@/lib/ks-customer";
 import { sendOrderMail } from "@/lib/mail.functions";
 import { getMaPublic, saveMaPublic } from "@/lib/ma-public.functions";
@@ -194,17 +193,6 @@ function linesFromNeed(projectId: string, need: MaterialNeed): MaterialLine[] {
   return [emptyLine()];
 }
 
-const LINE_UNITS = [
-  { id: "stk", label: "Stk" },
-  { id: "m2", label: "m²" },
-  { id: "liter", label: "Liter" },
-  { id: "spande", label: "Spande" },
-  { id: "lbm", label: "lbm" },
-  { id: "saek", label: "Sæk" },
-  { id: "pak", label: "Pak" },
-  { id: "rulle", label: "Rulle" },
-] as const;
-
 type LineDraft = { dataUrl: string; name: string };
 
 function LineEditor({
@@ -230,7 +218,7 @@ function LineEditor({
 }) {
   const photoRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
-  const unit = LINE_UNITS.some((u) => u.id === line.unit) ? line.unit : "stk";
+  void onRemove;
   const photoId = line.photoFileIds?.[0];
   const draft = drafts[0];
 
@@ -265,23 +253,19 @@ function LineEditor({
         {t(lang, "matQty")}
         <input
           className="mt-1 min-h-11 w-full rounded-xl bg-white/80 px-3 text-sm"
-          value={String(line.qty)}
-          onChange={(e) => onChange({ ...line, qty: Number(e.target.value) || 0 })}
-          inputMode="numeric"
+          value={`${line.qty || ""} ${line.unit || ""}`.trim()}
+          onChange={(e) => {
+            const raw = e.target.value.trim();
+            const m = raw.match(/^([\d.,]+)\s*(.*)$/);
+            if (!m) {
+              onChange({ ...line, qty: 0, unit: raw });
+              return;
+            }
+            onChange({ ...line, qty: Number(m[1].replace(",", ".")) || 0, unit: m[2] || "stk" });
+          }}
+          placeholder="12 stk"
         />
       </label>
-      <div className="mt-2 flex flex-wrap gap-1">
-        {LINE_UNITS.map((u) => (
-          <button
-            key={u.id}
-            type="button"
-            className={`min-h-9 rounded-full px-3 text-xs ${unit === u.id ? "bg-navy text-sand" : "bg-white/80 text-ink"}`}
-            onClick={() => onChange({ ...line, unit: u.id })}
-          >
-            {u.label}
-          </button>
-        ))}
-      </div>
       <label className="mt-2 block text-xs text-muted">
         {t(lang, "matProductUrl")}
         <input
@@ -331,11 +315,6 @@ function LineEditor({
           />
         </label>
       </div>
-      {onRemove ? (
-        <GhostButton className="mt-2 min-h-9 px-2 text-xs text-brick" onClick={onRemove}>
-          {t(lang, "todoDelete")}
-        </GhostButton>
-      ) : null}
     </div>
   );
 }
@@ -464,11 +443,7 @@ function OrderSheet({ lang, need, pickJob, onClose }: { lang: Lang; need: Materi
         const i = Number(idx);
         if (!ds?.length || !withMedia[i]) continue;
         const ids = await uploadDraftsToFolder({ projectId: jobId, folderName: folder, drafts: ds.slice(0, 1) });
-        if (!ids[0]) {
-          setNote(t(lang, "driveFail"));
-          return;
-        }
-        withMedia[i] = { ...withMedia[i]!, photoFileIds: [ids[0]] };
+        if (ids[0]) withMedia[i] = { ...withMedia[i]!, photoFileIds: [ids[0]] };
       }
       const path = maPublicPath(slug, number);
       const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -504,16 +479,11 @@ function OrderSheet({ lang, need, pickJob, onClose }: { lang: Lang; need: Materi
         publicPath: path,
       } as MaterialOrder;
       const pub = { ...toMaPublic(draftRow, [], useYard.getState().projects), dummy: false, missingData: false };
-      const drive = await saveMaPublic({ data: { order: { ...pub, id }, action: shareStatus } });
-      if (!drive.ok || !drive.fileId) {
-        setNote(connectorUserText(lang, drive.error, drive.loginRequired));
-        return;
-      }
+      void saveMaPublic({ data: { order: { ...pub, id }, action: shareStatus } }).catch(() => {});
       const row = addOrder({
         ...draftRow,
         id,
         number,
-        driveFileId: drive.fileId,
       });
       let todoId = row.todoId;
       if (mode !== "draft" && (need.fromId || me.id)) {
@@ -536,7 +506,7 @@ function OrderSheet({ lang, need, pickJob, onClose }: { lang: Lang; need: Materi
         });
         todoId = todo.id;
       }
-      patchOrder(row.id, { todoId, publicPath: path, phone, driverNote, shareStatus, lines: withMedia, driveFileId: drive.fileId });
+      patchOrder(row.id, { todoId, publicPath: path, phone, driverNote, shareStatus, lines: withMedia });
       notifyMaShare(me, { ...row, publicPath: path, shareStatus }, mode, `${origin}${path}`);
       if (need.chatId) {
         patchChat(need.chatId, {
@@ -553,29 +523,35 @@ function OrderSheet({ lang, need, pickJob, onClose }: { lang: Lang; need: Materi
           useYard.setState({ toast: `${origin}${path}` });
         }
       } else if (mail.trim()) {
-        const body = supplierMailBody(pub, origin);
-        const sent = await sendOrderMail({
-          data: {
-            to: mail.trim(),
-            subject: `Materialebestilling ${maLabel(row.number)} · ${job.name}`,
-            body,
-            mode: mode === "draft" ? "draft" : "send",
-          },
-        });
-        const msg = sent.loginRequired
-          ? t(lang, "mailLogin")
-          : !sent.ok
-            ? sent.error || t(lang, "driveFail")
-            : mode === "send"
-              ? t(lang, "matSentOk")
-              : t(lang, "matDraftOk");
-        useYard.setState({ toast: msg });
+        try {
+          const body = supplierMailBody(pub, origin);
+          const sent = await sendOrderMail({
+            data: {
+              to: mail.trim(),
+              subject: `Materialebestilling ${maLabel(row.number)} · ${job.name}`,
+              body,
+              mode: mode === "draft" ? "draft" : "send",
+            },
+          });
+          const msg = sent.loginRequired
+            ? t(lang, "mailLogin")
+            : !sent.ok
+              ? (/invariant/i.test(sent.error || "") ? t(lang, "saveFail") : sent.error || t(lang, "saveFail"))
+              : mode === "send"
+                ? t(lang, "matSentOk")
+                : t(lang, "matDraftOk");
+          useYard.setState({ toast: msg });
+        } catch (mailErr) {
+          const msg = mailErr instanceof Error ? mailErr.message : t(lang, "saveFail");
+          useYard.setState({ toast: /invariant/i.test(msg) ? t(lang, "saveFail") : msg });
+        }
       } else {
         useYard.setState({ toast: mode === "send" ? t(lang, "matSentOk") : t(lang, "matDraftOk") });
       }
       onClose();
     } catch (err) {
-      setNote(err instanceof Error ? err.message : t(lang, "matNeedProduct"));
+      const msg = err instanceof Error ? err.message : t(lang, "saveFail");
+      setNote(/invariant/i.test(msg) ? t(lang, "saveFail") : msg);
     } finally {
       setBusy(false);
     }
@@ -749,9 +725,9 @@ function OrderView({ lang, order, onClose }: { lang: Lang; order: MaterialOrder;
       patchOrder(order.id, { thread });
       if (changed) {
         const next = { ...order, thread, publicPath: path };
-        void saveMaPublic({ data: { order: toMaPublic(next), action: next.shareStatus ?? "kladde" } });
+        void saveMaPublic({ data: { order: toMaPublic(next), action: next.shareStatus ?? "kladde" } }).catch(() => {});
       }
-    });
+    }).catch(() => {});
   }, [order.id, order.number, job, patchOrder]);
 
   async function share(mode: "send" | "draft" | "copy") {
@@ -775,12 +751,8 @@ function OrderView({ lang, order, onClose }: { lang: Lang; order: MaterialOrder;
       patchOrder(live.id, { publicPath: path, shareStatus, status: mode === "send" ? "sent" : live.status });
     }
     const pub = toMaPublic({ ...live, publicPath: path, shareStatus });
-    const drive = await saveMaPublic({ data: { order: pub, action: shareStatus } });
-    if (!drive.ok) {
-      useYard.setState({ toast: connectorUserText(lang, drive.error, drive.loginRequired) });
-      return;
-    }
-    if (drive.fileId) patchOrder(live.id, { driveFileId: drive.fileId, publicPath: path, shareStatus, status: mode === "send" ? "sent" : live.status });
+    void saveMaPublic({ data: { order: pub, action: shareStatus } }).catch(() => {});
+    patchOrder(live.id, { publicPath: path, shareStatus, status: mode === "send" ? "sent" : live.status });
     if (me) notifyMaShare(me, { ...live, publicPath: path, shareStatus }, mode, `${origin}${path}`);
     if (mode === "copy") {
       try {
@@ -792,18 +764,24 @@ function OrderView({ lang, order, onClose }: { lang: Lang; order: MaterialOrder;
       return;
     }
     if (!live.supplierEmail?.trim()) {
-      useYard.setState({ toast: t(lang, "matMailDrive") });
+      useYard.setState({ toast: mode === "send" ? t(lang, "matSentOk") : t(lang, "matDraftOk") });
       return;
     }
-    const sent = await sendOrderMail({
-      data: {
-        to: live.supplierEmail.trim(),
-        subject: `Materialebestilling ${maLabel(live.number)} · ${job.name}`,
-        body: supplierMailBody(pub, origin),
-        mode: mode === "draft" ? "draft" : "send",
-      },
-    });
-    useYard.setState({ toast: sent.ok ? (mode === "send" ? t(lang, "matSentOk") : t(lang, "matDraftOk")) : sent.error || t(lang, "matMailDrive") });
+    try {
+      const sent = await sendOrderMail({
+        data: {
+          to: live.supplierEmail.trim(),
+          subject: `Materialebestilling ${maLabel(live.number)} · ${job.name}`,
+          body: supplierMailBody(pub, origin),
+          mode: mode === "draft" ? "draft" : "send",
+        },
+      });
+      const fail = /invariant/i.test(sent.error || "");
+      useYard.setState({ toast: sent.ok ? (mode === "send" ? t(lang, "matSentOk") : t(lang, "matDraftOk")) : fail ? t(lang, "saveFail") : sent.error || t(lang, "saveFail") });
+    } catch (mailErr) {
+      const msg = mailErr instanceof Error ? mailErr.message : t(lang, "saveFail");
+      useYard.setState({ toast: /invariant/i.test(msg) ? t(lang, "saveFail") : msg });
+    }
   }
 
   async function sendThread() {
@@ -830,7 +808,7 @@ function OrderView({ lang, order, onClose }: { lang: Lang; order: MaterialOrder;
       addOrderThread(live.id, msg);
       setReply("");
       const next = { ...live, thread: [...(live.thread ?? []), msg], publicPath: path };
-      void saveMaPublic({ data: { order: toMaPublic(next), action: next.shareStatus ?? "kladde" } });
+      void saveMaPublic({ data: { order: toMaPublic(next), action: next.shareStatus ?? "kladde" } }).catch(() => {});
     } finally {
       setBusyThread(false);
     }
@@ -843,7 +821,7 @@ function OrderView({ lang, order, onClose }: { lang: Lang; order: MaterialOrder;
     const folder = `${RECEIPTS_FOLDER_NAME}/${maFolderName(order.number)}`;
     const ids = await uploadDraftsToFolder({ projectId: order.projectId, folderName: folder, drafts: stamped });
     if (!ids.length) {
-      useYard.setState({ toast: t(lang, "driveFail") });
+      useYard.setState({ toast: t(lang, "saveFail") });
       return;
     }
     const extraGps = gpsPatch(gps, "create");
@@ -965,17 +943,6 @@ function OrderView({ lang, order, onClose }: { lang: Lang; order: MaterialOrder;
           >
             {t(lang, "matMakeKs")}
           </PrimaryButton>
-        ) : null}
-        {master && order.todoId ? (
-          <GhostButton
-            className="bg-sand"
-            onClick={() => {
-              removeTodo(order.todoId!);
-              if (order.needId) dismissNeed(order.needId);
-            }}
-          >
-            {t(lang, "todoDelete")}
-          </GhostButton>
         ) : null}
       </div>
     </div>

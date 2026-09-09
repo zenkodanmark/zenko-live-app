@@ -70,6 +70,7 @@ export function UdCount({ projectId, onReady }: { projectId: string; onReady?: (
 
 export function UdSheet({ projectId, lang, onClose, onAdd }: { projectId: string; lang: Lang; onClose: () => void; onAdd: () => void }) {
   const [folders, setFolders] = useState<{ name: string; id: string; count: number }[]>([]);
+  const [open, setOpen] = useState<UdKey | null>(null);
   useEffect(() => {
     void Promise.all(UD_FOLDERS.map(async (f) => {
       const files = await listPladsPrefix(`${projectId}/${f.key}`);
@@ -77,54 +78,58 @@ export function UdSheet({ projectId, lang, onClose, onAdd }: { projectId: string
     })).then(setFolders);
   }, [projectId]);
   void onClose;
+  void onAdd;
 
   return (
     <div>
       <ul className="space-y-1.5">
         {UD_FOLDERS.map((f) => {
           const live = folders.find((x) => x.name === f.name);
+          const on = open === f.key;
           return (
             <li key={f.key}>
-              <div
-                className="flex min-h-14 items-center justify-between gap-3 rounded-xl bg-sand px-3 py-3 text-navy"
+              <button
+                type="button"
+                className={`flex min-h-14 w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left ${on ? "bg-navy text-sand" : "bg-sand text-navy"}`}
                 data-testid={`ud-folder-${f.key}`}
+                onClick={() => setOpen((cur) => (cur === f.key ? null : f.key))}
               >
                 <span className="flex min-w-0 items-center gap-3">
                   <SagPng name={udPng(f.key)} px={52} />
                   <span className="block font-medium">{t(lang, udLabelKey(f.key))}</span>
                 </span>
-                <span className="font-display text-xl tabular-nums text-brick">{live?.count ?? "–"}</span>
-              </div>
+                <span className={`font-display text-xl tabular-nums ${on ? "text-sand" : "text-brick"}`}>{live?.count ?? "–"}</span>
+              </button>
             </li>
           );
         })}
       </ul>
-      <UdFileList projectId={projectId} lang={lang} />
+      {open ? <UdFileList projectId={projectId} lang={lang} folder={open} /> : null}
     </div>
   );
 }
 
-function UdFileList({ projectId, lang }: { projectId: string; lang: Lang }) {
+function UdFileList({ projectId, lang, folder }: { projectId: string; lang: Lang; folder: UdKey }) {
   const [items, setItems] = useState<{ folder: string; id: string; name: string; href: string }[]>([]);
   useEffect(() => {
     let live = true;
-    void Promise.all(UD_FOLDERS.map(async (f) => {
-      const files = await listPladsPrefix(`${projectId}/${f.key}`);
-      return files.map((x) => ({
+    const f = UD_FOLDERS.find((x) => x.key === folder);
+    if (!f) return;
+    void listPladsPrefix(`${projectId}/${f.key}`).then((files) => {
+      if (!live) return;
+      setItems(files.map((x) => ({
         folder: f.name,
         id: x.path,
         name: x.name,
         href: x.url,
-      }));
-    })).then((rows) => {
-      if (live) setItems(rows.flat());
+      })));
     });
     return () => {
       live = false;
     };
-  }, [projectId]);
+  }, [projectId, folder]);
 
-  if (!items.length) return null;
+  if (!items.length) return <p className="mt-4 text-sm text-muted">{t(lang, "noneYet")}</p>;
   return (
     <ul className="mt-4 space-y-1.5">
       {items.map((row) => (

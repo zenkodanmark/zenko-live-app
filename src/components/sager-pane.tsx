@@ -18,7 +18,8 @@ import { QuickCompose, type ComposeKind } from "@/components/quick-compose";
 import { DoneTodosSheet, TodoSheet } from "@/components/todo-board";
 import { MaterialBoard, NewOrderSheet } from "@/components/material-pane";
 import { t } from "@/lib/i18n";
-import { listUdCounts } from "@/lib/drive.functions";
+import { listPladsPrefix } from "@/lib/plads-file";
+import { UD_FOLDERS } from "@/lib/ud-folders";
 import { fiveYearDate, fmtDaDate, handoverDate, oneYearDate } from "@/lib/job-archive";
 import { findControlPoint, projectById } from "@/lib/seed";
 import { softrKsPhotos, hydrateSoftrReport } from "@/lib/softr-ks";
@@ -76,6 +77,19 @@ export function SagerPane({
   const [udPick, setUdPick] = useState(false);
   const [udCount, setUdCount] = useState<number | null>(null);
 
+  useEffect(() => {
+    try {
+      const id = window.sessionStorage.getItem("zenko-open-job");
+      if (id && projects.some((p) => p.id === id)) {
+        setMode("job");
+        setPick(id);
+        window.sessionStorage.removeItem("zenko-open-job");
+      }
+    } catch {
+      /* */
+    }
+  }, [projects]);
+
   const allJobs = Boolean(embedKind);
   const project = projects.find((p) => p.id === pick) ?? (mode === "archived" ? archived[0] : active[0]) ?? projects[0];
   const jobId = project?.id ?? "";
@@ -100,9 +114,9 @@ export function SagerPane({
   useEffect(() => {
     if (!jobId || embedKind) return;
     let live = true;
-    void listUdCounts({ data: { projectId: jobId } })
-      .then((res) => {
-        if (live) setUdCount(res.total ?? 0);
+    void Promise.all(UD_FOLDERS.map((f) => listPladsPrefix(`${jobId}/${f.key}`)))
+      .then((rows) => {
+        if (live) setUdCount(rows.reduce((n, list) => n + list.length, 0));
       })
       .catch(() => {
         if (live) setUdCount(null);
@@ -305,7 +319,7 @@ export function SagerPane({
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">{t(lang, "kundeSection")}</p>
                 <KundeJobBar project={project} lang={lang} />
               </div>
-              <SagFields project={project} lang={lang} />
+              <SagFields key={project.id} project={project} lang={lang} />
             </>
           ) : null}
         </>

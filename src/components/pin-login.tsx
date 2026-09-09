@@ -5,6 +5,7 @@ import { t, roleLabel, LANGS } from "@/lib/i18n";
 import { acceptPin, destFor, employeeById, pinOf } from "@/lib/pin-enter";
 import { isMasterRole } from "@/lib/crew";
 import { loadCrew, refreshCrewFromCloud, saveCrew, pinOfLive } from "@/lib/crew-live";
+import { useYard } from "@/lib/store";
 import type { Employee, Lang } from "@/lib/types";
 
 function LoginHeader({ lang, title }: { lang: Lang; title?: string }) {
@@ -55,6 +56,7 @@ function PinPad({ empId, pin = "" }: { empId?: string; pin?: string }) {
     if (!emp) return;
     const ok = acceptPin(emp.id, code);
     if (!ok) return;
+    useYard.getState().login(emp.id);
     setBusy(true);
     const dest = destFor(emp) as "/svend" | "/mester";
     void nav({ to: dest });

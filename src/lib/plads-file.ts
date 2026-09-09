@@ -77,13 +77,28 @@ export async function listPladsPrefix(prefix: string): Promise<{ name: string; u
       limit: 80,
       sortBy: { column: "created_at", order: "desc" },
     });
+    const rows = !error && data?.length
+      ? data
+          .filter((row) => row.name && !row.name.endsWith("/") && (row.metadata || row.id))
+          .map((row) => {
+            const path = `${folder}/${row.name}`;
+            return { name: row.name, path, url: sbPublicUrl(path) };
+          })
+      : [];
+    if (rows.length) return rows;
+  } catch {
+    /* fall through to files table */
+  }
+  try {
+    const { data, error } = await supabase().from("files").select("name,url,path").like("path", `${folder}/%`).limit(80);
     if (error || !data?.length) return [];
     return data
-      .filter((row) => row.name && !row.name.endsWith("/") && (row.metadata || row.id))
-      .map((row) => {
-        const path = `${folder}/${row.name}`;
-        return { name: row.name, path, url: sbPublicUrl(path) };
-      });
+      .filter((row) => row.path && row.name)
+      .map((row) => ({
+        name: String(row.name),
+        path: String(row.path),
+        url: String(row.url || sbPublicUrl(String(row.path))),
+      }));
   } catch {
     return [];
   }

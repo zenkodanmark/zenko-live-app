@@ -274,38 +274,29 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
           folderName: asTodo && pendingTodoId ? todoDriveFolder(pendingTodoId) : chatDriveFolder(),
           drafts: mediaDrafts,
         });
-        if (!fileIds.length) useYard.setState({ toast: t(lang, connectorsOffline() ? "googleNotConnected" : "driveFail") });
-        else if (fileIds.length < mediaDrafts.length) useYard.setState({ toast: t(lang, connectorsOffline() ? "googleNotConnected" : "driveFail") });
         photoIds = fileIds.slice(0, localPhotos.length);
         extraIds = fileIds.slice(localPhotos.length);
       } catch {
-        useYard.setState({ toast: t(lang, connectorsOffline() ? "googleNotConnected" : "driveFail") });
-      }
-      if (!body && !photoIds.length && !extraIds.length) {
-        setBusy(false);
-        return;
+        /* send without cloud ids if upload fails */
       }
     }
-    const storedPhotos = driveOnlyPhotos(
-      localPhotos.map((p, i) => ({
-        id: p.id,
-        name: p.name,
-        at: p.at,
-        lat: p.lat,
-        lng: p.lng,
-        gpsLabel: p.gpsLabel,
-        driveFileId: photoIds[i] || p.driveFileId,
-      })),
-    )?.filter((p) => p.driveFileId);
-    const storedFiles = driveOnlyFiles(
-      localFiles.map((f, i) => ({
-        id: f.id,
-        kind: f.kind,
-        name: f.name,
-        mimeType: f.mimeType,
-        driveFileId: extraIds[i] || f.driveFileId,
-      })),
-    )?.filter((f) => f.driveFileId);
+    const storedPhotos = localPhotos.map((p, i) => ({
+      id: p.id,
+      name: p.name,
+      at: p.at,
+      lat: p.lat,
+      lng: p.lng,
+      gpsLabel: p.gpsLabel,
+      driveFileId: photoIds[i] || p.driveFileId,
+      dataUrl: photoIds[i] ? undefined : p.dataUrl,
+    }));
+    const storedFiles = localFiles.map((f, i) => ({
+      id: f.id,
+      kind: f.kind,
+      name: f.name,
+      mimeType: f.mimeType,
+      driveFileId: extraIds[i] || f.driveFileId,
+    }));
     const row = addChat({
       fromId: me.id,
       to: target,
@@ -392,7 +383,7 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
           name: asTodo && todoId ? `todo-${todoId}.json` : `chat-${row.id}.json`,
           text: JSON.stringify(payload, null, 2),
         },
-      });
+      }).catch(() => {});
       void appendChatLog({
         data: {
           projectId,
@@ -410,7 +401,7 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
             todoId ? `To-do: ${todoId}` : "",
           ].filter(Boolean).join("\n"),
         },
-      });
+      }).catch(() => {});
     }
     driveLog({ [sourceLang]: line, da: line });
     if (body) {
@@ -429,7 +420,7 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
       .join("\n");
     void ensureAdminLog({ data: { text: dump, date: copenhagenDate() } }).then((r) => {
       if (r.ok && r.folderId) useYard.getState().setAdminFolder(r.folderId);
-    });
+    }).catch(() => {});
     setBusy(false);
   }
 
@@ -486,31 +477,6 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
       return;
     }
     const job = lookupProject(jobId);
-    const serial = useYard.getState().serial;
-    const kind = classifiedAs === "extra" ? "as" : classifiedAs === "ent" ? "er" : classifiedAs === "ks" ? "ks" : "tf";
-    const number = peekReportNumber(kind, serial);
-    const folderName = reportDriveFolder(kind, number, "div");
-    const note = await writeJobNote({
-      data: {
-        projectId: jobId,
-        projectName: job.name,
-        folderName,
-        name: `${number}.json`,
-        text: JSON.stringify({
-          number,
-          kind: classifiedAs,
-          title: (msg.translations.da ?? msg.original).slice(0, 80),
-          body: msg.translations.da ?? msg.original,
-          fromChatId: msg.id,
-          photoFileIds: (msg.photos ?? []).map((p) => p.driveFileId).filter(Boolean),
-          createdAt: new Date().toISOString(),
-        }, null, 2),
-      },
-    });
-    if (!note.ok) {
-      useYard.setState({ toast: connectorUserText(lang, note.error, note.loginRequired) });
-      return;
-    }
     const res = classifyChat(msg.id, classifiedAs, me.id);
     const item = useYard.getState().fieldItems.find((f) => f.reportId === res.reportId) ?? useYard.getState().fieldItems[0];
     if (item) {
@@ -661,7 +627,7 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
       ) : (
         <div className="chat-thread fixed inset-0 z-[55] flex flex-col pt-[max(0.25rem,env(safe-area-inset-top))] pb-[max(0.25rem,env(safe-area-inset-bottom))]">
           <div className="flex shrink-0 items-center gap-2 px-3 py-2">
-            <ThreadBack onClick={closeThread} label={t(lang, "back")} />
+            <ThreadBack onClick={closeThread} label={t(me.language, "back")} />
             <p className="min-w-0 flex-1 truncate text-center text-[15px] font-medium text-[#fffaf6]">{headerNames || t(lang, "chatNew")}</p>
             <span className="inline-flex size-11 shrink-0" aria-hidden />
           </div>
@@ -718,7 +684,7 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
               <textarea
                 rows={4}
                 className="min-h-[6.5rem] min-w-0 flex-1 resize-none bg-[#fffaf6] px-4 py-3 text-base leading-snug text-[#1c1917] placeholder:text-[#9aa3a6]"
-                placeholder={t(lang, "chatReplyPh")}
+                placeholder={t(me.language, "chatReplyPh")}
                 value={text}
                 disabled={busy}
                 onChange={(e) => setText(e.target.value)}
@@ -1076,11 +1042,9 @@ function ThreadBack({ onClick, label }: { onClick: () => void; label: string }) 
       aria-label={label}
       data-testid="back-arrow"
       onClick={onClick}
-      className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-[#fffaf6]"
+      className="inline-flex min-h-11 shrink-0 items-center px-1 text-[15px] font-bold text-[#fffaf6]"
     >
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
-        <path d="M15 5 8 12l7 7" fill="none" stroke="#1c2428" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+      {label}
     </button>
   );
 }

@@ -84,17 +84,17 @@ export async function refreshCrewFromCloud(): Promise<Employee[] | null> {
     const rows = data.map((r) => empFromRow(r as Record<string, unknown>));
     const local = loadCrew();
     const localById = new Map(local.map((e) => [e.id, e]));
-    const merged = mergeCrew(
-      rows.map((remote) => {
+    const merged = mergeCrew([
+      ...local,
+      ...rows.map((remote) => {
         const mine = localById.get(remote.id);
         const remotePin = four(remote.pin);
         const localPin = four(mine?.pin);
-        // Keep a local PIN that already differs from seed if cloud still has the seed.
         const seedPin = four(EMPLOYEES.find((e) => e.id === remote.id)?.pin);
         const pin = remotePin && remotePin !== seedPin ? remotePin : localPin || remotePin || seedPin;
         return { ...remote, pin };
       }),
-    );
+    ]);
     saveCrew(merged);
     return merged;
   } catch {

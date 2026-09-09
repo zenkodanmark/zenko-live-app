@@ -32,6 +32,7 @@ import {
   seedTodayDays,
 } from "./seed";
 import { clearDeviceUser, isLoggedOut, readDeviceUser, rememberDeviceUser } from "./device-auth";
+import { loadCrew } from "./crew-live";
 import { emitYard } from "./yard-bus";
 import { slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "./yard-slim";
 import { goesToMaster, unsavedOnNewMessage } from "./chat";
@@ -503,9 +504,17 @@ export const useYard = create<YardState>()(
   },
   login: (id) => {
     liveSessionId = id;
-    const emp = get().employees.find((e) => e.id === id) ?? EMPLOYEES.find((e) => e.id === id);
+    const crew = typeof window !== "undefined" ? loadCrew() : [];
+    const emp =
+      get().employees.find((e) => e.id === id) ??
+      crew.find((e) => e.id === id) ??
+      EMPLOYEES.find((e) => e.id === id);
     if (emp) rememberDeviceUser({ id: emp.id, role: emp.role });
-    set({ employeeId: id });
+    const missing = emp && !get().employees.some((e) => e.id === id);
+    set({
+      employeeId: id,
+      employees: missing && emp ? [...get().employees, emp] : get().employees,
+    });
   },
   logout: () => {
     liveSessionId = null;
@@ -749,14 +758,16 @@ export const useYard = create<YardState>()(
     };
   }),
   addEmployee: (input) => {
-    if (get().employees.some((e) => e.pin === input.pin)) return null;
+    const pin = String(input.pin ?? "").replace(/\D/g, "").slice(0, 4);
+    if (pin.length !== 4) return null;
     const id = `emp-${crypto.randomUUID().slice(0, 6)}`;
     const initials = input.name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
     set((s) => ({
       employees: [...s.employees, {
         id,
         initials,
-        ...input
+        ...input,
+        pin,
       }],
       toast: "Medarbejder oprettet. De logger ind med pinkoden."
     }));
@@ -814,7 +825,7 @@ export const useYard = create<YardState>()(
     const project = {
       udbudFolderId: input.udbudFolderId ?? "",
       driveRootId: input.driveRootId ?? "",
-      brief: input.brief ?? `${input.name}. Drive: 01 Udbudsmateriale (11 Pladsfiler, 12 Erfaring, 13 Dagsrapport), 05 Rapporter, 07 Chat, 09 Bestillinger, 10 Modtagelser.`,
+      brief: input.brief ?? `${input.name}.`,
       huddle: "Mød 07.00. KS efter kontrolplanen.",
       nextTask: "KS på pladsen — tag de billeder arbejdet kræver.",
       status: "active" as const,
@@ -841,8 +852,10 @@ export const useYard = create<YardState>()(
         })),
         ...s.assignments
       ],
-      toast: `${input.name} oprettet. Alle har adgang, indtil mester lukker.`,
+      toast: `${input.name} oprettet.`,
     }));
+    const created = get().projects.find((p) => p.id === id);
+    if (created) void import("./sb-live").then((m) => m.publishProject(created));
     return id;
   },
   archiveProject: (id, archived, reason) => set((s) => {
@@ -859,7 +872,11 @@ export const useYard = create<YardState>()(
         : `${name} er aktiv igen.`,
     };
   }),
-  patchProject: (id, patch) => set((s) => ({ projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
+  patchProject: (id, patch) => {
+    set((s) => ({ projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
+    const row = get().projects.find((p) => p.id === id);
+    if (row) void import("./sb-live").then((m) => m.publishProject(row));
+  },
   addSlip: (input) => {
     const n = get().serial.as;
     const slip = {
@@ -879,8 +896,9 @@ export const useYard = create<YardState>()(
         ...s.serial,
         as: n + 1
       },
-      toast: "Gemt i Drive."
+      toast: "Gemt."
     }));
+    void import("./sb-live").then((m) => m.publishSlip(slip));
     return slip;
   },
   toggleSlipForwarded: (id) => set((s) => ({ slips: s.slips.map((x) => x.id === id ? {
@@ -972,8 +990,9 @@ export const useYard = create<YardState>()(
         ...s.serial,
         tf: n + 1
       },
-      toast: "Gemt i Drive."
+      toast: "Gemt."
     }));
+    void import("./sb-live").then((m) => m.publishTf(tf));
     return tf;
   },
   answerTf: (id, answer) =>
@@ -1007,8 +1026,9 @@ export const useYard = create<YardState>()(
         ...s.serial,
         er: n + 1
       },
-      toast: "Gemt i Drive."
+      toast: "Gemt."
     }));
+    void import("./sb-live").then((m) => m.publishEnt(ent));
     return ent;
   },
   addPack: (input) => {
@@ -1169,10 +1189,6 @@ export const useYard = create<YardState>()(
     const pin = patch.pin !== undefined ? String(patch.pin).replace(/\D/g, "").slice(0, 4) : undefined;
     if (pin !== undefined && pin.length !== 4) {
       set({ toast: "Pinkode skal være fire cifre." });
-      return;
-    }
-    if (pin !== undefined && get().employees.some((e) => e.id !== id && e.pin === pin)) {
-      set({ toast: "Pinkoden er optaget." });
       return;
     }
     set((s) => ({
@@ -1342,6 +1358,7 @@ export const useYard = create<YardState>()(
       needs: (s.needs ?? []).map((nd) => (nd.id === row.needId ? { ...nd, status: "ordered" as const } : nd)),
     }));
     emitYard({ kind: "order", id: row.id, payload: slimOrder(row), isNew: true, actorId: get().employeeId ?? row.fromId });
+    void import("./sb-live").then((m) => m.publishOrder(row));
     return row;
   },
   patchOrder: (id, patch) => {
@@ -2169,7 +2186,7 @@ export function useSessionEmployee() {
       id = readDeviceUser()?.id ?? null;
     }
     if (!id) return null;
-    return s.employees.find((e) => e.id === id) ?? EMPLOYEES.find((e) => e.id === id) ?? null;
+    return s.employees.find((e) => e.id === id) ?? loadCrew().find((e) => e.id === id) ?? EMPLOYEES.find((e) => e.id === id) ?? null;
   });
 }
 export function todayLog(employeeId: string, days: Record<string, DayLog>) {

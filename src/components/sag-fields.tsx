@@ -1,10 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, GhostButton } from "@/components/zenko";
 import { ActionPng } from "@/components/sag-icons";
 import { t } from "@/lib/i18n";
-import { slugForProject } from "@/lib/ks-customer";
 import { sagJobMeta } from "@/lib/sag-ledelse";
-import { saveSagFields } from "@/lib/sag-ledelse.functions";
 import { useYard } from "@/lib/store";
 import type { Lang, Project } from "@/lib/types";
 
@@ -19,6 +17,18 @@ export function SagFields({ project, lang }: { project: Project; lang: Lang }) {
   const [period, setPeriod] = useState(project.period ?? meta.period);
   const [qualityManager, setQualityManager] = useState(project.qualityManager ?? meta.qualityManager);
   const [note, setNote] = useState("");
+
+  useEffect(() => {
+    const next = sagJobMeta(project);
+    setName(project.name);
+    setClient(project.customer ?? next.client);
+    setAddress(project.address);
+    setTrade(project.trade ?? next.trade);
+    setPeriod(project.period ?? next.period);
+    setQualityManager(project.qualityManager ?? next.qualityManager);
+    setNote("");
+    setOpen(false);
+  }, [project.id]);
 
   function save() {
     const fields = {
@@ -36,13 +46,6 @@ export function SagFields({ project, lang }: { project: Project; lang: Lang }) {
       trade: fields.trade,
       period: fields.period,
       qualityManager: fields.qualityManager,
-    });
-    void saveSagFields({
-      data: {
-        slug: slugForProject({ ...project, name: fields.name || project.name }),
-        projectId: project.id,
-        fields,
-      },
     });
     setNote(t(lang, "sagFieldsSaved"));
   }
@@ -65,7 +68,7 @@ export function SagFields({ project, lang }: { project: Project; lang: Lang }) {
             <Field label={t(lang, "sagFieldPeriod")} value={period} onChange={setPeriod} />
             <Field label={t(lang, "sagFieldQm")} value={qualityManager} onChange={setQualityManager} />
           </div>
-          <GhostButton className="mt-3 rounded-full bg-sand px-4" onClick={save}>
+          <GhostButton className="mt-3 rounded-full bg-sand px-4" onClick={save} data-testid="sager-edit-save">
             {t(lang, "save")}
           </GhostButton>
           {note ? <p className="mt-2 text-xs text-muted">{note}</p> : null}
