@@ -176,7 +176,7 @@ function PersonHome({ emp, lang, onClose }: { emp: Employee; lang: Lang; onClose
             onClick={() => setView("time")}
           >
             <img src={FOLK_TIME} alt="" width={56} height={56} className="max-w-none shrink-0 object-contain" draggable={false} />
-            <span className="font-display text-title font-semibold text-ink">{t(lang, "personHours")}</span>
+            <span className="font-display text-title font-semibold text-ink">Time</span>
           </button>
           <PlusRound
             label={t(lang, "addHours")}
