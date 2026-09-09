@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildAsSharePayload, buildKsSharePayload, bundledShareRecord, isShareKind, isShareSlug, reportMailCopy, reportSharePath, shareSlug } from "./report-share.ts";
+import { buildAsSharePayload, buildKsSharePayload, bundledShareRecord, isShareKind, isShareSlug, publicAppOrigin, publicReportUrl, reportMailCopy, reportSharePath, shareSlug } from "./report-share.ts";
 import type { FieldItem, KsPhoto, KsReport, Project, Slip } from "./types.ts";
 
 test("slug og path er kundelink — aldrig mester-hash", () => {
@@ -16,6 +16,16 @@ test("slug og path er kundelink — aldrig mester-hash", () => {
   assert.equal(reportSharePath("as", "AS-399"), "/r/as/399");
   assert.equal(reportSharePath("tf", "12"), "/r/tf/12");
   assert.equal(reportSharePath("er", "ER-5"), "/r/er/5");
+});
+
+test("Kopiér link peger på live domain — ikke preview eller grok.me", () => {
+  assert.equal(publicAppOrigin("http://localhost:8080"), "https://zenkodanmark.github.io");
+  assert.equal(publicAppOrigin("http://127.0.0.1:8080"), "https://zenkodanmark.github.io");
+  assert.equal(publicAppOrigin("https://zenko-danmark.grok.me"), "https://zenkodanmark.github.io");
+  assert.equal(publicAppOrigin("https://preview.grok.com"), "https://zenkodanmark.github.io");
+  assert.equal(publicAppOrigin("https://zenkodanmark.github.io"), "https://zenkodanmark.github.io");
+  assert.equal(publicReportUrl("tf", "Z-TF-2026-007", "http://localhost:8080"), "https://zenkodanmark.github.io/r/tf/Z-TF-2026-007");
+  assert.equal(publicReportUrl("tf", "Z-TF-2026-007", "https://zenkodanmark.github.io"), "https://zenkodanmark.github.io/r/tf/Z-TF-2026-007");
 });
 
 test("mailtekst peger kun på rapporten", () => {

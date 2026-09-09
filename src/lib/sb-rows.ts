@@ -8,6 +8,7 @@ import type {
   FieldItem,
   Issue,
   KsReport,
+  LedelseStatus,
   MaterialNeed,
   MaterialOrder,
   MaterialReceipt,
@@ -37,6 +38,12 @@ function iso(v: unknown): string | null {
   if (!v) return null;
   const s = String(v);
   return s || null;
+}
+
+function ledelseOf(v: unknown): { ledelseStatus: LedelseStatus } | Record<string, never> {
+  const s = str(v);
+  if (s === "med_til_ledelse" || s === "skjult") return { ledelseStatus: s };
+  return {};
 }
 
 export function empToRow(e: Employee) {
@@ -492,6 +499,7 @@ export function tfToRow(t: Tf) {
     trashed_at: t.trashedAt ?? null,
     share_token: t.shareToken ?? null,
     source: t.source ?? null,
+    updated_at: t.updatedAt || new Date().toISOString(),
   };
 }
 export function tfFromRow(r: Record<string, unknown>): Tf {
@@ -509,12 +517,13 @@ export function tfFromRow(r: Record<string, unknown>): Tf {
     answeredBy: str(r.answered_by) || undefined,
     photoIds: arr<string>(r.photo_ids),
     fromChatId: str(r.from_chat_id) || undefined,
-    ledelseStatus: (r.ledelse_status as Tf["ledelseStatus"]) || undefined,
+    ...ledelseOf(r.ledelse_status),
     ledelseReplies: arr(r.ledelse_replies),
     kundeStatus: (r.kunde_status as Tf["kundeStatus"]) || undefined,
     trashedAt: iso(r.trashed_at) || undefined,
     shareToken: str(r.share_token) || undefined,
     source: str(r.source) || undefined,
+    updatedAt: iso(r.updated_at) || undefined,
   };
 }
 
@@ -541,6 +550,7 @@ export function slipToRow(s: Slip) {
     kunde_status: s.kundeStatus ?? null,
     trashed_at: s.trashedAt ?? null,
     source: s.source ?? null,
+    updated_at: s.updatedAt || new Date().toISOString(),
   };
 }
 export function slipFromRow(r: Record<string, unknown>): Slip {
@@ -561,11 +571,12 @@ export function slipFromRow(r: Record<string, unknown>): Slip {
     forwarded: bool(r.forwarded),
     paid: bool(r.paid),
     fromChatId: str(r.from_chat_id) || undefined,
-    ledelseStatus: (r.ledelse_status as Slip["ledelseStatus"]) || undefined,
+    ...ledelseOf(r.ledelse_status),
     ledelseReplies: arr(r.ledelse_replies),
     kundeStatus: (r.kunde_status as Slip["kundeStatus"]) || undefined,
     trashedAt: iso(r.trashed_at) || undefined,
     source: str(r.source) || undefined,
+    updatedAt: iso(r.updated_at) || undefined,
   };
 }
 
@@ -588,6 +599,7 @@ export function entToRow(e: Entrepreneur) {
     hours_est: e.hoursEst ?? null,
     trashed_at: e.trashedAt ?? null,
     source: e.source ?? null,
+    updated_at: e.updatedAt || new Date().toISOString(),
   };
 }
 export function entFromRow(r: Record<string, unknown>): Entrepreneur {
@@ -603,12 +615,13 @@ export function entFromRow(r: Record<string, unknown>): Entrepreneur {
     status: (r.status as Entrepreneur["status"]) || "draft",
     photoIds: arr<string>(r.photo_ids),
     fromChatId: str(r.from_chat_id) || undefined,
-    ledelseStatus: (r.ledelse_status as Entrepreneur["ledelseStatus"]) || undefined,
+    ...ledelseOf(r.ledelse_status),
     ledelseReplies: arr(r.ledelse_replies),
     materialsEst: str(r.materials_est) || undefined,
     hoursEst: r.hours_est == null ? undefined : Number(r.hours_est),
     trashedAt: iso(r.trashed_at) || undefined,
     source: str(r.source) || undefined,
+    updatedAt: iso(r.updated_at) || undefined,
   };
 }
 

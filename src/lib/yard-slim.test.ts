@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mergeById, mergeChats, slimChat } from "./yard-slim.ts";
+import { holdRow, mergeById, mergeChats, mergeReports, slimChat } from "./yard-slim.ts";
 import type { ChatMessage, Todo } from "./types.ts";
 
 test("server overskriver lokal to-do med samme id", () => {
@@ -51,4 +51,36 @@ test("chat-merge bevarer oversættelse og foto som serveren mangler", () => {
   const hit = out.find((c) => c.id === "ch-1");
   assert.equal(hit?.translations.ro, "Curăță în spatele șopronului");
   assert.equal(hit?.photos?.[0]?.dataUrl, "data:image/jpeg;base64,xxx");
+});
+
+type Row = { id: string; number?: string; ledelseStatus?: string; updatedAt?: string };
+
+test("mergeReports beholder lokalt hak når cloud-rækken mangler flaget", () => {
+  const local: Row[] = [{ id: "tf-007", number: "Z-TF-2026-007", ledelseStatus: "med_til_ledelse" }];
+  const remote: Row[] = [{ id: "tf-007", number: "Z-TF-2026-007" }];
+  const merged = mergeReports(local, remote);
+  assert.equal(merged[0]?.ledelseStatus, "med_til_ledelse");
+});
+
+test("mergeReports tager cloud-skjult og cloud-ja", () => {
+  const local: Row[] = [{ id: "a", ledelseStatus: "med_til_ledelse" }, { id: "b", ledelseStatus: "skjult" }];
+  const remote: Row[] = [{ id: "a", ledelseStatus: "skjult" }, { id: "b", ledelseStatus: "med_til_ledelse" }];
+  const merged = mergeReports(local, remote);
+  assert.equal(merged.find((r) => r.id === "a")?.ledelseStatus, "skjult");
+  assert.equal(merged.find((r) => r.id === "b")?.ledelseStatus, "med_til_ledelse");
+});
+
+test("mergeReports springer en række over som lige er hakket", () => {
+  holdRow("tf-held");
+  const local: Row[] = [{ id: "tf-held", ledelseStatus: "med_til_ledelse" }];
+  const remote: Row[] = [{ id: "tf-held", ledelseStatus: "skjult" }];
+  const merged = mergeReports(local, remote);
+  assert.equal(merged[0]?.ledelseStatus, "med_til_ledelse");
+});
+
+test("mergeReports tager den nyeste hak når tiderne er sat", () => {
+  const local: Row[] = [{ id: "tf-007", ledelseStatus: "med_til_ledelse", updatedAt: "2026-09-09T14:00:00.000Z" }];
+  const remote: Row[] = [{ id: "tf-007", ledelseStatus: "skjult", updatedAt: "2026-09-09T10:00:00.000Z" }];
+  const merged = mergeReports(local, remote, 0);
+  assert.equal(merged[0]?.ledelseStatus, "med_til_ledelse");
 });

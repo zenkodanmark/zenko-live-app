@@ -205,6 +205,7 @@ export type Slip = {
   kundeStatus?: KundeStatus;
   trashedAt?: string;
   source?: string;
+  updatedAt?: string;
 };
 
 export type Offer = Slip;
@@ -229,6 +230,7 @@ export type Tf = {
   trashedAt?: string;
   shareToken?: string;
   source?: string;
+  updatedAt?: string;
 };
 
 export type Entrepreneur = {
@@ -249,6 +251,7 @@ export type Entrepreneur = {
   hoursEst?: number;
   trashedAt?: string;
   source?: string;
+  updatedAt?: string;
 };
 
 export type InvoicePack = {

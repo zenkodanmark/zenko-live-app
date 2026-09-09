@@ -48,6 +48,31 @@ export function reportSharePath(kind: ShareKind, number: string) {
   return `/r/${kind}/${shareSlug(number)}`;
 }
 
+export const LIVE_APP_ORIGIN = "https://zenkodanmark.github.io";
+
+export function publicAppOrigin(from?: string) {
+  const env =
+    (typeof import.meta !== "undefined" &&
+      import.meta.env &&
+      String(import.meta.env.VITE_PUBLIC_APP_URL || import.meta.env.PUBLIC_APP_URL || "").replace(/\/$/, "")) ||
+    "";
+  if (env) return env;
+  const origin = (from || (typeof window !== "undefined" ? window.location.origin : LIVE_APP_ORIGIN)).replace(/\/$/, "");
+  try {
+    const host = new URL(origin).hostname;
+    if (host === "localhost" || host === "127.0.0.1" || host.includes("preview") || host.includes("grok.me")) {
+      return LIVE_APP_ORIGIN;
+    }
+  } catch {
+    return LIVE_APP_ORIGIN;
+  }
+  return origin || LIVE_APP_ORIGIN;
+}
+
+export function publicReportUrl(kind: ShareKind, number: string, from?: string) {
+  return `${publicAppOrigin(from)}${reportSharePath(kind, number)}`;
+}
+
 export function asShareRecord(payload: ReportSharePayload, extras?: Partial<Pick<ReportShareRecord, "answer" | "answeredAt" | "answeredBy">>): ReportShareRecord {
   return {
     ...payload,

@@ -1594,15 +1594,43 @@ export const useYard = create<YardState>()(
       status
     } : x) };
   }),
-  patchReport: (kind, id, patch) => set((s) => {
-    const mix = <T extends { id: string }>(rows: T[]) => rows.map((x) => (x.id === id ? ({ ...x, ...patch } as T) : x));
-    if (kind === "slip") return { slips: mix(s.slips) };
-    if (kind === "offer") return { offers: mix(s.offers ?? []) };
-    if (kind === "tf") return { tfs: mix(s.tfs) };
-    if (kind === "ent") return { ents: mix(s.ents) };
-    if (kind === "pack") return { packs: mix(s.packs) };
-    return { ksReports: mix(s.ksReports) };
-  }),
+  patchReport: (kind, id, patch) => {
+    set((s) => {
+      const mix = <T extends { id: string }>(rows: T[]) => rows.map((x) => (x.id === id ? ({ ...x, ...patch } as T) : x));
+      if (kind === "slip") return { slips: mix(s.slips) };
+      if (kind === "offer") return { offers: mix(s.offers ?? []) };
+      if (kind === "tf") return { tfs: mix(s.tfs) };
+      if (kind === "ent") return { ents: mix(s.ents) };
+      if (kind === "pack") return { packs: mix(s.packs) };
+      return { ksReports: mix(s.ksReports) };
+    });
+    const s = get();
+    if (kind === "tf") {
+      const row = s.tfs.find((x) => x.id === id);
+      if (row) {
+        holdRow(row.id);
+        void import("./sb-live").then((m) => m.publishTf(row));
+      }
+    } else if (kind === "slip") {
+      const row = s.slips.find((x) => x.id === id);
+      if (row) {
+        holdRow(row.id);
+        void import("./sb-live").then((m) => m.publishSlip(row));
+      }
+    } else if (kind === "offer") {
+      const row = (s.offers ?? []).find((x) => x.id === id);
+      if (row) {
+        holdRow(row.id);
+        void import("./sb-live").then((m) => m.publishOffer(row));
+      }
+    } else if (kind === "ent") {
+      const row = s.ents.find((x) => x.id === id);
+      if (row) {
+        holdRow(row.id);
+        void import("./sb-live").then((m) => m.publishEnt(row));
+      }
+    }
+  },
   resetAlex: () => {
     const key = dayKey("emp-alex");
     set((s) => ({

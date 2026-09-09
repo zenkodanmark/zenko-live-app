@@ -136,3 +136,43 @@ test("filter og 20 pr. side", () => {
   assert.equal(p2.slice.length, 20);
   assert.equal(p2.slice[0], 20);
 });
+
+test("TF-hak styrer Udførsel — 007 vises kun når flaget er ja, 006 forbliver", () => {
+  const job = PROJECTS.find((p) => p.id === "job-hillerodsholm")!;
+  const bundled = bundledSagInputs();
+  const seven: (typeof bundled.tfs)[number] = {
+    id: "tf-007-test",
+    number: "Z-TF-2026-007",
+    projectId: job.id,
+    title: "Altanbæring",
+    question: "Godkend geometri?",
+    createdAt: "2026-09-09T08:00:00.000Z",
+    status: "issued",
+    answered: false,
+    photoIds: [],
+    ledelseStatus: "med_til_ledelse",
+  };
+  const on = buildSagSite({
+    project: job,
+    tfs: [...bundled.tfs, seven],
+    slips: bundled.slips,
+    ents: bundled.ents,
+    fieldItems: bundled.fieldItems,
+  });
+  assert.ok(on.tfs.some((t) => t.number === "Z-TF-2026-006"));
+  assert.ok(on.tfs.some((t) => t.number === "Z-TF-2026-007"));
+  const countsOn = tfCounts(on.tfs);
+  assert.equal(countsOn.total, on.tfs.length);
+  assert.equal(countsOn.open + countsOn.answered, countsOn.total);
+
+  const off = buildSagSite({
+    project: job,
+    tfs: [...bundled.tfs, { ...seven, ledelseStatus: "skjult" }],
+    slips: bundled.slips,
+    ents: bundled.ents,
+    fieldItems: bundled.fieldItems,
+  });
+  assert.ok(off.tfs.some((t) => t.number === "Z-TF-2026-006"));
+  assert.ok(!off.tfs.some((t) => t.number === "Z-TF-2026-007"));
+  assert.equal(tfCounts(off.tfs).total, off.tfs.length);
+});

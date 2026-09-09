@@ -5,7 +5,7 @@ import { pullDays, publishDay } from "@/lib/day-live";
 import { refreshCrewFromCloud } from "@/lib/crew-live";
 import { pullEnts, pullOffers, pullOrders, pullProjects, pullSlips, pullTfs, publishOrder } from "@/lib/sb-live";
 import { onYardEvent } from "@/lib/yard-bus";
-import { mergeById, mergeChats, mergeDays, mergeSkippingHeld, slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "@/lib/yard-slim";
+import { mergeById, mergeChats, mergeDays, mergeReports, mergeSkippingHeld, slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "@/lib/yard-slim";
 import { pullYard, saveYardChat, saveYardDay, saveYardKs, saveYardNeed, saveYardOrder, saveYardTodo } from "@/lib/yard-sync.functions";
 import { useYard } from "@/lib/store";
 import type { ChatMessage, DayLog, Entrepreneur, KsReport, MaterialNeed, MaterialOrder, Project, Slip, Tf, Todo } from "@/lib/types";
@@ -60,10 +60,10 @@ async function applyPull() {
     needs: remote.ok ? mergeById(s.needs ?? [], remote.needs ?? []) : s.needs,
     orders: mergeById(s.orders ?? [], cloudOrders),
     projects: clientProjects ? mergeById(s.projects, clientProjects as Project[]) : s.projects,
-    tfs: clientTfs ? mergeById(s.tfs, clientTfs as Tf[]) : s.tfs,
-    slips: clientSlips ? mergeById(s.slips, clientSlips as Slip[]) : s.slips,
-    offers: clientOffers ? mergeById(s.offers ?? [], clientOffers as Slip[]) : s.offers ?? [],
-    ents: clientEnts ? mergeById(s.ents, clientEnts as Entrepreneur[]) : s.ents,
+    tfs: clientTfs ? mergeReports(s.tfs, clientTfs as Tf[]) : s.tfs,
+    slips: clientSlips ? mergeReports(s.slips, clientSlips as Slip[]) : s.slips,
+    offers: clientOffers ? mergeReports(s.offers ?? [], clientOffers as Slip[]) : s.offers ?? [],
+    ents: clientEnts ? mergeReports(s.ents, clientEnts as Entrepreneur[]) : s.ents,
     ...(cloudCrew?.length ? { employees: mergeById(s.employees, cloudCrew) } : {}),
   });
 }

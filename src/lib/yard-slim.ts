@@ -53,15 +53,78 @@ export function mergeById<T extends { id: string }>(local: T[], remote: T[]): T[
 }
 
 const held = new Map<string, number>();
-export function holdRow(id: string) {
-  if (id) held.set(id, Date.now());
+const HOLD_KEY = "zenko-row-hold";
+
+function heldAt(id: string): number {
+  let t = held.get(id) ?? 0;
+  try {
+    if (typeof sessionStorage !== "undefined") {
+      const raw = sessionStorage.getItem(HOLD_KEY);
+      if (raw) {
+        const obj = JSON.parse(raw) as Record<string, number>;
+        t = Math.max(t, Number(obj[id] || 0));
+      }
+    }
+  } catch {
+    /* private mode */
+  }
+  return t;
 }
-export function mergeSkippingHeld<T extends { id: string }>(local: T[], remote: T[], ms = 6000): T[] {
+
+export function holdRow(id: string) {
+  if (!id) return;
+  const t = Date.now();
+  held.set(id, t);
+  try {
+    if (typeof sessionStorage !== "undefined") {
+      const obj = JSON.parse(sessionStorage.getItem(HOLD_KEY) || "{}") as Record<string, number>;
+      obj[id] = t;
+      const cutoff = t - 60_000;
+      for (const [k, v] of Object.entries(obj)) if (Number(v) < cutoff) delete obj[k];
+      sessionStorage.setItem(HOLD_KEY, JSON.stringify(obj));
+    }
+  } catch {
+    /* private mode */
+  }
+}
+
+export function mergeSkippingHeld<T extends { id: string }>(local: T[], remote: T[], ms = 8000): T[] {
   const now = Date.now();
   return mergeById(
     local,
-    remote.filter((row) => (held.get(row.id) ?? 0) + ms < now),
+    remote.filter((row) => heldAt(row.id) + ms < now),
   );
+}
+
+function stamp(row: { updatedAt?: string }) {
+  const n = Date.parse(row.updatedAt || "");
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Cloud merge for TF/AS/TB/ER — keep a just-toggled hak across refresh until cloud catches up. */
+export function mergeReports<T extends { id: string; ledelseStatus?: string; updatedAt?: string }>(local: T[], remote: T[], ms = 12000): T[] {
+  const now = Date.now();
+  const map = new Map<string, T>();
+  for (const row of local) map.set(row.id, row);
+  for (const row of remote) {
+    if (heldAt(row.id) + ms >= now) continue;
+    const prev = map.get(row.id);
+    if (!prev) {
+      map.set(row.id, row);
+      continue;
+    }
+    const remoteStatus = row.ledelseStatus;
+    const localStatus = prev.ledelseStatus;
+    let ledelseStatus = remoteStatus || localStatus;
+    if (remoteStatus && localStatus && remoteStatus !== localStatus) {
+      const rs = stamp(row);
+      const ls = stamp(prev);
+      ledelseStatus = rs || ls ? (rs >= ls ? remoteStatus : localStatus) : remoteStatus;
+    }
+    const updatedAt = stamp(row) >= stamp(prev) ? row.updatedAt || prev.updatedAt : prev.updatedAt || row.updatedAt;
+    map.set(row.id, { ...prev, ...row, ...(ledelseStatus ? { ledelseStatus } : {}), ...(updatedAt ? { updatedAt } : {}) });
+  }
+  return [...map.values()];
 }
 
 function mergeMedia<T extends { id?: string; dataUrl?: string; driveFileId?: string }>(local?: T[], remote?: T[]): T[] | undefined {

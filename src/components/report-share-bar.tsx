@@ -10,7 +10,7 @@ import {
   buildKsSharePayload,
   buildTfShareReportPayload,
   reportMailCopy,
-  reportSharePath,
+  publicReportUrl,
   shareSlug,
   type ReportSharePayload,
   type ShareKind,
@@ -36,7 +36,7 @@ function rowNumber(kind: ShareKind, id: string): string | null {
 function customerUrl(kind: ShareKind, id: string) {
   const number = rowNumber(kind, id);
   if (!number) return null;
-  return `${window.location.origin}${reportSharePath(kind, number)}`;
+  return publicReportUrl(kind, number);
 }
 
 function payloadFor(kind: ShareKind, id: string): { payload: ReportSharePayload; slug: string } | null {
@@ -106,7 +106,7 @@ async function publish(kind: ShareKind, id: string) {
       if (token !== tf.shareToken) useYard.getState().patchReport("tf", tf.id, { shareToken: token, status: "issued" });
     }
   }
-  return { url: `${window.location.origin}${reportSharePath(kind, built.slug)}`, payload: built.payload };
+  return { url: publicReportUrl(kind, built.slug), payload: built.payload };
 }
 
 export function ReportShareBar({ kind, id, lang }: { kind: ShareKind; id: string; lang: Lang }) {
