@@ -30,9 +30,9 @@ function b64ToBlob(base64: string, mime: string) {
   return new Blob([bytes], { type: mime || "application/octet-stream" });
 }
 
-export async function uploadPladsBytes(opts: {
+export async function uploadPladsBlob(opts: {
   path: string;
-  contentBase64: string;
+  blob: Blob;
   mimeType?: string;
   projectId?: string;
   kind?: string;
@@ -40,10 +40,9 @@ export async function uploadPladsBytes(opts: {
 }): Promise<{ ok: boolean; url: string; fileId: string; error: string }> {
   const path = String(opts.path || "").replace(/^\/+/, "").replace(/\.\./g, "");
   if (!path) return { ok: false, url: "", fileId: "", error: "Mangler sti" };
-  const mime = opts.mimeType || "application/octet-stream";
+  const mime = opts.mimeType || opts.blob.type || "application/octet-stream";
   try {
-    const blob = b64ToBlob(opts.contentBase64, mime);
-    const { error } = await supabase().storage.from(SB_BUCKET).upload(path, blob, {
+    const { error } = await supabase().storage.from(SB_BUCKET).upload(path, opts.blob, {
       upsert: true,
       contentType: mime,
       cacheControl: "3600",
@@ -64,6 +63,23 @@ export async function uploadPladsBytes(opts: {
       /* listing still works from storage */
     }
     return { ok: true, url, fileId: url, error: "" };
+  } catch (e) {
+    return { ok: false, url: "", fileId: "", error: e instanceof Error ? e.message : "kunne ikke gemme" };
+  }
+}
+
+export async function uploadPladsBytes(opts: {
+  path: string;
+  contentBase64: string;
+  mimeType?: string;
+  projectId?: string;
+  kind?: string;
+  name?: string;
+}): Promise<{ ok: boolean; url: string; fileId: string; error: string }> {
+  const mime = opts.mimeType || "application/octet-stream";
+  try {
+    const blob = b64ToBlob(opts.contentBase64, mime);
+    return uploadPladsBlob({ ...opts, blob, mimeType: mime });
   } catch (e) {
     return { ok: false, url: "", fileId: "", error: e instanceof Error ? e.message : "kunne ikke gemme" };
   }

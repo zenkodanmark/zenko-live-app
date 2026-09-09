@@ -15,6 +15,7 @@ test("To-do ER TF AS KS MA mapper rigtigt", () => {
   assert.equal(t("da", pileLabelKey("todo")), "To-do");
   assert.equal(t("da", pileLabelKey("ent")), "ER");
   assert.equal(t("da", pileLabelKey("extra")), "AS");
+  assert.equal(t("da", pileLabelKey("offer")), "TB");
   assert.equal(t("da", pileLabelKey("materials")), "MA");
 });
 

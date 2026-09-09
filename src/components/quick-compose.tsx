@@ -12,7 +12,7 @@ import { fillTodoTranslations, uploadDraftsToFolder, uploadTodoPhotos } from "@/
 import { isPersonalTodo } from "@/lib/crew-todo";
 import type { Lang } from "@/lib/types";
 
-export type ComposeKind = "todo" | "ks" | "tf" | "as" | "er";
+export type ComposeKind = "todo" | "ks" | "tf" | "as" | "tb" | "er";
 
 type Draft = { id: string; dataUrl: string; name: string };
 
@@ -53,6 +53,7 @@ export function QuickCompose({
   const addKsReport = useYard((s) => s.addKsReport);
   const addTf = useYard((s) => s.addTf);
   const addSlip = useYard((s) => s.addSlip);
+  const addOffer = useYard((s) => s.addOffer);
   const addEnt = useYard((s) => s.addEnt);
   const camRef = useRef<HTMLInputElement>(null);
   const galRef = useRef<HTMLInputElement>(null);
@@ -127,6 +128,7 @@ export function QuickCompose({
           kind === "ks" ? peekReportNumber("ks", serial)
           : kind === "tf" ? peekReportNumber("tf", serial)
           : kind === "as" ? peekReportNumber("as", serial)
+          : kind === "tb" ? peekReportNumber("tb", serial)
           : peekReportNumber("er", serial);
         let photoFileIds: string[] = [];
         if (drafts.length) {
@@ -142,6 +144,19 @@ export function QuickCompose({
           id = addTf({ projectId: sagId, question: text, title: heading, photoIds: photoFileIds, number }).id;
         } else if (kind === "as") {
           id = addSlip({
+            projectId: sagId,
+            title: heading,
+            location: "",
+            body: text,
+            masterSolution: text,
+            customerPrice: "",
+            hoursEst: 0,
+            materialsEst: "",
+            photoIds: photoFileIds,
+            number,
+          }).id;
+        } else if (kind === "tb") {
+          id = addOffer({
             projectId: sagId,
             title: heading,
             location: "",
@@ -170,7 +185,7 @@ export function QuickCompose({
     <Card className="rounded-[20px]">
       <div className="mb-2 flex items-center gap-2">
         <p className="font-display text-title text-ink">
-          {kind === "todo" ? t(lang, "rowTodo") : kind === "ks" ? t(lang, "rowKs") : kind === "tf" ? t(lang, "rowTf") : kind === "as" ? t(lang, "rowAs") : t(lang, "rowEr")}
+          {kind === "todo" ? t(lang, "rowTodo") : kind === "ks" ? t(lang, "rowKs") : kind === "tf" ? t(lang, "rowTf") : kind === "as" ? t(lang, "rowAs") : kind === "tb" ? t(lang, "rowTb") : t(lang, "rowEr")}
         </p>
         <CloseX onClick={onClose} label={t(lang, "close")} />
       </div>

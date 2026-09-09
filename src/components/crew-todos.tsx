@@ -3,7 +3,7 @@ import { FacePhoto } from "@/components/face-photo";
 import { PlusBtn } from "@/components/sag-icons";
 import { GhostButton, SectionLabel } from "@/components/zenko";
 import { QuickCompose } from "@/components/quick-compose";
-import { TodoSheet } from "@/components/todo-board";
+import { PencilBtn, TodoEditSheet, TodoSheet } from "@/components/todo-board";
 import { shownTodoText } from "@/lib/chat";
 import { crewHomeTodos, crewSagTodos, isPersonalTodo, todoJobLabel } from "@/lib/crew-todo";
 import { t } from "@/lib/i18n";
@@ -83,27 +83,32 @@ function TodoHeading({
 }) {
   const me = useSessionEmployee();
   const employees = useYard((s) => s.employees);
+  const [edit, setEdit] = useState(false);
   const heading = shownTodoText(todo, lang, me?.role);
   const status = todo.done ? t(lang, "todoStatusDone") : t(lang, "todoStatusOpen");
   const sagLine = isPersonalTodo(todo.projectId) ? t(lang, "todoNoJob") : todoJobLabel(todo.projectId, lang);
   return (
     <li>
-      <button
-        type="button"
-        className="min-h-12 w-full rounded-[18px] bg-paper px-4 py-3 text-left shadow-card"
-        onClick={onOpen}
-        data-testid={`crew-todo-${todo.id}`}
-      >
-        <span className="flex items-start gap-3">
-          <FacePhoto employee={employees.find((e) => e.id === todo.assigneeId)} px={32} />
-          <span className="min-w-0 flex-1">
-            <p className="font-display text-title font-semibold text-ink">{heading}</p>
-            <p className="mt-0.5 text-list leading-[1.4] text-ink">
-              {sag ? [who || "—", status].filter(Boolean).join(" · ") : [sagLine, status].filter(Boolean).join(" · ")}
-            </p>
+      <div className="flex items-start gap-1 rounded-[18px] bg-paper px-2 py-2 shadow-card">
+        {!todo.done ? <PencilBtn lang={lang} todoId={todo.id} onClick={() => setEdit(true)} /> : null}
+        <button
+          type="button"
+          className="min-h-12 min-w-0 flex-1 px-2 py-1 text-left"
+          onClick={onOpen}
+          data-testid={`crew-todo-${todo.id}`}
+        >
+          <span className="flex items-start gap-3">
+            <FacePhoto employee={employees.find((e) => e.id === todo.assigneeId)} px={32} />
+            <span className="min-w-0 flex-1">
+              <p className="font-display text-title font-semibold text-ink">{heading}</p>
+              <p className="mt-0.5 text-list leading-[1.4] text-ink">
+                {sag ? [who || "—", status].filter(Boolean).join(" · ") : [sagLine, status].filter(Boolean).join(" · ")}
+              </p>
+            </span>
           </span>
-        </span>
-      </button>
+        </button>
+      </div>
+      {edit ? <TodoEditSheet td={todo} lang={lang} onClose={() => setEdit(false)} /> : null}
     </li>
   );
 }

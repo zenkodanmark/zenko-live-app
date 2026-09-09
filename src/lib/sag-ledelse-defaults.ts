@@ -9,7 +9,8 @@ function bareNumber(number: string) {
     .replace(/\s+/g, "");
 }
 
-export function defaultLedelseOn(kind: "as" | "tf" | "er", number: string) {
+export function defaultLedelseOn(kind: "as" | "tb" | "tf" | "er", number: string) {
+  if (kind === "tb") return false;
   const n = String(number).trim();
   if (kind === "tf") return /Z-TF-2026-006/i.test(n);
   const key = bareNumber(n);
@@ -17,6 +18,6 @@ export function defaultLedelseOn(kind: "as" | "tf" | "er", number: string) {
   return ER_ON.has(key);
 }
 
-export function defaultLedelseStatus(kind: "as" | "tf" | "er", number: string) {
+export function defaultLedelseStatus(kind: "as" | "tb" | "tf" | "er", number: string) {
   return defaultLedelseOn(kind, number) ? ("med_til_ledelse" as const) : ("skjult" as const);
 }

@@ -46,7 +46,7 @@ export const getSagLedelse = createServerFn({ method: "GET" })
   });
 
 export const setSagLedelseItem = createServerFn({ method: "POST" })
-  .validator((input: { slug: string; projectId: string; kind: "tf" | "as" | "er"; reportId: string; status: LedelseStatus }) => input)
+  .validator((input: { slug: string; projectId: string; kind: "tf" | "as" | "tb" | "er"; reportId: string; status: LedelseStatus }) => input)
   .handler(async ({ data }) => {
     if (!isKundeSlug(data.slug) || !data.projectId.trim() || !data.reportId.trim()) return { ok: false as const, error: "bad-key" as const };
     const status = data.status === "med_til_ledelse" ? "med_til_ledelse" : "skjult";

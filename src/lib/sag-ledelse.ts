@@ -7,9 +7,9 @@ import { softrTfReports } from "./softr-tf.ts";
 import { SEED_ENTS, SEED_FIELD_ITEMS, SEED_SLIPS, SEED_TFS } from "./seed.ts";
 import { photoSrc } from "./tf-share.ts";
 import { defaultLedelseStatus } from "./sag-ledelse-defaults.ts";
-import type { Entrepreneur, FieldItem, LedelseReply, Project, Slip, Tf } from "./types.ts";
+import type { Entrepreneur, FieldItem, LedelseReply, Offer, Project, Slip, Tf } from "./types.ts";
 
-export type SagKind = "tf" | "as" | "er";
+export type SagKind = "tf" | "as" | "tb" | "er";
 
 export type SagPhoto = { id: string; src: string; n: string };
 
@@ -86,6 +86,7 @@ export type SagSite = {
   job: SagJobMeta;
   tfs: SagTfView[];
   slips: SagAsView[];
+  tbs: SagAsView[];
   ents: SagErView[];
 };
 
@@ -201,7 +202,7 @@ export function sagJobFields(job: SagJobMeta) {
 function reportSlug(number: string) {
   return String(number)
     .trim()
-    .replace(/^(AS|ER)[-.\s]*/i, "")
+    .replace(/^(AS|ER|TB)[-.\s]*/i, "")
     .replace(/\s+/g, "")
     .slice(0, 40);
 }
@@ -251,6 +252,12 @@ export function toSagAs(slip: Slip, job: Project, fields: FieldItem[]): SagAsVie
   };
 }
 
+export function toSagTb(offer: Offer, job: Project, fields: FieldItem[]): SagAsView | null {
+  const row = withDefault("tb", offer);
+  if (!isLedelseOn(row)) return null;
+  return toSagAs({ ...offer, ledelseStatus: "med_til_ledelse" }, job, fields);
+}
+
 export function toSagEr(ent: Entrepreneur, job: Project, fields: FieldItem[]): SagErView | null {
   const row = withDefault("er", ent);
   if (!isLedelseOn(row)) return null;
@@ -275,15 +282,17 @@ export function buildSagSite(opts: {
   project: Project;
   tfs: Tf[];
   slips: Slip[];
+  tbs?: Offer[];
   ents: Entrepreneur[];
   fieldItems: FieldItem[];
-  published?: { tf?: string[]; as?: string[]; er?: string[] } | null;
+  published?: { tf?: string[]; as?: string[]; tb?: string[]; er?: string[] } | null;
   jobExtra?: Partial<SagJobMeta>;
 }): SagSite {
   const job = sagJobMeta(opts.project, opts.jobExtra);
   const allow = opts.published;
   const tfOk = (r: Tf) => (allow?.tf ? allow.tf.includes(r.id) || isLedelseOn(withDefault("tf", r)) : isLedelseOn(withDefault("tf", r)));
   const asOk = (r: Slip) => (allow?.as ? allow.as.includes(r.id) || isLedelseOn(withDefault("as", r)) : isLedelseOn(withDefault("as", r)));
+  const tbOk = (r: Offer) => (allow?.tb ? allow.tb.includes(r.id) || isLedelseOn(withDefault("tb", r)) : isLedelseOn(withDefault("tb", r)));
   const erOk = (r: Entrepreneur) => (allow?.er ? allow.er.includes(r.id) || isLedelseOn(withDefault("er", r)) : isLedelseOn(withDefault("er", r)));
   const tfs = opts.tfs
     .filter((r) => r.projectId === opts.project.id && !r.trashedAt && tfOk(r))
@@ -295,12 +304,17 @@ export function buildSagSite(opts: {
     .map((r) => toSagAs({ ...r, ledelseStatus: "med_til_ledelse" }, opts.project, opts.fieldItems))
     .filter((r): r is SagAsView => Boolean(r))
     .sort((a, b) => Number(reportSlug(a.number)) - Number(reportSlug(b.number)) || a.number.localeCompare(b.number, "da"));
+  const tbs = (opts.tbs ?? [])
+    .filter((r) => r.projectId === opts.project.id && !r.trashedAt && tbOk(r))
+    .map((r) => toSagTb({ ...r, ledelseStatus: "med_til_ledelse" }, opts.project, opts.fieldItems))
+    .filter((r): r is SagAsView => Boolean(r))
+    .sort((a, b) => a.number.localeCompare(b.number, "da"));
   const ents = opts.ents
     .filter((r) => r.projectId === opts.project.id && !r.trashedAt && erOk(r))
     .map((r) => toSagEr({ ...r, ledelseStatus: "med_til_ledelse" }, opts.project, opts.fieldItems))
     .filter((r): r is SagErView => Boolean(r))
     .sort((a, b) => a.number.localeCompare(b.number, "da"));
-  return { job, tfs, slips, ents };
+  return { job, tfs, slips, tbs, ents };
 }
 
 export function bundledSagInputs() {

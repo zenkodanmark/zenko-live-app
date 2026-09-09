@@ -29,9 +29,10 @@ function dmy(iso: string) {
 
 export function SagHome({ site }: { site: SagSite | null }) {
   if (!site) return <SagMissing />;
-  const { job, tfs, slips, ents } = site;
+  const { job, tfs, slips, tbs, ents } = site;
   const tf = tfCounts(tfs);
   const asSum = sumAsPrices(slips);
+  const tbSum = sumAsPrices(tbs);
   const tfLine =
     tf.total === 0
       ? "Ingen endnu"
@@ -40,6 +41,10 @@ export function SagHome({ site }: { site: SagSite | null }) {
     slips.length === 0
       ? "Ingen endnu"
       : `${slips.length} ${slips.length === 1 ? "seddel" : "sedler"}${asSum.sum ? ` · ${asSum.label} ekskl. moms` : ""}`;
+  const tbLine =
+    tbs.length === 0
+      ? "Ingen endnu"
+      : `${tbs.length} ${tbs.length === 1 ? "tilbud" : "tilbud"}${tbSum.sum ? ` · ${tbSum.label} ekskl. moms` : ""}`;
   const erLine =
     ents.length === 0 ? "Ingen endnu" : `${ents.length} ${ents.length === 1 ? "rapport" : "rapporter"}`;
 
@@ -56,7 +61,11 @@ export function SagHome({ site }: { site: SagSite | null }) {
           Aftalesedler
           <span className="mt-1 block text-sm tracking-wide text-kunde-muted">{asLine}</span>
         </SagRow>
-        <SagRow n="03" href={sagPath(job.slug, ["er"])}>
+        <SagRow n="03" href={sagPath(job.slug, ["tb"])}>
+          Tilbud
+          <span className="mt-1 block text-sm tracking-wide text-kunde-muted">{tbLine}</span>
+        </SagRow>
+        <SagRow n="04" href={sagPath(job.slug, ["er"])}>
           Entreprenørrapporter
           <span className="mt-1 block text-sm tracking-wide text-kunde-muted">{erLine}</span>
         </SagRow>
@@ -177,17 +186,27 @@ export function SagTfList({ site }: { site: SagSite | null }) {
 }
 
 export function SagAsList({ site }: { site: SagSite | null }) {
+  return <SagSeddelList site={site} kind="as" />;
+}
+
+export function SagTbList({ site }: { site: SagSite | null }) {
+  return <SagSeddelList site={site} kind="tb" />;
+}
+
+function SagSeddelList({ site, kind }: { site: SagSite | null; kind: "as" | "tb" }) {
   const [q, setQ] = useState("");
   const [day, setDay] = useState("");
   const [minRaw, setMinRaw] = useState("");
   const [page, setPage] = useState(1);
   const [picked, setPicked] = useState<string[]>([]);
   if (!site) return <SagMissing />;
+  const rows = kind === "tb" ? site.tbs : site.slips;
   const minPrice = minRaw.trim() ? Number(minRaw.replace(/\./g, "").replace(",", ".")) : null;
   const min = minPrice != null && Number.isFinite(minPrice) ? minPrice : null;
-  const filtered = filterAs(site.slips, { q, day, minPrice: min });
+  const filtered = filterAs(rows, { q, day, minPrice: min });
   const paged = paginate(filtered, page);
-  const selected = site.slips.filter((s) => picked.includes(s.id));
+  const selected = rows.filter((s) => picked.includes(s.id));
+  const pathSeg = kind === "tb" ? "tb" : "as";
   const samlingHref =
     selected.length >= 1 ? `${sagPath(site.job.slug, ["samling"])}?n=${selected.map((s) => s.slug).join(",")}` : "";
 
@@ -204,10 +223,10 @@ export function SagAsList({ site }: { site: SagSite | null }) {
   return (
     <SagShell job={site.job}>
       <SagBack to={sagPath(site.job.slug)}>Tilbage til {site.job.name}</SagBack>
-      <p className="text-sm font-medium tracking-[0.18em] text-kunde-accent">02</p>
-      <h1 className="mt-3 text-[clamp(2rem,5vw,3.2rem)] leading-tight font-light">Aftalesedler</h1>
+      <p className="text-sm font-medium tracking-[0.18em] text-kunde-accent">{kind === "tb" ? "03" : "02"}</p>
+      <h1 className="mt-3 text-[clamp(2rem,5vw,3.2rem)] leading-tight font-light">{kind === "tb" ? "Tilbud" : "Aftalesedler"}</h1>
       <p className="mt-4 text-sm text-kunde-muted">
-        {filtered.length} {filtered.length === 1 ? "seddel" : "sedler"}
+        {filtered.length} {kind === "tb" ? (filtered.length === 1 ? "tilbud" : "tilbud") : filtered.length === 1 ? "seddel" : "sedler"}
         {sumAsPrices(filtered).sum ? ` · ${sumAsPrices(filtered).label} ekskl. moms` : ""}.
       </p>
       <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
@@ -250,7 +269,7 @@ export function SagAsList({ site }: { site: SagSite | null }) {
                   aria-label={`Hak ${as.number} til PDF`}
                 />
               </label>
-              <a href={sagPath(site.job.slug, ["as", as.slug])} className="min-w-0 flex-1 no-underline">
+              <a href={sagPath(site.job.slug, [pathSeg, as.slug])} className="min-w-0 flex-1 no-underline">
                 <span className="block text-[1.2rem] font-light text-kunde-ink sm:text-[1.45rem]">
                   <span className="text-kunde-accent">{as.number}</span>
                 </span>
@@ -261,7 +280,7 @@ export function SagAsList({ site }: { site: SagSite | null }) {
             </div>
           ))
         ) : (
-          <p className="border-t border-kunde-line py-5 text-sm text-kunde-muted">Ingen aftalesedler matcher.</p>
+          <p className="border-t border-kunde-line py-5 text-sm text-kunde-muted">{kind === "tb" ? "Ingen tilbud matcher." : "Ingen aftalesedler matcher."}</p>
         )}
       </nav>
       <Pager page={Math.min(page, paged.pages)} pages={paged.pages} onPage={setPage} />
@@ -280,7 +299,7 @@ export function SagErList({ site }: { site: SagSite | null }) {
   return (
     <SagShell job={site.job}>
       <SagBack to={sagPath(site.job.slug)}>Tilbage til {site.job.name}</SagBack>
-      <p className="text-sm font-medium tracking-[0.18em] text-kunde-accent">03</p>
+      <p className="text-sm font-medium tracking-[0.18em] text-kunde-accent">04</p>
       <h1 className="mt-3 text-[clamp(2rem,5vw,3.2rem)] leading-tight font-light">Entreprenørrapporter</h1>
       <p className="mt-4 text-sm text-kunde-muted">{filtered.length} {filtered.length === 1 ? "rapport" : "rapporter"}.</p>
       <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -414,7 +433,18 @@ export function SagAsPage({ site, number }: { site: SagSite | null; number: stri
   );
 }
 
-export function SagAsBody({ as, print }: { as: SagAsView; print?: boolean }) {
+export function SagTbPage({ site, number }: { site: SagSite | null; number: string }) {
+  const row = site?.tbs.find((r) => r.slug === number || r.number === number || r.number === `TB-${number}`);
+  if (!site || !row) return <SagMissing />;
+  return (
+    <SagShell job={site.job}>
+      <SagBack to={sagPath(site.job.slug, ["tb"])}>Tilbage til tilbud</SagBack>
+      <SagAsBody as={row} print={false} kind="tb" />
+    </SagShell>
+  );
+}
+
+export function SagAsBody({ as, print, kind = "as" }: { as: SagAsView; print?: boolean; kind?: "as" | "tb" }) {
   const rows: [string, string][] = [
     ["Til", as.customer],
     ["Dato", dmy(as.createdAt)],
@@ -425,7 +455,7 @@ export function SagAsBody({ as, print }: { as: SagAsView; print?: boolean }) {
   return (
     <article>
       <p className="text-[0.7rem] font-medium tracking-[0.22em] text-kunde-muted">
-        AFTALESEDEL <span className="text-kunde-line">|</span> {as.number}
+        {kind === "tb" ? "TILBUD" : "AFTALESEDEL"} <span className="text-kunde-line">|</span> {as.number}
       </p>
       <h1 className="mt-3 text-[clamp(2rem,5vw,3.2rem)] leading-tight font-light">{as.title}</h1>
       <SagMetaGrid rows={rows} />

@@ -110,14 +110,14 @@ export function ActionPng({ name, px }: { name: ActionPngName; px: number }) {
   );
 }
 
-export function sagPngForList(kind: "todo" | "material" | "ud" | "ks" | "tf" | "slip" | "ent"): SagPngName {
+export function sagPngForList(kind: "todo" | "material" | "ud" | "ks" | "tf" | "slip" | "offer" | "ent"): SagPngName {
   if (kind === "material") return "ma";
-  if (kind === "slip") return "as";
+  if (kind === "slip" || kind === "offer") return "as";
   if (kind === "ent") return "er";
   return kind;
 }
 
-export function plusForList(kind: "todo" | "material" | "ud" | "ks" | "tf" | "slip" | "ent"): ActionPngName {
+export function plusForList(kind: "todo" | "material" | "ud" | "ks" | "tf" | "slip" | "offer" | "ent"): ActionPngName {
   if (kind === "material") return "maPlus";
   if (kind === "ks") return "ksPlus";
   if (kind === "tf") return "tfPlus";
@@ -127,9 +127,9 @@ export function plusForList(kind: "todo" | "material" | "ud" | "ks" | "tf" | "sl
   return "asPlus";
 }
 
-export function sagPngForPile(pile: "todo" | "ent" | "tf" | "extra" | "ks" | "materials"): SagPngName {
+export function sagPngForPile(pile: "todo" | "ent" | "tf" | "extra" | "offer" | "ks" | "materials"): SagPngName {
   if (pile === "materials") return "ma";
-  if (pile === "extra") return "as";
+  if (pile === "extra" || pile === "offer") return "as";
   if (pile === "ent") return "er";
   return pile;
 }

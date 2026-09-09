@@ -792,3 +792,7 @@ export function receiptFromRow(r: Record<string, unknown>): MaterialReceipt {
     driveFileId: str(r.drive_file_id) || undefined,
   };
 }
+
+export const offerToRow = slipToRow;
+export const offerFromRow = slipFromRow;
+

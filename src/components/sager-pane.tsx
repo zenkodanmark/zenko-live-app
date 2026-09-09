@@ -4,7 +4,7 @@ import { UdPick, UdSheet } from "@/components/sag-ud";
 import { CreateJobForm } from "@/components/create-job";
 import { FieldAttach } from "@/components/inbox-pane";
 import { KsCompose } from "@/components/ks-compose";
-import { EntDoc, KsDoc, PrintChrome, SlipDoc, SlipInternalFlags, TfDoc } from "@/components/print-docs";
+import { EntDoc, KsDoc, OfferDoc, PrintChrome, SlipDoc, SlipInternalFlags, TfDoc } from "@/components/print-docs";
 import { SagHeader, ReopenPicker, DueChips } from "@/components/sag-header";
 import { SagFields } from "@/components/sag-fields";
 import { KsListThumb, ReportThumb, TodoPhotos } from "@/components/photo-strip";
@@ -15,7 +15,7 @@ import { KundeHak } from "@/components/kunde-hak";
 import { LedelseHak } from "@/components/ledelse-hak";
 import { KundeJobBar } from "@/components/kunde-job-bar";
 import { QuickCompose, type ComposeKind } from "@/components/quick-compose";
-import { DoneTodosSheet, TodoSheet } from "@/components/todo-board";
+import { DoneTodosSheet, OpenTodoRow, TodoSheet } from "@/components/todo-board";
 import { MaterialBoard, NewOrderSheet } from "@/components/material-pane";
 import { t } from "@/lib/i18n";
 import { listPladsPrefix } from "@/lib/plads-file";
@@ -29,8 +29,8 @@ import { hydrateSoftrTf } from "@/lib/softr-tf";
 import { useYard } from "@/lib/store";
 import type { Lang, Project, ReopenReason } from "@/lib/types";
 
-type View = { kind: "slip" | "tf" | "ent" | "ks" | "todo"; id: string };
-export type ListKind = "slip" | "tf" | "ent" | "ks" | "todo" | "material" | "ud";
+type View = { kind: "slip" | "offer" | "tf" | "ent" | "ks" | "todo"; id: string };
+export type ListKind = "slip" | "offer" | "tf" | "ent" | "ks" | "todo" | "material" | "ud";
 type MakeKind = ComposeKind | "material";
 
 export function SagerPane({
@@ -47,6 +47,7 @@ export function SagerPane({
   const projects = useYard((s) => s.projects);
   const archiveProject = useYard((s) => s.archiveProject);
   const slips = useYard((s) => s.slips);
+  const offers = useYard((s) => s.offers) ?? [];
   const tfs = useYard((s) => s.tfs);
   const ents = useYard((s) => s.ents);
   const ksReports = useYard((s) => s.ksReports);
@@ -60,6 +61,8 @@ export function SagerPane({
   const restoreReport = useYard((s) => s.restoreReport);
   const toggleFwd = useYard((s) => s.toggleSlipForwarded);
   const togglePaid = useYard((s) => s.toggleSlipPaid);
+  const toggleOfferFwd = useYard((s) => s.toggleOfferForwarded);
+  const toggleOfferPaid = useYard((s) => s.toggleOfferPaid);
   const answerTf = useYard((s) => s.answerTf);
 
   const active = projects.filter((p) => p.status === "active");
@@ -94,6 +97,7 @@ export function SagerPane({
   const project = projects.find((p) => p.id === pick) ?? (mode === "archived" ? archived[0] : active[0]) ?? projects[0];
   const jobId = project?.id ?? "";
   const sagSlips = slips.filter((s) => (allJobs || s.projectId === jobId) && !s.trashedAt).slice().sort(allJobs ? byCreatedDesc : byAsNoDesc);
+  const sagOffers = offers.filter((s) => (allJobs || s.projectId === jobId) && !s.trashedAt).slice().sort(allJobs ? byCreatedDesc : byAsNoDesc);
   const sagTfs = tfs.filter((s) => (allJobs || s.projectId === jobId) && !s.trashedAt).slice().sort(allJobs ? byCreatedDesc : byAsNoDesc);
   const sagEnts = ents.filter((s) => (allJobs || s.projectId === jobId) && !s.trashedAt).slice().sort(allJobs ? byCreatedDesc : byAsNoDesc);
   const sagKs = ksReports.filter((s) => (allJobs || s.projectId === jobId) && !s.trashedAt);
@@ -102,6 +106,7 @@ export function SagerPane({
   const sagNeeds = needs.filter((n) => (allJobs || n.projectId === jobId) && n.status === "need");
   const sagOrders = orders.filter((o) => allJobs || o.projectId === jobId);
   const trashSlips = slips.filter((s) => (allJobs || s.projectId === jobId) && s.trashedAt).slice().sort(allJobs ? byCreatedDesc : byAsNoDesc);
+  const trashOffers = offers.filter((s) => (allJobs || s.projectId === jobId) && s.trashedAt).slice().sort(allJobs ? byCreatedDesc : byAsNoDesc);
   const trashTfs = tfs.filter((s) => (allJobs || s.projectId === jobId) && s.trashedAt).slice().sort(allJobs ? byCreatedDesc : byAsNoDesc);
   const trashEnts = ents.filter((s) => (allJobs || s.projectId === jobId) && s.trashedAt).slice().sort(allJobs ? byCreatedDesc : byAsNoDesc);
   const trashKs = ksReports.filter((s) => (allJobs || s.projectId === jobId) && s.trashedAt);
@@ -130,6 +135,7 @@ export function SagerPane({
     const row = slips.find((s) => s.id === view.id);
     return row ? hydrateSoftrSlip(row) : null;
   })() : null;
+  const offer = view?.kind === "offer" ? offers.find((s) => s.id === view.id) ?? null : null;
   const tf = view?.kind === "tf" ? (() => {
     const row = tfs.find((s) => s.id === view.id);
     return row ? hydrateSoftrTf(row) : null;
@@ -308,6 +314,14 @@ export function SagerPane({
                 createLabel={t(lang, "createNew")}
               />
               <TypeRow
+                kind="offer"
+                title={t(lang, "rowTb")}
+                count={sagOffers.length}
+                onOpen={() => openList("offer")}
+                onCreate={() => openList("offer", true)}
+                createLabel={t(lang, "createNew")}
+              />
+              <TypeRow
                 kind="ent"
                 title={t(lang, "rowEr")}
                 count={sagEnts.length}
@@ -335,7 +349,7 @@ export function SagerPane({
             setKsFilter("all");
             onEmbedClose?.();
           }}
-          onCreate={showTrash ? undefined : () => {
+          onCreate={showTrash || list === "todo" ? undefined : () => {
             if (list === "ud") setUdPick(true);
             else {
               setComposeKind(makeKindOf(list));
@@ -441,6 +455,65 @@ export function SagerPane({
               </ul>
             ) : (
               <p className="text-list leading-[1.4] text-ink">{showTrash ? t(lang, "trashEmpty") : t(lang, "noSlipsYet")}</p>
+            )
+          ) : null}
+          {list === "offer" ? (
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              <FilterChip active={!showTrash} onClick={() => setShowTrash(false)}>
+                {t(lang, "filterAll")} ({sagOffers.length})
+              </FilterChip>
+              <FilterChip active={showTrash} onClick={() => setShowTrash(true)}>
+                {t(lang, "trashBin")} ({trashOffers.length})
+              </FilterChip>
+            </div>
+          ) : null}
+          {list === "offer" ? (
+            (showTrash ? trashOffers : sagOffers).length ? (
+              <ul className="space-y-1.5">
+                {(showTrash ? trashOffers : sagOffers).map((row) => {
+                  const thumb = asPhotos.find((p) => row.photoIds?.includes(p.id));
+                  return (
+                    <li key={row.id}>
+                      <div className="rounded-xl bg-sand p-3">
+                        <button type="button" className="flex w-full items-start gap-3 text-left" data-testid={`tb-row-${row.id}`} onClick={() => setView({ kind: "offer", id: row.id })}>
+                          {thumb?.dataUrl ? (
+                            <img src={thumb.dataUrl} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover" />
+                          ) : (
+                            <ReportThumb ids={row.photoIds ?? []} />
+                          )}
+                          <span className="min-w-0 flex-1">
+                            <span className="block whitespace-nowrap font-display text-title font-semibold text-ink">{row.number}</span>
+                            <span className="mt-0.5 block truncate text-list leading-[1.4] text-ink">
+                              {row.title}
+                              {row.location ? ` · ${row.location}` : ""}
+                            </span>
+                            <JobHint lang={lang} show={allJobs} projectId={row.projectId} />
+                            <span className="mt-0.5 block text-list leading-[1.4] text-ink">
+                              {shortDate(row.createdAt)}
+                              {row.photoIds.length ? ` · ${row.photoIds.length} foto` : ""}
+                            </span>
+                            <span className="mt-0.5 block text-list font-medium leading-[1.4] text-ink">{priceOf(row.customerPrice)}</span>
+                          </span>
+                        </button>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <LedelseHak kind="tb" report={row} lang={lang} />
+                          {showTrash ? (
+                            <GhostButton className="shrink-0 rounded-full bg-paper px-3 text-action" onClick={() => restoreReport("offer", row.id)}>
+                              {t(lang, "restoreTrash")}
+                            </GhostButton>
+                          ) : (
+                            <GhostButton className="shrink-0 rounded-full bg-paper px-3 text-action" onClick={() => trashReport("offer", row.id)}>
+                              {t(lang, "trashBin")}
+                            </GhostButton>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-list leading-[1.4] text-ink" data-testid="tb-empty">{showTrash ? t(lang, "trashEmpty") : t(lang, "noOffersYet")}</p>
             )
           ) : null}
           {list === "tf" ? (
@@ -616,17 +689,17 @@ export function SagerPane({
               <ul className="space-y-1.5">
                 {sagTodosOpen.map((td) => (
                   <li key={td.id}>
-                    <button type="button" className="w-full rounded-xl bg-sand px-3 py-3 text-left" onClick={() => setView({ kind: "todo", id: td.id })}>
-                      <span className="block font-display text-title font-semibold text-ink">{td.title}</span>
-                      {td.fromChatId ? (
-                        <span className="mt-1 inline-block rounded-full bg-brick px-2 py-0.5 text-action font-bold uppercase tracking-wide text-sand">{t(lang, "boardFromChat")}</span>
-                      ) : null}
-                      <span className="mt-0.5 block text-list leading-[1.4] text-ink">
-                        {td.due} · {td.photoFileIds?.length || td.donePhotoFileIds?.length ? `${(td.photoFileIds?.length ?? 0) + (td.donePhotoFileIds?.length ?? 0)} foto` : t(lang, "meOpenDay")}
-                      </span>
-                      <JobHint lang={lang} show={allJobs} projectId={td.projectId} />
-                      <TodoPhotos td={td} />
-                    </button>
+                    <OpenTodoRow
+                      td={td}
+                      lang={lang}
+                      onOpen={() => setView({ kind: "todo", id: td.id })}
+                      hint={
+                        <>
+                          <JobHint lang={lang} show={allJobs} projectId={td.projectId} />
+                          <TodoPhotos td={td} />
+                        </>
+                      }
+                    />
                   </li>
                 ))}
               </ul>
@@ -701,6 +774,15 @@ export function SagerPane({
           </div>
         </PrintChrome>
       ) : null}
+      {offer ? (
+        <PrintChrome docId={offer.id} kind="offer" lang={lang} onClose={() => setView(null)}>
+          <OfferDoc offer={offer} />
+          <SlipInternalFlags slip={offer} onForwarded={() => toggleOfferFwd(offer.id)} onPaid={() => toggleOfferPaid(offer.id)} />
+          <div className="no-print mx-auto max-w-[210mm] px-4 pb-8">
+            <FieldAttach lang={lang} projectId={offer.projectId} kind="offer" reportId={offer.id} attachedIds={offer.photoIds} />
+          </div>
+        </PrintChrome>
+      ) : null}
       {tf ? (
         <PrintChrome docId={tf.id} kind="tf" lang={lang} onClose={() => setView(null)}>
           <TfDoc tf={tf} onAnswer={(a) => answerTf(tf.id, a)} />
@@ -739,6 +821,7 @@ export function SagerPane({
 
 function makeKindOf(kind: ListKind): MakeKind {
   if (kind === "slip") return "as";
+  if (kind === "offer") return "tb";
   if (kind === "ent") return "er";
   if (kind === "material") return "material";
   if (kind === "todo") return "todo";
@@ -777,6 +860,7 @@ function byCreatedDesc(a: { createdAt?: string; at?: string; orderedAt?: string 
 
 function listTitle(kind: ListKind, lang: Lang) {
   if (kind === "slip") return t(lang, "extraWork");
+  if (kind === "offer") return t(lang, "extraOffer");
   if (kind === "tf") return t(lang, "sagTf");
   if (kind === "ent") return t(lang, "sagEnt");
   if (kind === "todo") return t(lang, "rowTodo");
@@ -918,5 +1002,6 @@ function listPlusTestId(kind: ListKind) {
   if (kind === "ent") return "list-plus-ent";
   if (kind === "material") return "list-plus-material";
   if (kind === "ud") return "sag-plus-ud-sheet";
+  if (kind === "offer") return "sag-plus-offer-sheet";
   return `list-plus-${kind}`;
 }

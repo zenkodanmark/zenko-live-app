@@ -4,8 +4,9 @@ export function padSerial(n: number) {
   return String(n).padStart(3, "0");
 }
 
-export function peekReportNumber(kind: "as" | "tf" | "er" | "ks" | "mo", serial: { as?: number; tf?: number; er?: number; ks?: number; mo?: number }) {
+export function peekReportNumber(kind: "as" | "tb" | "tf" | "er" | "ks" | "mo", serial: { as?: number; tb?: number; tf?: number; er?: number; ks?: number; mo?: number }) {
   if (kind === "as") return `Z-AS-2026-${padSerial(serial.as ?? 1)}`;
+  if (kind === "tb") return `TB-2026-${padSerial(serial.tb ?? 1)}`;
   if (kind === "tf") return `Z-TF-2026-${padSerial(serial.tf ?? 1)}`;
   if (kind === "er") return `Z-ER-2026-${padSerial(serial.er ?? 1)}`;
   if (kind === "ks") return `Z-KS-2026-${padSerial(serial.ks ?? 1)}`;

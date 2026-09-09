@@ -23,6 +23,7 @@ import { ActionPng, PlusRound, TabPng } from "@/components/sag-icons";
 import { transcribeClip } from "@/lib/ai.functions";
 import { t } from "@/lib/i18n";
 import { readGps, siteFallback } from "@/lib/geo";
+import { isOnSite } from "@/lib/on-site";
 import { LogoutButton } from "@/components/logout-button";
 import { useDeepOpen } from "@/lib/open-deep";
 import { acceptPin } from "@/lib/pin-enter";
@@ -76,6 +77,7 @@ export function SvendDesk() {
   const [tab, setTab] = useState<Tab>("today");
   useDeepOpen(setTab as (id: string) => void, false);
   const openChatWith = useYard((s) => s.openChatWith);
+  const chatJob = useYard((s) => s.openChatJobId);
   useEffect(() => {
     if (openChatWith) setTab("chat");
   }, [openChatWith]);
@@ -112,7 +114,7 @@ export function SvendDesk() {
   if (!emp || !day) return <LoginSplash />;
 
   const unread = unreadChatCount(chats, emp, assignments, chatSeenAt[emp.id], threadSeenAt);
-  const pick = day.projectId || jobs[0]?.id || "job-hillerodsholm";
+  const pick = chatJob || day.projectId || jobs[0]?.id || "job-hillerodsholm";
   const tabs = [
     { id: "today" as const, label: t(lang, "tabToday"), icon: "idag" as const },
     { id: "case" as const, label: t(lang, "tabCase"), icon: "sager" as const },
@@ -188,7 +190,7 @@ function TodayTab({ lang }: { lang: Lang }) {
   const addPing = useYard((s) => s.addPing);
   const day = todayLog(emp.id, days);
   const jobs = activeAssigned(emp.id, emp.role, projects, assignments);
-  const onSite = Boolean(day.checkInAt && !day.checkOutAt);
+  const onSite = isOnSite(day);
   const job = onSite ? projects.find((p) => p.id === day.projectId) : undefined;
   const [busy, setBusy] = useState(false);
   const [picking, setPicking] = useState(false);
@@ -237,7 +239,7 @@ function TodayTab({ lang }: { lang: Lang }) {
   }
 
   function tapOnSite() {
-    if (onSite || busy) return;
+    if (busy) return;
     if (jobs.length === 0) {
       useYard.setState({ toast: t(lang, "noAssigned") });
       return;
@@ -310,7 +312,7 @@ function TodayTab({ lang }: { lang: Lang }) {
     <div className="space-y-4">
       <Card className="rounded-[20px]" data-testid="today-card">
         <div className="flex items-start justify-center gap-10">
-          <button type="button" className="inline-flex min-h-[3.25rem] min-w-[3.25rem] flex-col items-center gap-2" aria-label={t(lang, "onSiteHere")} data-testid="today-onsite" disabled={busy} onClick={tapOnSite}>
+          <button type="button" className={`inline-flex min-h-[3.25rem] min-w-[3.25rem] flex-col items-center gap-2 ${onSite ? "rounded-2xl p-1 ring-[3px] ring-brick" : ""}`} aria-label={t(lang, "onSiteHere")} data-testid="today-onsite" data-onsite={onSite ? "1" : "0"} disabled={busy} onClick={tapOnSite}>
             <ActionPng name="onSite" px={152} />
             <span className="text-center text-base font-semibold uppercase tracking-wide text-navy">{t(lang, "onSiteHere")}</span>
           </button>

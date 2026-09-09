@@ -1,18 +1,19 @@
-import type { ChatMessage, Entrepreneur, InboxClass, KsReport, MaterialNeed, Slip, Tf, Todo } from "./types";
+import type { ChatMessage, Entrepreneur, InboxClass, KsReport, MaterialNeed, Offer, Slip, Tf, Todo } from "./types";
 
-export type BoardPile = "todo" | "ent" | "tf" | "extra" | "ks" | "materials";
+export type BoardPile = "todo" | "ent" | "tf" | "extra" | "offer" | "ks" | "materials";
 
-export const BOARD_PILES: BoardPile[] = ["todo", "ent", "tf", "extra", "ks", "materials"];
+export const BOARD_PILES: BoardPile[] = ["todo", "ent", "tf", "extra", "offer", "ks", "materials"];
 
 export const CLASSIFY_ORDER: InboxClass[] = ["todo", "ent", "tf", "extra", "ks", "materials"];
 
 export function pileLabelKey(
   p: BoardPile | InboxClass,
-): "boardPileTodo" | "boardPileEr" | "boardPileTf" | "boardPileAs" | "boardPileKs" | "boardPileMa" {
+): "boardPileTodo" | "boardPileEr" | "boardPileTf" | "boardPileAs" | "boardPileTb" | "boardPileKs" | "boardPileMa" {
   if (p === "todo") return "boardPileTodo";
   if (p === "ent") return "boardPileEr";
   if (p === "tf") return "boardPileTf";
   if (p === "extra") return "boardPileAs";
+  if (p === "offer") return "boardPileTb";
   if (p === "ks") return "boardPileKs";
   return "boardPileMa";
 }
@@ -43,6 +44,7 @@ export function pileHasNewFromChat(opts: {
   ents: Entrepreneur[];
   tfs: Tf[];
   slips: Slip[];
+  offers?: Offer[];
   ks: KsReport[];
   needs: MaterialNeed[];
   chats: ChatMessage[];
@@ -59,6 +61,9 @@ export function pileHasNewFromChat(opts: {
   }
   if (opts.pile === "extra") {
     return opts.slips.some((r) => isNewFromChat(r.createdAt, Boolean(r.fromChatId), seen) && !r.trashedAt);
+  }
+  if (opts.pile === "offer") {
+    return (opts.offers ?? []).some((r) => isNewFromChat(r.createdAt, Boolean(r.fromChatId), seen) && !r.trashedAt);
   }
   if (opts.pile === "ks") {
     return opts.ks.some((r) => isNewFromChat(r.createdAt, Boolean(r.fromChatId), seen) && !r.trashedAt);

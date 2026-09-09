@@ -215,6 +215,31 @@ create table slips (
   updated_at timestamptz default now()
 );
 
+create table offers (
+  id text primary key,
+  number text,
+  project_id text,
+  title text,
+  location text,
+  body text,
+  master_solution text,
+  customer_price text,
+  hours_est double precision,
+  materials_est text,
+  photo_ids jsonb default '[]',
+  created_at timestamptz,
+  status text,
+  forwarded boolean,
+  paid boolean,
+  from_chat_id text,
+  ledelse_status text,
+  ledelse_replies jsonb default '[]',
+  kunde_status text,
+  trashed_at timestamptz,
+  source text,
+  updated_at timestamptz default now()
+);
+
 create table ents (
   id text primary key,
   number text,
@@ -440,7 +465,7 @@ declare t text;
 begin
   foreach t in array array[
     'employees','projects','assignments','todos','messages','ks_reports','day_logs',
-    'tfs','slips','ents','issues','plan_blocks','notices','needs','orders','receipts',
+    'tfs','slips','offers','ents','issues','plan_blocks','notices','needs','orders','receipts',
     'field_items','threads','packs','suppliers','serials','files','push_subs'
   ]
   loop
@@ -519,7 +544,7 @@ insert into assignments (employee_id, project_id) values
 on conflict do nothing;
 
 insert into serials (kind, next, year) values
-  ('as', 6, 2026), ('tf', 7, 2026), ('er', 1, 2026), ('ks', 5, 2026), ('mo', 1, 2026), ('fb', 1, 2026)
+  ('as', 6, 2026), ('tb', 1, 2026), ('tf', 7, 2026), ('er', 1, 2026), ('ks', 5, 2026), ('mo', 1, 2026), ('fb', 1, 2026)
 on conflict (kind) do nothing;
 
 notify pgrst, 'reload schema';

@@ -207,6 +207,8 @@ export type Slip = {
   source?: string;
 };
 
+export type Offer = Slip;
+
 export type Tf = {
   id: string;
   number: string;

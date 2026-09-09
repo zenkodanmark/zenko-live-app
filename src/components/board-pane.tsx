@@ -11,7 +11,8 @@ import { t, localeFor } from "@/lib/i18n";
 import { listBoardMail, type MailLive } from "@/lib/mail.functions";
 import { boardHeadline, guessSag, mailKind, recentBoardFallback, type MailItem } from "@/lib/mail.snapshot";
 import { BOARD_PILES, pileHasNewFromChat, pileLabelKey, type BoardPile } from "@/lib/board-piles";
-import { copenhagenDate, copenhagenTime, isCrewRole, projectById } from "@/lib/seed";
+import { boardedCount, isOnSite } from "@/lib/on-site";
+import { copenhagenDate, copenhagenTime, projectById } from "@/lib/seed";
 import { listYardCalendar } from "@/lib/calendar.functions";
 import { todayLog, useSessionEmployee, useYard } from "@/lib/store";
 import type { CalEvent, Lang } from "@/lib/types";
@@ -25,6 +26,7 @@ export function BoardPane({ lang }: { lang: Lang }) {
   const ents = useYard((s) => s.ents) ?? [];
   const tfs = useYard((s) => s.tfs) ?? [];
   const slips = useYard((s) => s.slips) ?? [];
+  const offers = useYard((s) => s.offers) ?? [];
   const ks = useYard((s) => s.ksReports) ?? [];
   const needs = useYard((s) => s.needs) ?? [];
   const chats = useYard((s) => s.chats) ?? [];
@@ -42,9 +44,9 @@ export function BoardPane({ lang }: { lang: Lang }) {
 
   const dots = useMemo(() => {
     if (!emp) return {} as Record<BoardPile, boolean>;
-    const args = { employeeId: emp.id, seenAt: boardSeenAt, todos, ents, tfs, slips, ks, needs, chats };
+    const args = { employeeId: emp.id, seenAt: boardSeenAt, todos, ents, tfs, slips, offers, ks, needs, chats };
     return Object.fromEntries(BOARD_PILES.map((p) => [p, pileHasNewFromChat({ ...args, pile: p })])) as Record<BoardPile, boolean>;
-  }, [emp, boardSeenAt, todos, ents, tfs, slips, ks, needs, chats]);
+  }, [emp, boardSeenAt, todos, ents, tfs, slips, offers, ks, needs, chats]);
 
   function pickPile(p: BoardPile) {
     if (pile === p) {
@@ -78,6 +80,7 @@ const PILE_TO_LIST: Record<BoardPile, ListKind> = {
   ent: "ent",
   tf: "tf",
   extra: "slip",
+  offer: "offer",
   ks: "ks",
   materials: "material",
 };
@@ -99,7 +102,7 @@ function BoardPileBar({
 }) {
   return (
     <div>
-      <ul className="grid grid-cols-6 gap-1.5">
+      <ul className="grid grid-cols-7 gap-1">
         {BOARD_PILES.map((p) => {
           const on = value === p;
           const hot = dots[p];
@@ -126,25 +129,26 @@ function BoardPileBar({
 function CrewStrip({ lang }: { lang: Lang }) {
   const employees = useYard((s) => s.employees);
   const days = useYard((s) => s.days);
-  const crew = employees.filter((e) => isCrewRole(e.role));
-  const met = crew.filter((e) => todayLog(e.id, days).checkInAt && !todayLog(e.id, days).checkOutAt).length;
+  const { met, total } = boardedCount(employees, days);
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between gap-2">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">{t(lang, "crewStrip")}</p>
-        <p className="text-[11px] text-muted">
-          {met}/{crew.length} {t(lang, "metYes")}
+        <p className="text-[11px] text-muted" data-testid="board-crew-count">
+          {met}/{total} {t(lang, "metYes")}
         </p>
       </div>
       <ul className="flex gap-1 overflow-x-auto pb-1">
-        {crew.map((e) => {
+        {employees.map((e) => {
           const d = todayLog(e.id, days);
-          const arrived = Boolean(d.checkInAt && !d.checkOutAt);
-          const job = d.projectId ? projectById(d.projectId).name : "";
+          const arrived = isOnSite(d);
+          const job = arrived && d.projectId ? projectById(d.projectId).name : "";
           return (
             <li
               key={e.id}
-              className={`min-w-[4.8rem] shrink-0 rounded-lg px-1.5 py-1 text-center ${arrived ? "bg-paper" : "bg-paper/70"}`}
+              data-testid={`board-crew-${e.id}`}
+              data-onsite={arrived ? "1" : "0"}
+              className={`min-w-[4.8rem] shrink-0 rounded-lg px-1.5 py-1 text-center ${arrived ? "bg-paper ring-[3px] ring-brick" : "bg-paper/70"}`}
             >
               <FacePhoto employee={e} px={40} />
               <p className="mt-1 truncate text-list font-medium leading-[1.4] text-ink">{e.name.split(" ")[0]}</p>

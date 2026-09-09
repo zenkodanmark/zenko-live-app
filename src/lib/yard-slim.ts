@@ -52,6 +52,18 @@ export function mergeById<T extends { id: string }>(local: T[], remote: T[]): T[
   return [...map.values()];
 }
 
+const held = new Map<string, number>();
+export function holdRow(id: string) {
+  if (id) held.set(id, Date.now());
+}
+export function mergeSkippingHeld<T extends { id: string }>(local: T[], remote: T[], ms = 6000): T[] {
+  const now = Date.now();
+  return mergeById(
+    local,
+    remote.filter((row) => (held.get(row.id) ?? 0) + ms < now),
+  );
+}
+
 function mergeMedia<T extends { id?: string; dataUrl?: string; driveFileId?: string }>(local?: T[], remote?: T[]): T[] | undefined {
   if (!local?.length && !remote?.length) return local ?? remote;
   const map = new Map<string, T>();

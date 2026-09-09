@@ -17,7 +17,7 @@ import { TfShareBar } from "@/components/tf-share-bar";
 import { KundeHak } from "@/components/kunde-hak";
 import { LedelseHak } from "@/components/ledelse-hak";
 
-export type ReportKind = "slip" | "tf" | "ent" | "ks" | "pack";
+export type ReportKind = "slip" | "offer" | "tf" | "ent" | "ks" | "pack";
 
 export function PrintChrome({
   docId,
@@ -36,25 +36,28 @@ export function PrintChrome({
   const trashReport = useYard((s) => s.trashReport);
   const restoreReport = useYard((s) => s.restoreReport);
   const slips = useYard((s) => s.slips);
+  const offers = useYard((s) => s.offers) ?? [];
   const tfs = useYard((s) => s.tfs);
   const ents = useYard((s) => s.ents);
   const ksReports = useYard((s) => s.ksReports);
   const current =
     kind === "slip"
       ? slips.find((x) => x.id === docId)
-      : kind === "tf"
-        ? tfs.find((x) => x.id === docId)
-        : kind === "ent"
-          ? ents.find((x) => x.id === docId)
-          : kind === "ks"
-            ? ksReports.find((x) => x.id === docId)
-            : undefined;
+      : kind === "offer"
+        ? offers.find((x) => x.id === docId)
+        : kind === "tf"
+          ? tfs.find((x) => x.id === docId)
+          : kind === "ent"
+            ? ents.find((x) => x.id === docId)
+            : kind === "ks"
+              ? ksReports.find((x) => x.id === docId)
+              : undefined;
   const ksRow = kind === "ks" ? (() => {
     const row = ksReports.find((x) => x.id === docId);
     return row ? hydrateSoftrReport(row) : undefined;
   })() : undefined;
-  const slipRow = kind === "slip" ? (() => {
-    const row = slips.find((x) => x.id === docId);
+  const slipRow = kind === "slip" || kind === "offer" ? (() => {
+    const row = kind === "offer" ? offers.find((x) => x.id === docId) : slips.find((x) => x.id === docId);
     return row ? hydrateSoftrSlip(row) : undefined;
   })() : undefined;
   const tfRow = kind === "tf" ? (() => {
@@ -66,7 +69,7 @@ export function PrintChrome({
     return row ? hydrateSoftrEnt(row) : undefined;
   })() : undefined;
   const trashed = Boolean(current && "trashedAt" in current && current.trashedAt);
-  const canTrash = kind === "slip" || kind === "tf" || kind === "ent" || kind === "ks";
+  const canTrash = kind === "slip" || kind === "offer" || kind === "tf" || kind === "ent" || kind === "ks";
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-navy/50">
       <div className="no-print sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-navy px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-sand">
@@ -95,10 +98,11 @@ export function PrintChrome({
           <span className="text-xs text-sand/70">Ikke sendt. I sender selv.</span>
         )}
         {ksRow ? <KundeHak report={ksRow} lang={lang} /> : null}
-        {slipRow ? <LedelseHak kind="as" report={slipRow} lang={lang} /> : null}
+        {slipRow && kind === "slip" ? <LedelseHak kind="as" report={slipRow} lang={lang} /> : null}
+        {slipRow && kind === "offer" ? <LedelseHak kind="tb" report={slipRow} lang={lang} /> : null}
         {tfRow ? <LedelseHak kind="tf" report={tfRow} lang={lang} /> : null}
         {entRow ? <LedelseHak kind="er" report={entRow} lang={lang} /> : null}
-        {kind && kind !== "pack" && current ? <MoveReportBar kind={kind} id={docId} projectId={"projectId" in current ? current.projectId : ""} /> : null}
+        {kind && kind !== "pack" && kind !== "offer" && current ? <MoveReportBar kind={kind} id={docId} projectId={"projectId" in current ? current.projectId : ""} /> : null}
         <PrimaryButton tone="sand" className="w-auto px-4 text-action" onClick={printDoc}>
           Print / PDF
         </PrimaryButton>
@@ -139,6 +143,7 @@ function MoveReportBar({ kind, id, projectId }: { kind: Exclude<ReportKind, "pac
 
 function ReportFixBar({ kind, id }: { kind: ReportKind; id: string }) {
   const slips = useYard((s) => s.slips);
+  const offers = useYard((s) => s.offers) ?? [];
   const tfs = useYard((s) => s.tfs);
   const ents = useYard((s) => s.ents);
   const packs = useYard((s) => s.packs);
@@ -147,18 +152,21 @@ function ReportFixBar({ kind, id }: { kind: ReportKind; id: string }) {
   const report =
     kind === "slip"
       ? slips.find((x) => x.id === id)
-      : kind === "tf"
-        ? tfs.find((x) => x.id === id)
-        : kind === "ent"
-          ? ents.find((x) => x.id === id)
-          : kind === "pack"
-            ? packs.find((x) => x.id === id)
-            : ksReports.find((x) => x.id === id);
+      : kind === "offer"
+        ? offers.find((x) => x.id === id)
+        : kind === "tf"
+          ? tfs.find((x) => x.id === id)
+          : kind === "ent"
+            ? ents.find((x) => x.id === id)
+            : kind === "pack"
+              ? packs.find((x) => x.id === id)
+              : ksReports.find((x) => x.id === id);
   const [note, setNote] = useState("");
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<{ who: "bot" | "me"; text: string; changes?: FixChange[] }[]>(() => [welcome()]);
   const [fields, setFields] = useState<Record<string, string>>(() => fieldsFrom(kind, report));
+  const fixKind = kind === "offer" ? "slip" : kind;
 
   useEffect(() => {
     setFields(fieldsFrom(kind, report));
@@ -180,9 +188,9 @@ function ReportFixBar({ kind, id }: { kind: ReportKind; id: string }) {
     setNote("");
     setLog((rows) => [...rows, { who: "me", text }]);
     try {
-      const snapshot = snapshotOf(kind, report as unknown as Record<string, unknown>);
+      const snapshot = snapshotOf(fixKind, report as unknown as Record<string, unknown>);
       const res = await applyReportFix({
-        data: { kind, instruction: text, report: snapshot },
+        data: { kind: fixKind, instruction: text, report: snapshot },
       });
       if (!res.ok) {
         setLog((rows) => [...rows, { who: "bot", text: res.error === "empty" ? "Skriv hvad der skal rettes." : "Botten svarede ikke." }]);
@@ -349,7 +357,7 @@ function FixInput({ label, value, onChange }: { label: string; value: string; on
 
 function fieldsFrom(kind: ReportKind, report: Slip | Tf | Entrepreneur | InvoicePack | KsReport | undefined): Record<string, string> {
   if (!report) return {};
-  if (kind === "slip") {
+  if (kind === "slip" || kind === "offer") {
     const s = report as Slip;
     return { title: s.title, location: s.location, body: s.body, masterSolution: s.masterSolution, customerPrice: s.customerPrice };
   }
@@ -370,7 +378,7 @@ function fieldsFrom(kind: ReportKind, report: Slip | Tf | Entrepreneur | Invoice
 }
 
 function fieldsPatch(kind: ReportKind, fields: Record<string, string>): Record<string, unknown> {
-  if (kind === "slip") return { title: fields.title, location: fields.location, body: fields.body, masterSolution: fields.masterSolution, customerPrice: fields.customerPrice };
+  if (kind === "slip" || kind === "offer") return { title: fields.title, location: fields.location, body: fields.body, masterSolution: fields.masterSolution, customerPrice: fields.customerPrice };
   if (kind === "tf") return { title: fields.title, question: fields.question };
   if (kind === "ent") return { title: fields.title, location: fields.location, body: fields.body, noteHe: fields.noteHe };
   if (kind === "pack") return { title: fields.title };
@@ -454,13 +462,13 @@ function priceLabel(raw: string) {
   return `${Math.round(n).toLocaleString("da-DK")},-`;
 }
 
-export function SlipDoc({ slip }: { slip: Slip }) {
+export function SlipDoc({ slip, heading }: { slip: Slip; heading?: string }) {
   const job = lookupProject(slip.projectId);
   return (
     <A4 white>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Aftaleseddel nr: {slip.number}</h1>
+          <h1 className="text-3xl font-bold" {...(heading ? { "data-testid": "tb-doc-heading" } : {})}>{heading ?? `Aftaleseddel nr: ${slip.number}`}</h1>
           <p className="mt-1 text-lg text-gray-700">{slip.title}</p>
         </div>
         <FirmBlock />
@@ -498,6 +506,10 @@ export function SlipDoc({ slip }: { slip: Slip }) {
       <FieldBilag ids={slip.photoIds} label="Billeder:" />
     </A4>
   );
+}
+
+export function OfferDoc({ offer }: { offer: Slip }) {
+  return <SlipDoc slip={offer} heading={`Tilbud nr: ${offer.number}`} />;
 }
 
 export function SlipInternalFlags({ slip, onForwarded, onPaid }: { slip: Slip; onForwarded: () => void; onPaid: () => void }) {

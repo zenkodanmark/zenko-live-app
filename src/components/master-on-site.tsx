@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ActionPng } from "@/components/sag-icons";
 import { t } from "@/lib/i18n";
 import { readGps, siteFallback } from "@/lib/geo";
+import { isOnSite } from "@/lib/on-site";
 import { todayLog, useSessionEmployee, useYard } from "@/lib/store";
 import type { Lang } from "@/lib/types";
 
@@ -16,7 +17,7 @@ export function MasterOnSiteBar({ lang, projectId }: { lang: Lang; projectId?: s
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const day = emp ? todayLog(emp.id, days) : null;
-  const onSite = Boolean(day?.checkInAt && !day?.checkOutAt && day.projectId);
+  const onSite = Boolean(isOnSite(day) && day?.projectId);
   const activeJob = onSite ? projects.find((p) => p.id === day?.projectId) : null;
   const jobs = projects.filter((p) => p.status === "active");
 
@@ -69,9 +70,10 @@ export function MasterOnSiteBar({ lang, projectId }: { lang: Lang; projectId?: s
         <button
           type="button"
           data-testid="master-on-site"
+          data-onsite={onSite ? "1" : "0"}
           disabled={busy}
           onClick={onPlads}
-          className="inline-flex min-h-[52px] min-w-[52px] flex-col items-center gap-1 disabled:opacity-50"
+          className={`inline-flex min-h-[52px] min-w-[52px] flex-col items-center gap-1 disabled:opacity-50 ${onSite ? "rounded-2xl p-1 ring-[3px] ring-brick" : ""}`}
         >
           <ActionPng name="onSite" px={152} />
           <span className="text-sm font-semibold text-navy">{t(lang, "onSiteHere")}</span>

@@ -7,11 +7,13 @@ import {
   projectToRow,
   slipFromRow,
   slipToRow,
+  offerFromRow,
+  offerToRow,
   tfFromRow,
   tfToRow,
 } from "./sb-rows";
 import { supabase } from "./supabase";
-import type { Entrepreneur, MaterialOrder, Project, Slip, Tf } from "./types";
+import type { Entrepreneur, MaterialOrder, Offer, Project, Slip, Tf } from "./types";
 
 async function pullTable<T>(table: string, fromRow: (r: Record<string, unknown>) => T): Promise<T[] | null> {
   try {
@@ -51,6 +53,13 @@ export async function pullSlips() {
 }
 export async function publishSlip(row: Slip) {
   return upsert("slips", slipToRow(row));
+}
+
+export async function pullOffers() {
+  return pullTable("offers", offerFromRow);
+}
+export async function publishOffer(row: Offer) {
+  return upsert("offers", offerToRow(row));
 }
 
 export async function pullEnts() {

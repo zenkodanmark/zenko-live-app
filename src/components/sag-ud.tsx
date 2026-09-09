@@ -2,13 +2,44 @@ import { useEffect, useRef, useState } from "react";
 import { ActionPng, CloseX, SagPng, type SagPngName } from "@/components/sag-icons";
 import { SectionLabel } from "@/components/zenko";
 import { t, type CopyKey } from "@/lib/i18n";
-import { listPladsPrefix, pladsPath, uploadPladsBytes } from "@/lib/plads-file";
+import { listPladsPrefix, pladsPath, uploadPladsBlob, uploadPladsBytes } from "@/lib/plads-file";
 import { lookupProject, useSessionEmployee, useYard } from "@/lib/store";
 import { gpsPatch, readGpsOrSite } from "@/lib/photo-meta";
-import { UD_DAGS_TYPES, UD_ERFARING_TYPES, UD_FOLDERS, type UdKey, udFolderName, udNoteSlug } from "@/lib/ud-folders";
+import {
+  UD_DAGS_TYPES,
+  UD_ERFARING_TYPES,
+  UD_FILE_ACCEPT,
+  UD_FOLDERS,
+  UD_GALLERY_ACCEPT,
+  mimeForUdFile,
+  type UdFileKind,
+  type UdKey,
+  udFallbackName,
+  udFileKind,
+  udFilePreviewable,
+  udFolderName,
+  udNoteSlug,
+} from "@/lib/ud-folders";
 import type { Lang } from "@/lib/types";
 
-type Draft = { id: string; name: string; mimeType: string; dataUrl: string };
+type Draft = { id: string; name: string; mimeType: string; dataUrl: string; file?: File };
+
+let udListTick = 0;
+const udListWatch = new Set<(n: number) => void>();
+function bumpUdList() {
+  udListTick += 1;
+  for (const fn of udListWatch) fn(udListTick);
+}
+function useUdListTick() {
+  const [n, setN] = useState(udListTick);
+  useEffect(() => {
+    udListWatch.add(setN);
+    return () => {
+      udListWatch.delete(setN);
+    };
+  }, []);
+  return n;
+}
 
 function utf8b64(text: string) {
   return btoa(unescape(encodeURIComponent(text)));
@@ -48,8 +79,37 @@ function udUiLabel(lang: Lang, folderName: string) {
   return hit ? t(lang, udLabelKey(hit.key)) : folderName.replace(/^\d+\s+/, "");
 }
 
+function CubeIcon({ px = 32 }: { px?: number }) {
+  return (
+    <svg width={px} height={px} viewBox="0 0 32 32" aria-hidden className="shrink-0" data-testid="ud-cube">
+      <path d="M16 4 L28 11 L16 18 L4 11 Z" fill="#c45c3e" />
+      <path d="M4 11 L16 18 L16 28 L4 21 Z" fill="#1c2428" />
+      <path d="M16 18 L28 11 L28 21 L16 28 Z" fill="#4a585e" />
+    </svg>
+  );
+}
+
+function UdFileGlyph({ kind, src, name }: { kind: UdFileKind; src?: string; name?: string }) {
+  if (kind === "image" && src) {
+    return <img src={src} alt={name || ""} className="size-10 shrink-0 rounded-lg object-cover" />;
+  }
+  if (kind === "video") return <ActionPng name="video" px={40} />;
+  if (kind === "model") return <CubeIcon px={36} />;
+  return <ActionPng name="fileDoc" px={36} />;
+}
+
+function readFileDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result || ""));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+
 export function UdCount({ projectId, onReady }: { projectId: string; onReady?: (n: number) => void }) {
   const [n, setN] = useState<number | null>(null);
+  const tick = useUdListTick();
   useEffect(() => {
     let live = true;
     void Promise.all(UD_FOLDERS.map(async (f) => {
@@ -57,26 +117,27 @@ export function UdCount({ projectId, onReady }: { projectId: string; onReady?: (
       return { name: f.name, id: f.key, count: files.length };
     })).then((folders) => {
       if (!live) return;
-      const total = folders.reduce((n, f) => n + f.count, 0);
+      const total = folders.reduce((sum, f) => sum + f.count, 0);
       setN(total);
       onReady?.(total);
     });
     return () => {
       live = false;
     };
-  }, [projectId, onReady]);
+  }, [projectId, onReady, tick]);
   return <>{n ?? "–"}</>;
 }
 
 export function UdSheet({ projectId, lang, onClose, onAdd }: { projectId: string; lang: Lang; onClose: () => void; onAdd: () => void }) {
   const [folders, setFolders] = useState<{ name: string; id: string; count: number }[]>([]);
   const [open, setOpen] = useState<UdKey | null>(null);
+  const tick = useUdListTick();
   useEffect(() => {
     void Promise.all(UD_FOLDERS.map(async (f) => {
       const files = await listPladsPrefix(`${projectId}/${f.key}`);
       return { name: f.name, id: f.key, count: files.length };
     })).then(setFolders);
-  }, [projectId]);
+  }, [projectId, tick]);
   void onClose;
   void onAdd;
 
@@ -111,6 +172,8 @@ export function UdSheet({ projectId, lang, onClose, onAdd }: { projectId: string
 
 function UdFileList({ projectId, lang, folder }: { projectId: string; lang: Lang; folder: UdKey }) {
   const [items, setItems] = useState<{ folder: string; id: string; name: string; href: string }[]>([]);
+  const [peek, setPeek] = useState<{ href: string; name: string; kind: UdFileKind } | null>(null);
+  const tick = useUdListTick();
   useEffect(() => {
     let live = true;
     const f = UD_FOLDERS.find((x) => x.key === folder);
@@ -127,20 +190,71 @@ function UdFileList({ projectId, lang, folder }: { projectId: string; lang: Lang
     return () => {
       live = false;
     };
-  }, [projectId, folder]);
+  }, [projectId, folder, tick]);
 
   if (!items.length) return <p className="mt-4 text-sm text-muted">{t(lang, "noneYet")}</p>;
   return (
-    <ul className="mt-4 space-y-1.5">
-      {items.map((row) => (
-        <li key={row.id} className="flex items-center gap-2 rounded-xl bg-paper px-3 py-2 shadow-card">
-          <a href={row.href} target="_blank" rel="noreferrer" className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-navy">{row.name}</p>
-            <p className="text-xs text-muted">{udUiLabel(lang, row.folder)}</p>
-          </a>
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="mt-4 space-y-1.5">
+        {items.map((row) => {
+          const kind = udFileKind(row.name);
+          const preview = udFilePreviewable(kind);
+          return (
+            <li key={row.id} className="flex items-center gap-2 rounded-xl bg-paper px-3 py-2 shadow-card" data-testid="ud-item" data-kind={kind} data-name={row.name}>
+              {preview ? (
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  data-testid={`ud-item-${kind}`}
+                  onClick={() => {
+                    if (kind === "pdf") {
+                      window.open(row.href, "_blank", "noopener,noreferrer");
+                      return;
+                    }
+                    setPeek({ href: row.href, name: row.name, kind });
+                  }}
+                >
+                  <UdFileGlyph kind={kind} src={row.href} name={row.name} />
+                  <span className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-navy">{row.name}</p>
+                    <p className="text-xs text-muted">{udUiLabel(lang, row.folder)}</p>
+                  </span>
+                </button>
+              ) : (
+                <a
+                  href={row.href}
+                  download={row.name}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex min-w-0 flex-1 items-center gap-2"
+                  data-testid={`ud-item-${kind}`}
+                >
+                  <UdFileGlyph kind={kind} src={row.href} name={row.name} />
+                  <span className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-navy">{row.name}</p>
+                    <p className="text-xs text-muted">{udUiLabel(lang, row.folder)}</p>
+                  </span>
+                </a>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {peek ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-navy/80 p-4"
+          data-testid="ud-preview"
+          onClick={() => setPeek(null)}
+        >
+          {peek.kind === "video" ? (
+            <video src={peek.href} controls className="max-h-[90dvh] max-w-full rounded-[20px]" onClick={(e) => e.stopPropagation()} />
+          ) : (
+            <img src={peek.href} alt={peek.name} className="max-h-[90dvh] max-w-full rounded-[20px] object-contain" />
+          )}
+        </button>
+      ) : null}
+    </>
   );
 }
 
@@ -160,6 +274,7 @@ export function UdPick({
   const [busy, setBusy] = useState(false);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const camRef = useRef<HTMLInputElement>(null);
+  const galRef = useRef<HTMLInputElement>(null);
   const vidRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const types = pick === "erfaring" ? UD_ERFARING_TYPES : pick === "dagsrapport" ? UD_DAGS_TYPES : [];
@@ -169,18 +284,23 @@ export function UdPick({
     if (!files.length) return;
     const next: Draft[] = [];
     for (const file of files) {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = () => resolve(String(r.result || ""));
-        r.onerror = () => reject(r.error);
-        r.readAsDataURL(file);
-      });
-      if (!dataUrl) continue;
+      const name = udFallbackName(file);
+      const kind = udFileKind(name, file.type);
+      const mimeType = mimeForUdFile(name, file.type);
+      let dataUrl = "";
+      if (kind === "image" && file.size < 12_000_000) {
+        try {
+          dataUrl = await readFileDataUrl(file);
+        } catch {
+          dataUrl = "";
+        }
+      }
       next.push({
         id: `ud-${crypto.randomUUID().slice(0, 8)}`,
-        name: file.name || "fil",
-        mimeType: file.type || "application/octet-stream",
+        name,
+        mimeType,
         dataUrl,
+        file,
       });
     }
     if (next.length) setDrafts((cur) => [...cur, ...next].slice(0, 8));
@@ -226,14 +346,24 @@ export function UdPick({
         }
       }
       for (const d of drafts) {
-        const up = await uploadPladsBytes({
-          path: pladsPath(projectId, pick, d.name),
-          contentBase64: dataUrlB64(d.dataUrl),
-          mimeType: d.mimeType,
-          projectId,
-          kind: pick,
-          name: d.name,
-        });
+        const mime = mimeForUdFile(d.name, d.mimeType);
+        const up = d.file
+          ? await uploadPladsBlob({
+              path: pladsPath(projectId, pick, d.name),
+              blob: d.file,
+              mimeType: mime,
+              projectId,
+              kind: pick,
+              name: d.name,
+            })
+          : await uploadPladsBytes({
+              path: pladsPath(projectId, pick, d.name),
+              contentBase64: dataUrlB64(d.dataUrl),
+              mimeType: mime,
+              projectId,
+              kind: pick,
+              name: d.name,
+            });
         if (up.ok && up.fileId) fileIds.push(up.fileId);
         else {
           useYard.setState({ toast: up.error || t(lang, "udUploadFail") });
@@ -241,6 +371,7 @@ export function UdPick({
         }
       }
       void fileIds;
+      bumpUdList();
       useYard.setState({ toast: t(lang, "udUploaded") });
       setDrafts([]);
       setNote("");
@@ -301,16 +432,28 @@ export function UdPick({
             />
             {drafts.length ? (
               <ul className="mt-2 flex flex-wrap gap-1.5">
-                {drafts.map((d) => (
-                  <li key={d.id} className="max-w-[9rem] truncate rounded-lg bg-sand px-2 py-1 text-[11px]">
-                    {d.name}
-                  </li>
-                ))}
+                {drafts.map((d) => {
+                  const kind = udFileKind(d.name, d.mimeType);
+                  return (
+                    <li
+                      key={d.id}
+                      className="flex max-w-[11rem] items-center gap-1.5 rounded-lg bg-sand px-2 py-1"
+                      data-testid="ud-draft"
+                      data-kind={kind}
+                    >
+                      <UdFileGlyph kind={kind} src={d.dataUrl || undefined} name={d.name} />
+                      <span className="truncate text-[11px]">{d.name}</span>
+                    </li>
+                  );
+                })}
               </ul>
             ) : null}
             <div className="mt-3 flex items-center justify-center gap-1 rounded-[20px] bg-sand px-1 py-1">
               <button type="button" aria-label={t(lang, "fieldPhoto")} data-testid="ud-cam" className="inline-flex min-h-[3.5rem] flex-1 items-center justify-center" disabled={busy} onClick={() => camRef.current?.click()}>
                 <ActionPng name="camCompact" px={64} />
+              </button>
+              <button type="button" aria-label={t(lang, "gallery")} data-testid="ud-gallery" className="inline-flex min-h-[3.5rem] flex-1 items-center justify-center" disabled={busy} onClick={() => galRef.current?.click()}>
+                <ActionPng name="gallery" px={64} />
               </button>
               <button type="button" aria-label={t(lang, "fieldVideo")} data-testid="ud-video" className="inline-flex min-h-[3.5rem] flex-1 items-center justify-center" disabled={busy} onClick={() => vidRef.current?.click()}>
                 <ActionPng name="video" px={64} />
@@ -330,9 +473,10 @@ export function UdPick({
                 <ActionPng name="send" px={52} />
               </button>
             </div>
-            <input ref={camRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }} />
-            <input ref={vidRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }} />
-            <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.txt,application/pdf" className="hidden" onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }} />
+            <input ref={camRef} type="file" accept="image/*" capture="environment" className="hidden" data-testid="ud-cam-input" onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }} />
+            <input ref={galRef} type="file" accept={UD_GALLERY_ACCEPT} multiple className="hidden" data-testid="ud-gallery-input" onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }} />
+            <input ref={vidRef} type="file" accept="video/*" capture="environment" className="hidden" data-testid="ud-video-input" onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }} />
+            <input ref={fileRef} type="file" accept={UD_FILE_ACCEPT} multiple className="hidden" data-testid="ud-file-input" onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }} />
           </>
         ) : null}
       </div>

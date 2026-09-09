@@ -106,13 +106,13 @@ export function FieldAttach({
 }: {
   lang: Lang;
   projectId: string;
-  kind: "slip" | "tf" | "ent";
+  kind: "slip" | "offer" | "tf" | "ent";
   reportId: string;
   attachedIds: string[];
 }) {
   const fieldItems = useYard((s) => s.fieldItems);
   const attachFieldToReport = useYard((s) => s.attachFieldToReport);
-  const match: InboxClass = kind === "slip" ? "extra" : kind === "tf" ? "tf" : "ent";
+  const match: InboxClass = kind === "slip" || kind === "offer" ? "extra" : kind === "tf" ? "tf" : "ent";
   const pool = fieldItems.filter((f) => f.projectId === projectId && f.status === "classified" && f.classifiedAs === match);
   const attached = new Set(attachedIds);
   if (pool.length === 0) return <p className="mt-3 text-xs text-muted">{t(lang, "fieldNoneClass")}</p>;

@@ -1,11 +1,13 @@
 import { getRouteApi } from "@tanstack/react-router";
-import { SagAsList, SagAsPage, SagErList, SagErPage, SagHome, SagSamling, SagTfList, SagTfPage } from "@/components/sag-pages";
+import { SagAsList, SagAsPage, SagErList, SagErPage, SagHome, SagSamling, SagTbList, SagTbPage, SagTfList, SagTfPage } from "@/components/sag-pages";
 import { SagMissing } from "@/components/sag-shell";
 import { useSagSite } from "@/lib/use-sag-site";
 
 const sagIndex = getRouteApi("/sag/$slug/");
 const sagAsList = getRouteApi("/sag/$slug/as/");
 const sagAsNum = getRouteApi("/sag/$slug/as/$number");
+const sagTbList = getRouteApi("/sag/$slug/tb/");
+const sagTbNum = getRouteApi("/sag/$slug/tb/$number");
 const sagErList = getRouteApi("/sag/$slug/er/");
 const sagErNum = getRouteApi("/sag/$slug/er/$number");
 const sagTfList = getRouteApi("/sag/$slug/tf/");
@@ -29,6 +31,18 @@ export function SagAsRoute() {
   const { site, missing } = useSagSite(slug);
   if (missing || !site) return <SagMissing />;
   return <SagAsPage site={site} number={number} />;
+}
+export function SagTbListRoute() {
+  const { slug } = sagTbList.useParams();
+  const { site, missing } = useSagSite(slug);
+  if (missing || !site) return <SagMissing />;
+  return <SagTbList site={site} />;
+}
+export function SagTbRoute() {
+  const { slug, number } = sagTbNum.useParams();
+  const { site, missing } = useSagSite(slug);
+  if (missing || !site) return <SagMissing />;
+  return <SagTbPage site={site} number={number} />;
 }
 export function SagErListRoute() {
   const { slug } = sagErList.useParams();

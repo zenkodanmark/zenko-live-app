@@ -4,10 +4,12 @@ import { FacePhoto } from "@/components/face-photo";
 import { MasterOnSiteBar } from "@/components/master-on-site";
 import { GhostButton, PrimaryButton } from "@/components/zenko";
 import { CloseX } from "@/components/sag-icons";
+import { setCrewSag } from "@/lib/crew-sag";
 import { t } from "@/lib/i18n";
 import { fiveYearDate, fmtDaDate, handoverDate, oneYearDate, reviewUrgency } from "@/lib/job-archive";
+import { presentOnProject } from "@/lib/on-site";
 import { isMasterRole } from "@/lib/seed";
-import { todayLog, useSessionEmployee, useYard } from "@/lib/store";
+import { useSessionEmployee, useYard } from "@/lib/store";
 import type { Lang, Project, ReopenReason } from "@/lib/types";
 
 export function SagHeader({
@@ -158,40 +160,25 @@ export function JobCrewFaces({ projectId }: { projectId: string }) {
   const days = useYard((s) => s.days);
   const setOpenChatWith = useYard((s) => s.setOpenChatWith);
   const me = useSessionEmployee();
-  const crew = employees
-    .filter((e) => {
-      const d = todayLog(e.id, days);
-      return Boolean(d.checkInAt && !d.checkOutAt && d.projectId === projectId);
-    })
-    .sort((a, b) => {
-      const rank = (id: string) => (id === "emp-ole" ? 0 : id === "emp-federico" ? 1 : 100);
-      const ra = rank(a.id);
-      const rb = rank(b.id);
-      if (ra !== rb) return ra - rb;
-      return a.name.localeCompare(b.name, "da");
-    });
+  const crew = presentOnProject(employees, days, projectId).sort((a, b) => {
+    const rank = (id: string) => (id === "emp-ole" ? 0 : id === "emp-federico" ? 1 : 100);
+    const ra = rank(a.id);
+    const rb = rank(b.id);
+    if (ra !== rb) return ra - rb;
+    return a.name.localeCompare(b.name, "da");
+  });
   if (!crew.length) return null;
   const meId = me?.id;
-  let shown = crew.slice(0, 5);
-  const extra = Math.max(0, crew.length - 5);
-  if (meId && extra > 0 && !shown.some((e) => e.id === meId)) {
-    const self = crew.find((e) => e.id === meId);
-    if (self) shown = [...shown.slice(0, 4), self];
-  }
   return (
     <ul className="mt-2 flex flex-wrap items-start gap-2" data-testid="job-crew">
-      {shown.map((e) => {
+      {crew.map((e) => {
         const self = e.id === meId;
         const fore = e.name.trim().split(/\s+/)[0] || e.name;
         const face = (
           <>
             <span
-              className="inline-flex items-center justify-center rounded-full"
-              style={{
-                width: 42,
-                height: 42,
-                border: self ? "3px solid #c45c3e" : "3px solid transparent",
-              }}
+              className="inline-flex items-center justify-center rounded-full ring-[3px] ring-brick"
+              style={{ width: 42, height: 42 }}
             >
               <FacePhoto employee={e} px={36} />
             </span>
@@ -211,7 +198,10 @@ export function JobCrewFaces({ projectId }: { projectId: string }) {
               type="button"
               aria-label={e.name}
               data-testid={`job-crew-${e.id}`}
-              onClick={() => setOpenChatWith(e.id)}
+              onClick={() => {
+                setCrewSag(projectId);
+                setOpenChatWith(e.id, projectId);
+              }}
               className="flex w-[42px] flex-col items-center gap-0.5"
             >
               {face}
@@ -219,15 +209,6 @@ export function JobCrewFaces({ projectId }: { projectId: string }) {
           </li>
         );
       })}
-      {extra > 0 ? (
-        <li
-          className="inline-flex items-center justify-center rounded-full bg-sand text-sm font-semibold text-navy"
-          style={{ width: 42, height: 42 }}
-          data-testid="job-crew-more"
-        >
-          +{extra}
-        </li>
-      ) : null}
     </ul>
   );
 }

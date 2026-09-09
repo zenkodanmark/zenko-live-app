@@ -34,7 +34,7 @@ import {
 import { clearDeviceUser, isLoggedOut, readDeviceUser, rememberDeviceUser } from "./device-auth";
 import { loadCrew } from "./crew-live";
 import { emitYard } from "./yard-bus";
-import { slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "./yard-slim";
+import { holdRow, slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "./yard-slim";
 import { goesToMaster, unsavedOnNewMessage } from "./chat";
 import { noticeForChat, noticeForKs, noticeForTodo, noticeForTodoDone, flashBrowser } from "./notify";
 import { rememberDrive, type DriveMap } from "./drive";
@@ -76,6 +76,7 @@ import type {
   Supplier,
   SiteDoc,
   Slip,
+  Offer,
   Tf,
   Todo,
   TodoKind,
@@ -97,6 +98,7 @@ type YardState = {
   days: Record<string, DayLog>;
   issues: Issue[];
   slips: Slip[];
+  offers: Offer[];
   tfs: Tf[];
   ents: Entrepreneur[];
   packs: InvoicePack[];
@@ -127,9 +129,10 @@ type YardState = {
   notices: Notice[];
   openMaId: string | null;
   openChatWith: string | null;
+  openChatJobId: string | null;
   openOnSitePick: boolean;
   adminFolderId: string;
-  serial: { as: number; tf: number; er: number; ks: number; fb: number; mo: number };
+  serial: { as: number; tb: number; tf: number; er: number; ks: number; fb: number; mo: number };
   login: (id: string) => void;
   logout: () => void;
   setLang: (lang: Lang | null) => void;
@@ -172,10 +175,25 @@ type YardState = {
     fromChatId?: string;
     number?: string;
   }) => Slip;
+  addOffer: (input: {
+    projectId: string;
+    title: string;
+    location: string;
+    body: string;
+    masterSolution: string;
+    customerPrice: string;
+    hoursEst: number;
+    materialsEst: string;
+    photoIds?: string[];
+    fromChatId?: string;
+    number?: string;
+  }) => Offer;
   toggleSlipForwarded: (id: string) => void;
   toggleSlipPaid: (id: string) => void;
-  trashReport: (kind: "slip" | "tf" | "ent" | "ks", id: string) => void;
-  restoreReport: (kind: "slip" | "tf" | "ent" | "ks", id: string) => void;
+  toggleOfferForwarded: (id: string) => void;
+  toggleOfferPaid: (id: string) => void;
+  trashReport: (kind: "slip" | "offer" | "tf" | "ent" | "ks", id: string) => void;
+  restoreReport: (kind: "slip" | "offer" | "tf" | "ent" | "ks", id: string) => void;
   addTf: (input: { projectId: string; question: string; title?: string; photoIds?: string[]; fromChatId?: string; number?: string }) => Tf;
   answerTf: (id: string, answer: string) => void;
   addEnt: (input: { projectId: string; title: string; location: string; body: string; noteHe: string; photoIds?: string[]; fromChatId?: string; number?: string }) => Entrepreneur;
@@ -229,8 +247,8 @@ type YardState = {
   addNote: (projectId: string, body: string) => void;
   addCal: (input: Omit<CalEvent, "id">) => void;
   addDoc: (input: Omit<SiteDoc, "id" | "excerpt" | "receivedAt" | "page"> & Partial<Pick<SiteDoc, "excerpt" | "receivedAt" | "page">>) => void;
-  setReportStatus: (kind: "slip" | "tf" | "ent" | "pack" | "ks", id: string, status: ReportStatus) => void;
-  patchReport: (kind: "slip" | "tf" | "ent" | "pack" | "ks", id: string, patch: Record<string, unknown>) => void;
+  setReportStatus: (kind: "slip" | "offer" | "tf" | "ent" | "pack" | "ks", id: string, status: ReportStatus) => void;
+  patchReport: (kind: "slip" | "offer" | "tf" | "ent" | "pack" | "ks", id: string, patch: Record<string, unknown>) => void;
   resetAlex: () => void;
   pushEvent: (text: string) => void;
   addChat: (input: Omit<ChatMessage, "id" | "at">) => ChatMessage;
@@ -248,7 +266,7 @@ type YardState = {
   markBoardPileSeen: (employeeId: string, pile: string) => void;
   pushNotice: (row: Notice) => void;
   setOpenMa: (id: string | null) => void;
-  setOpenChatWith: (id: string | null) => void;
+  setOpenChatWith: (id: string | null, projectId?: string | null) => void;
   setOpenOnSitePick: (on: boolean) => void;
   markNoticeRead: (id: string, employeeId: string) => void;
   markNoticesRead: (employeeId: string) => void;
@@ -257,7 +275,7 @@ type YardState = {
   classifyFieldItem: (id: string, classifiedAs: InboxClass, masterId: string) => { reportId?: string; reportNumber?: string };
   classifyChat: (id: string, classifiedAs: InboxClass, masterId: string) => { reportId?: string; reportNumber?: string; needId?: string };
   replyTodo: (id: string, fromId: string, text: string) => void;
-  attachFieldToReport: (kind: "slip" | "tf" | "ent", reportId: string, fieldIds: string[]) => void;
+  attachFieldToReport: (kind: "slip" | "offer" | "tf" | "ent", reportId: string, fieldIds: string[]) => void;
   setInboxFolder: (projectId: string, folderId: string) => void;
   setDriveMap: (projectId: string, map: DriveMap) => void;
 };
@@ -339,6 +357,7 @@ function queueSoftrHydrate() {
           const next = {
             ksReports: [...s.ksReports],
             slips: [...s.slips],
+            offers: [...(s.offers ?? [])],
             tfs: [...s.tfs],
             ents: [...s.ents],
             drivePhotos: [...(s.drivePhotos ?? [])],
@@ -462,6 +481,7 @@ export const useYard = create<YardState>()(
   days: seedDays(),
   issues: SEED_ISSUES,
   slips: SEED_SLIPS,
+  offers: [] as Offer[],
   tfs: SEED_TFS,
   ents: SEED_ENTS,
   packs: SEED_PACKS,
@@ -492,10 +512,12 @@ export const useYard = create<YardState>()(
   notices: [] as Notice[],
   openMaId: null as string | null,
   openChatWith: null as string | null,
+  openChatJobId: null as string | null,
   openOnSitePick: false,
   adminFolderId: "",
   serial: {
     as: 6,
+    tb: 1,
     tf: 7,
     er: 1,
     ks: 5,
@@ -505,15 +527,20 @@ export const useYard = create<YardState>()(
   login: (id) => {
     liveSessionId = id;
     const crew = typeof window !== "undefined" ? loadCrew() : [];
-    const emp =
-      get().employees.find((e) => e.id === id) ??
-      crew.find((e) => e.id === id) ??
-      EMPLOYEES.find((e) => e.id === id);
-    if (emp) rememberDeviceUser({ id: emp.id, role: emp.role });
-    const missing = emp && !get().employees.some((e) => e.id === id);
+    const byId = new Map(get().employees.map((e) => [e.id, e]));
+    for (const e of crew) {
+      if (!e?.id) continue;
+      const prev = byId.get(e.id);
+      byId.set(e.id, prev ? { ...prev, ...e } : e);
+    }
+    const emp = byId.get(id) ?? EMPLOYEES.find((e) => e.id === id);
+    if (emp) {
+      rememberDeviceUser({ id: emp.id, role: emp.role });
+      if (!byId.has(emp.id)) byId.set(emp.id, emp);
+    }
     set({
       employeeId: id,
-      employees: missing && emp ? [...get().employees, emp] : get().employees,
+      employees: [...byId.values()],
     });
   },
   logout: () => {
@@ -901,6 +928,31 @@ export const useYard = create<YardState>()(
     void import("./sb-live").then((m) => m.publishSlip(slip));
     return slip;
   },
+  addOffer: (input) => {
+    const n = get().serial.tb ?? 1;
+    const offer: Offer = {
+      id: `offer-${crypto.randomUUID().slice(0, 8)}`,
+      number: input.number || `TB-2026-${pad(n)}`,
+      createdAt: (new Date()).toISOString(),
+      status: "draft" as const,
+      forwarded: false,
+      paid: false,
+      photoIds: [],
+      ledelseStatus: "skjult" as const,
+      kundeStatus: "skjult" as const,
+      ...input,
+    };
+    set((s) => ({
+      offers: [offer, ...(s.offers ?? [])],
+      serial: {
+        ...s.serial,
+        tb: n + 1,
+      },
+      toast: "Gemt.",
+    }));
+    void import("./sb-live").then((m) => m.publishOffer(offer));
+    return offer;
+  },
   toggleSlipForwarded: (id) => set((s) => ({ slips: s.slips.map((x) => x.id === id ? {
     ...x,
     forwarded: !x.forwarded
@@ -909,11 +961,26 @@ export const useYard = create<YardState>()(
     ...x,
     paid: !x.paid
   } : x) })),
+  toggleOfferForwarded: (id) => set((s) => ({ offers: (s.offers ?? []).map((x) => x.id === id ? {
+    ...x,
+    forwarded: !x.forwarded
+  } : x) })),
+  toggleOfferPaid: (id) => set((s) => ({ offers: (s.offers ?? []).map((x) => x.id === id ? {
+    ...x,
+    paid: !x.paid
+  } : x) })),
   trashReport: (kind, id) => {
     const at = (new Date()).toISOString();
     set((s) => {
       if (kind === "slip") return {
         slips: s.slips.map((x) => x.id === id ? {
+          ...x,
+          trashedAt: at
+        } : x),
+        toast: "I papirkurv. Kan hentes igen."
+      };
+      if (kind === "offer") return {
+        offers: (s.offers ?? []).map((x) => x.id === id ? {
           ...x,
           trashedAt: at
         } : x),
@@ -945,6 +1012,13 @@ export const useYard = create<YardState>()(
   restoreReport: (kind, id) => set((s) => {
     if (kind === "slip") return {
       slips: s.slips.map((x) => x.id === id ? {
+        ...x,
+        trashedAt: undefined
+      } : x),
+      toast: "Hentet fra papirkurv."
+    };
+    if (kind === "offer") return {
+      offers: (s.offers ?? []).map((x) => x.id === id ? {
         ...x,
         trashedAt: undefined
       } : x),
@@ -1162,10 +1236,18 @@ export const useYard = create<YardState>()(
       emitYard({ kind: "todo", id: after.id, payload: slimTodo(after), isNew: false, actorId: after.doneById ?? get().employeeId ?? "" });
     }
   },
-  patchTodo: (id, patch) => set((s) => ({ todos: s.todos.map((t) => t.id === id ? {
-    ...t,
-    ...patch
-  } : t) })),
+  patchTodo: (id, patch) => {
+    const before = get().todos.find((t) => t.id === id);
+    if (!before) return;
+    set((s) => ({
+      todos: s.todos.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+    }));
+    const after = get().todos.find((t) => t.id === id);
+    if (after) {
+      holdRow(after.id);
+      emitYard({ kind: "todo", id: after.id, payload: slimTodo(after), isNew: false, actorId: get().employeeId ?? after.fromId });
+    }
+  },
   replyTodo: (id, fromId, text) => {
     const note = text.trim();
     if (!note) return;
@@ -1491,6 +1573,10 @@ export const useYard = create<YardState>()(
       ...x,
       status
     } : x) };
+    if (kind === "offer") return { offers: (s.offers ?? []).map((x) => x.id === id ? {
+      ...x,
+      status
+    } : x) };
     if (kind === "tf") return { tfs: s.tfs.map((x) => x.id === id ? {
       ...x,
       status
@@ -1511,6 +1597,7 @@ export const useYard = create<YardState>()(
   patchReport: (kind, id, patch) => set((s) => {
     const mix = <T extends { id: string }>(rows: T[]) => rows.map((x) => (x.id === id ? ({ ...x, ...patch } as T) : x));
     if (kind === "slip") return { slips: mix(s.slips) };
+    if (kind === "offer") return { offers: mix(s.offers ?? []) };
     if (kind === "tf") return { tfs: mix(s.tfs) };
     if (kind === "ent") return { ents: mix(s.ents) };
     if (kind === "pack") return { packs: mix(s.packs) };
@@ -1723,7 +1810,11 @@ export const useYard = create<YardState>()(
     notices: (s.notices ?? []).map((n) => n.toIds.includes(employeeId) && !n.readBy.includes(employeeId) ? { ...n, readBy: [...n.readBy, employeeId] } : n),
   })),
   setOpenMa: (id) => set({ openMaId: id }),
-  setOpenChatWith: (id) => set({ openChatWith: id }),
+  setOpenChatWith: (id, projectId) =>
+    set({
+      openChatWith: id,
+      ...(projectId ? { openChatJobId: projectId } : {}),
+    }),
   setOpenOnSitePick: (on) => set({ openOnSitePick: on }),
   addFieldItems: (items) => set((s) => ({ fieldItems: [...items, ...s.fieldItems].slice(0, 400) })),
   patchFieldItem: (id, patch) => set((s) => ({ fieldItems: s.fieldItems.map((f) => f.id === id ? {
@@ -1939,6 +2030,10 @@ export const useYard = create<YardState>()(
       ...x,
       photoIds: merge(x.photoIds)
     } : x) };
+    if (kind === "offer") return { offers: (s.offers ?? []).map((x) => x.id === reportId ? {
+      ...x,
+      photoIds: merge(x.photoIds)
+    } : x) };
     if (kind === "tf") return { tfs: s.tfs.map((x) => x.id === reportId ? {
       ...x,
       photoIds: merge(x.photoIds)
@@ -1969,7 +2064,7 @@ export const useYard = create<YardState>()(
 } as YardState),
     {
       name: PERSIST_NAME,
-  version: 49,
+  version: 50,
   storage: createJSONStorage(() => yardStorage()),
   partialize: (s) => ({
     employeeId: s.employeeId,
@@ -1983,6 +2078,7 @@ export const useYard = create<YardState>()(
     }])),
     issues: s.issues,
     slips: liveRows(s.slips),
+    offers: liveRows(s.offers ?? []),
     tfs: liveRows(s.tfs),
     ents: liveRows(s.ents),
     packs: s.packs,
@@ -2025,6 +2121,7 @@ export const useYard = create<YardState>()(
       days: seedDays(),
       issues: SEED_ISSUES,
       slips: SEED_SLIPS,
+      offers: [] as Offer[],
       tfs: SEED_TFS,
       ents: SEED_ENTS,
       packs: SEED_PACKS,
@@ -2055,10 +2152,12 @@ export const useYard = create<YardState>()(
       notices: [] as Notice[],
       openMaId: null as string | null,
       openChatWith: null as string | null,
+      openChatJobId: null as string | null,
       openOnSitePick: false,
       adminFolderId: "",
       serial: {
         as: 6,
+        tb: 1,
         tf: 7,
         er: 1,
         ks: 5,
@@ -2084,6 +2183,8 @@ export const useYard = create<YardState>()(
     ensureMastersOnJobs(next);
     if (Array.isArray(next.ksReports)) next.ksReports = liveRows(next.ksReports);
     if (Array.isArray(next.slips)) next.slips = liveRows(next.slips);
+    if (!Array.isArray(next.offers)) next.offers = [];
+    else next.offers = liveRows(next.offers);
     if (Array.isArray(next.ents)) next.ents = liveRows(next.ents);
     if (Array.isArray(next.tfs)) next.tfs = liveRows(next.tfs);
     if (Array.isArray(next.fieldItems)) next.fieldItems = liveRows(next.fieldItems);
@@ -2098,6 +2199,9 @@ export const useYard = create<YardState>()(
     if (!Array.isArray(next.receipts)) next.receipts = [];
     if (next.serial && typeof next.serial === "object" && next.serial !== null && !("mo" in next.serial)) {
       next.serial = Object.assign({}, next.serial, { mo: 1 });
+    }
+    if (next.serial && typeof next.serial === "object" && next.serial !== null && !("tb" in next.serial)) {
+      next.serial = Object.assign({}, next.serial, { tb: 1 });
     }
     if (Array.isArray(next.needs)) next.needs = next.needs.filter((n) => n.id !== "nd-mat-ion" && n.chatId !== "ch-mat-ion");
     if (Array.isArray(next.projects)) {
@@ -2123,6 +2227,16 @@ export const useYard = create<YardState>()(
         return fallback ? { ...e, pin: fallback } : e;
       });
     }
+    const liveCrew = loadCrew();
+    if (liveCrew.length) {
+      const byId = new Map(state.employees.map((e) => [e.id, e]));
+      for (const e of liveCrew) {
+        if (!e?.id) continue;
+        const prev = byId.get(e.id);
+        byId.set(e.id, prev ? { ...prev, ...e } : e);
+      }
+      state.employees = [...byId.values()];
+    }
     void import("./crew-live").then((m) => m.saveCrew(state.employees));
     if (!state.days || typeof state.days !== "object") state.days = seedDays();
     if (!Array.isArray(state.tfs)) state.tfs = SEED_TFS;
@@ -2134,6 +2248,8 @@ export const useYard = create<YardState>()(
     }
     if (Array.isArray(state.ksReports)) state.ksReports = liveRows(state.ksReports);
     if (Array.isArray(state.slips)) state.slips = liveRows(state.slips);
+    if (!Array.isArray(state.offers)) state.offers = [];
+    else state.offers = liveRows(state.offers);
     if (Array.isArray(state.ents)) state.ents = liveRows(state.ents);
     if (Array.isArray(state.tfs)) state.tfs = liveRows(state.tfs);
     if (Array.isArray(state.fieldItems)) state.fieldItems = liveRows(state.fieldItems);
@@ -2146,6 +2262,9 @@ export const useYard = create<YardState>()(
     if (!Array.isArray(state.receipts)) state.receipts = [];
     if (state.serial && typeof state.serial === "object" && !("mo" in state.serial)) {
       state.serial = Object.assign({}, state.serial, { mo: 1 });
+    }
+    if (state.serial && typeof state.serial === "object" && !("tb" in state.serial)) {
+      state.serial = Object.assign({}, state.serial, { tb: 1 });
     }
     if (Array.isArray(state.needs)) state.needs = state.needs.filter((n) => n.id !== "nd-mat-ion" && n.chatId !== "ch-mat-ion");
     if (Array.isArray(state.projects)) {

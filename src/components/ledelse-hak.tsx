@@ -4,21 +4,21 @@ import { slugForProject } from "@/lib/ks-customer";
 import { defaultLedelseStatus } from "@/lib/sag-ledelse-defaults";
 import { setSagLedelseItem } from "@/lib/sag-ledelse.functions";
 import { t } from "@/lib/i18n";
-import type { Entrepreneur, Lang, Slip, Tf } from "@/lib/types";
+import type { Entrepreneur, Lang, Offer, Slip, Tf } from "@/lib/types";
 
 export function LedelseHak({
   kind,
   report,
   lang,
 }: {
-  kind: "tf" | "as" | "er";
-  report: Tf | Slip | Entrepreneur;
+  kind: "tf" | "as" | "tb" | "er";
+  report: Tf | Slip | Offer | Entrepreneur;
   lang: Lang;
 }) {
   const patchReport = useYard((s) => s.patchReport);
   const resolved = report.ledelseStatus ?? defaultLedelseStatus(kind, report.number);
   const on = resolved === "med_til_ledelse";
-  const storeKind = kind === "as" ? "slip" : kind === "er" ? "ent" : "tf";
+  const storeKind = kind === "as" ? "slip" : kind === "tb" ? "offer" : kind === "er" ? "ent" : "tf";
 
   function toggle(e: MouseEvent) {
     e.stopPropagation();

@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react";
 import { pullChats, publishChat } from "@/lib/chat-live";
 import { pullTodos, publishTodo } from "@/lib/todo-live";
-import { pullEnts, pullOrders, pullProjects, pullSlips, pullTfs, publishOrder } from "@/lib/sb-live";
+import { pullDays, publishDay } from "@/lib/day-live";
+import { refreshCrewFromCloud } from "@/lib/crew-live";
+import { pullEnts, pullOffers, pullOrders, pullProjects, pullSlips, pullTfs, publishOrder } from "@/lib/sb-live";
 import { onYardEvent } from "@/lib/yard-bus";
-import { mergeById, mergeChats, mergeDays, slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "@/lib/yard-slim";
+import { mergeById, mergeChats, mergeDays, mergeSkippingHeld, slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "@/lib/yard-slim";
 import { pullYard, saveYardChat, saveYardDay, saveYardKs, saveYardNeed, saveYardOrder, saveYardTodo } from "@/lib/yard-sync.functions";
 import { useYard } from "@/lib/store";
 import type { ChatMessage, DayLog, Entrepreneur, KsReport, MaterialNeed, MaterialOrder, Project, Slip, Tf, Todo } from "@/lib/types";
@@ -23,11 +25,14 @@ async function applyPull() {
   }));
   const clientChats = await pullChats();
   const clientTodos = await pullTodos();
+  const clientDays = await pullDays();
   const clientProjects = await pullProjects();
   const clientTfs = await pullTfs();
   const clientSlips = await pullSlips();
+  const clientOffers = await pullOffers();
   const clientEnts = await pullEnts();
   const clientOrders = await pullOrders();
+  const cloudCrew = await refreshCrewFromCloud();
   const s = useYard.getState();
   const cloudChats = mergeChats(remote.ok ? remote.chats : [], clientChats ?? []);
   const cloudTodos = mergeById(remote.ok ? remote.todos : [], clientTodos ?? []);
@@ -38,25 +43,28 @@ async function applyPull() {
       ...s.todos.filter((row) => !DUMMY_TODO.has(row.id)).slice(0, 40).map((row) => publishTodo(slimTodo(row))),
       ...s.chats.filter((row) => !DUMMY_CHAT.has(row.id)).slice(0, 40).map((row) => publishChat(slimChat(row))),
       ...s.ksReports.slice(0, 40).map((row) => saveYardKs({ data: { report: slimKs(row), isNew: false, actorId: actor } }).catch(() => {})),
-      ...Object.values(s.days).slice(0, 20).map((row) =>
-        saveYardDay({ data: { id: `${row.employeeId}:${row.date}`, day: slimDay(row), event: null, actorId: actor } }).catch(() => {}),
-      ),
+      ...Object.values(s.days).slice(0, 20).map((row) => {
+        void publishDay(slimDay(row));
+        return saveYardDay({ data: { id: `${row.employeeId}:${row.date}`, day: slimDay(row), event: null, actorId: actor } }).catch(() => {});
+      }),
       ...(s.needs ?? []).slice(0, 40).map((row) => saveYardNeed({ data: { need: slimNeed(row), actorId: actor } }).catch(() => {})),
       ...(s.orders ?? []).slice(0, 40).map((row) => saveYardOrder({ data: { order: slimOrder(row), actorId: actor } }).catch(() => {})),
     ]);
     return;
   }
   useYard.setState({
-    todos: mergeById(s.todos, cloudTodos),
+    todos: mergeSkippingHeld(s.todos, cloudTodos),
     chats: mergeChats(s.chats, cloudChats),
     ksReports: remote.ok ? mergeById(s.ksReports, remote.ksReports) : s.ksReports,
-    days: remote.ok ? mergeDays(s.days, remote.days) : s.days,
+    days: mergeDays(s.days, [...(remote.ok ? remote.days : []), ...(clientDays ?? [])]),
     needs: remote.ok ? mergeById(s.needs ?? [], remote.needs ?? []) : s.needs,
     orders: mergeById(s.orders ?? [], cloudOrders),
     projects: clientProjects ? mergeById(s.projects, clientProjects as Project[]) : s.projects,
     tfs: clientTfs ? mergeById(s.tfs, clientTfs as Tf[]) : s.tfs,
     slips: clientSlips ? mergeById(s.slips, clientSlips as Slip[]) : s.slips,
+    offers: clientOffers ? mergeById(s.offers ?? [], clientOffers as Slip[]) : s.offers ?? [],
     ents: clientEnts ? mergeById(s.ents, clientEnts as Entrepreneur[]) : s.ents,
+    ...(cloudCrew?.length ? { employees: mergeById(s.employees, cloudCrew) } : {}),
   });
 }
 
@@ -80,10 +88,12 @@ export function YardSyncHost() {
       }
       if (ev.kind === "ks") void saveYardKs({ data: { report: ev.payload as KsReport, isNew: ev.isNew, actorId: actor } }).catch(() => {});
       if (ev.kind === "day") {
+        const row = ev.payload as DayLog;
+        void publishDay(row, ev.id);
         void saveYardDay({
           data: {
             id: ev.id,
-            day: ev.payload as DayLog,
+            day: row,
             event: ev.event,
             actorId: actor,
             name: ev.name,

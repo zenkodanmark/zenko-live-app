@@ -46,6 +46,7 @@ export function MesterDesk() {
   const [tab, setTab] = useState<Tab>("board");
   useDeepOpen(setTab as (id: string) => void, true);
   const openChatWith = useYard((s) => s.openChatWith);
+  const chatJob = useYard((s) => s.openChatJobId);
   useEffect(() => {
     if (openChatWith) setTab("chat");
   }, [openChatWith]);
@@ -84,7 +85,7 @@ export function MesterDesk() {
   if (!emp || !isMasterRole(emp.role)) return <LoginSplash />;
 
   const unread = unreadChatCount(chats, emp, assignments, chatSeenAt[emp.id], threadSeenAt);
-  const pick = useYard.getState().projects.find((p) => p.status === "active")?.id ?? "job-hillerodsholm";
+  const pick = chatJob || useYard.getState().projects.find((p) => p.status === "active")?.id || "job-hillerodsholm";
   const day = todayLog(emp.id, days);
   const onJob = day.checkInAt && !day.checkOutAt ? projects.find((p) => p.id === day.projectId) : null;
 

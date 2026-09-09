@@ -68,6 +68,7 @@ const projects = PROJECTS.map((p) => ({
 const assignments = ASSIGNMENTS.map((a) => ({ employee_id: a.employeeId, project_id: a.projectId }));
 const serials = [
   { kind: "as", next: 6, year: 2026 },
+  { kind: "tb", next: 1, year: 2026 },
   { kind: "tf", next: 7, year: 2026 },
   { kind: "er", next: 1, year: 2026 },
   { kind: "ks", next: 5, year: 2026 },
