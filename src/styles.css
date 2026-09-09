@@ -289,3 +289,41 @@
     gap: 16px;
   }
 }
+
+.plan-today {
+  box-shadow: inset 2px 0 0 var(--color-navy);
+}
+
+@page plan-a3 {
+  size: A3 landscape;
+  margin: 8mm;
+}
+
+@media print {
+  html.plan-print-a3 {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  html.plan-print-a3 .plan-a3-print {
+    page: plan-a3;
+    background: white !important;
+  }
+  html.plan-print-a3 header.no-print,
+  html.plan-print-a3 .no-print {
+    display: none !important;
+  }
+  html.plan-print-a3 .print-only {
+    display: block !important;
+  }
+  html.plan-print-a3 [data-print-week="0"] {
+    display: none !important;
+  }
+  html.plan-print-a3 .bg-brick {
+    background: #b44a2a !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  html.plan-print-a3 .bg-sand-deep {
+    background: #ebe1d4 !important;
+  }
+}

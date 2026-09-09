@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chatRecipientIds, masterIds, noticeForMaShare, noticesFromDiff, unreadNotices } from "./notify.ts";
+import { chatRecipientIds, masterIds, noticeForMaShare, noticeForPlanEdit, noticesFromDiff, unreadNotices } from "./notify.ts";
 import type { Assignment, ChatMessage, Employee, KsReport, Todo } from "./types.ts";
 
 const alex: Employee = { id: "emp-alex", name: "Alex", role: "laerling", language: "da", pin: "1111", initials: "AL" };
@@ -146,4 +146,35 @@ test("ansat MA kladde og send giver besked til mester", () => {
     employees: people,
   });
   assert.equal(masterDraft, null);
+});
+
+test("byggeleder-to-do går til mester", () => {
+  const td = {
+    id: "td-ledelse",
+    projectId: "job-hillerodsholm",
+    assigneeId: "emp-ole",
+    fromId: "ledelse",
+    title: "Tjek fuge",
+    body: "Tjek fuge",
+    kind: "task" as const,
+    due: "",
+    done: false,
+    createdAt: "2026-09-09T18:00:00.000Z",
+  } as Todo;
+  const notes = noticesFromDiff(empty, { ...empty, todos: [td] }, "1970-01-01");
+  assert.equal(notes[0]?.kind, "todo");
+  assert.deepEqual(notes[0]?.toIds, ["emp-ole"]);
+});
+
+test("plan-ændring går til mester", () => {
+  const n = noticeForPlanEdit({
+    title: "Ryd stillads · dage",
+    projectId: "job-hillerodsholm",
+    fromId: "ledelse",
+    employees: people,
+  });
+  assert.equal(n?.kind, "todo");
+  assert.equal(n?.title, "Plan ændret");
+  assert.ok(n?.toIds.includes("emp-ole"));
+  assert.equal(n?.fromId, "ledelse");
 });

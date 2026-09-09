@@ -27,9 +27,9 @@ import type {
 import { OSVALDO_DATALON } from "./datalon-osvaldo.ts";
 import { snippetFromCorpus } from "./udbud-corpus.ts";
 import { controlPointsFromUdbud } from "./udbud-plan.ts";
-import { MASTER_IDS } from "./crew";
+import { MASTER_IDS } from "./crew.ts";
 
-export { EMPLOYEES, isCrewRole, isMasterRole, MASTER_IDS } from "./crew";
+export { EMPLOYEES, isCrewRole, isMasterRole, MASTER_IDS } from "./crew.ts";
 
 
 export const FIRM = "Zenko Danmark ApS";
@@ -903,6 +903,19 @@ export const SEED_TODOS: Todo[] = [
       de: "Räume morgen hinter dem Schuppen auf — Hillerødsholm.",
       en: "Clear behind the shed tomorrow — Hillerødsholm.",
     },
+  },
+  {
+    id: "td-ryd-stillads",
+    projectId: "job-hillerodsholm",
+    assigneeId: "emp-ole",
+    assigneeIds: ["emp-ole"],
+    fromId: "emp-ole",
+    title: "Ryd stillads",
+    body: "Ryd stillads på Hillerødsholm.",
+    kind: "task",
+    due: "",
+    done: false,
+    createdAt: "2026-09-08T08:00:00.000Z",
   },
 ];
 export const SEED_NOTES: MemoryNote[] = [];

@@ -3,12 +3,12 @@ import { pullChats, publishChat } from "@/lib/chat-live";
 import { pullTodos, publishTodo } from "@/lib/todo-live";
 import { pullDays, publishDay } from "@/lib/day-live";
 import { refreshCrewFromCloud } from "@/lib/crew-live";
-import { pullEnts, pullOffers, pullOrders, pullProjects, pullSlips, pullTfs, publishOrder } from "@/lib/sb-live";
+import { pullEnts, pullOffers, pullOrders, pullPlans, pullProjects, pullSlips, pullTfs, publishOrder } from "@/lib/sb-live";
 import { onYardEvent } from "@/lib/yard-bus";
-import { mergeById, mergeChats, mergeDays, mergeReports, mergeSkippingHeld, slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "@/lib/yard-slim";
+import { mergeById, mergeChats, mergeDays, mergePlans, mergeReports, mergeSkippingHeld, slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "@/lib/yard-slim";
 import { pullYard, saveYardChat, saveYardDay, saveYardKs, saveYardNeed, saveYardOrder, saveYardTodo } from "@/lib/yard-sync.functions";
 import { useYard } from "@/lib/store";
-import type { ChatMessage, DayLog, Entrepreneur, KsReport, MaterialNeed, MaterialOrder, Project, Slip, Tf, Todo } from "@/lib/types";
+import type { ChatMessage, DayLog, Entrepreneur, KsReport, MaterialNeed, MaterialOrder, PlanBlock, Project, Slip, Tf, Todo } from "@/lib/types";
 
 const DUMMY_CHAT = new Set(["ch-lang-ion", "ch-lang-osvaldo", "ch-mat-ion"]);
 const DUMMY_TODO = new Set(["td-lang-ion"]);
@@ -32,6 +32,7 @@ async function applyPull() {
   const clientOffers = await pullOffers();
   const clientEnts = await pullEnts();
   const clientOrders = await pullOrders();
+  const clientPlans = await pullPlans();
   const cloudCrew = await refreshCrewFromCloud();
   const s = useYard.getState();
   const cloudChats = mergeChats(remote.ok ? remote.chats : [], clientChats ?? []);
@@ -64,6 +65,7 @@ async function applyPull() {
     slips: clientSlips ? mergeReports(s.slips, clientSlips as Slip[]) : s.slips,
     offers: clientOffers ? mergeReports(s.offers ?? [], clientOffers as Slip[]) : s.offers ?? [],
     ents: clientEnts ? mergeReports(s.ents, clientEnts as Entrepreneur[]) : s.ents,
+    plans: clientPlans ? mergePlans(s.plans ?? [], clientPlans as PlanBlock[]) : s.plans ?? [],
     ...(cloudCrew?.length ? { employees: mergeById(s.employees, cloudCrew) } : {}),
   });
 }

@@ -9,11 +9,13 @@ import {
   slipToRow,
   offerFromRow,
   offerToRow,
+  planFromRow,
+  planToRow,
   tfFromRow,
   tfToRow,
 } from "./sb-rows";
 import { supabase } from "./supabase";
-import type { Entrepreneur, MaterialOrder, Offer, Project, Slip, Tf } from "./types";
+import type { Entrepreneur, MaterialOrder, Offer, PlanBlock, Project, Slip, Tf } from "./types";
 
 async function pullTable<T>(table: string, fromRow: (r: Record<string, unknown>) => T): Promise<T[] | null> {
   try {
@@ -38,7 +40,11 @@ export async function pullProjects() {
   return pullTable("projects", projectFromRow);
 }
 export async function publishProject(p: Project) {
-  return upsert("projects", projectToRow(p));
+  const full = projectToRow(p);
+  if (await upsert("projects", full)) return true;
+  const slim = { ...full };
+  delete (slim as { ledelse_pin?: string | null }).ledelse_pin;
+  return upsert("projects", slim);
 }
 
 export async function pullTfs() {
@@ -74,4 +80,26 @@ export async function pullOrders() {
 }
 export async function publishOrder(row: MaterialOrder) {
   return upsert("orders", orderToRow(row));
+}
+
+export async function pullPlans() {
+  return pullTable("plan_blocks", planFromRow);
+}
+export async function publishPlan(row: PlanBlock) {
+  const full = planToRow(row);
+  if (await upsert("plan_blocks", full)) return true;
+  const slim = {
+    id: full.id,
+    employee_id: full.employee_id,
+    employee_ids: full.employee_ids,
+    project_id: full.project_id,
+    title: full.title,
+    start_at: full.start_at,
+    end_at: full.end_at,
+    created_at: full.created_at,
+    created_by: full.created_by,
+    source: full.source,
+    place: full.place,
+  };
+  return upsert("plan_blocks", slim);
 }

@@ -3,6 +3,8 @@ import { Card, PrimaryButton, SectionLabel } from "@/components/zenko";
 import { TabPng } from "@/components/sag-icons";
 import { saveWeekPlan } from "@/lib/drive.functions";
 import { t, localeFor } from "@/lib/i18n";
+import { slugForProject } from "@/lib/ks-customer";
+import { sagPath } from "@/lib/sag-ledelse";
 import {
   addDaysYmd,
   isoWeek,
@@ -35,6 +37,7 @@ export function PlanPane({ lang }: { lang: Lang }) {
   const [work, setWork] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [jobId, setJobId] = useState("job-hillerodsholm");
 
   const week = weekDays(weekStart);
   const weekNo = isoWeek(weekStart);
@@ -101,9 +104,38 @@ export function PlanPane({ lang }: { lang: Lang }) {
         <p className="text-sm text-muted">{t(lang, "planHint")}</p>
       </div>
 
+      <div className="flex flex-wrap gap-1.5" data-testid="plan-job-picker">
+        {jobs.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => setJobId(p.id)}
+            className={`min-h-11 rounded-full px-4 text-sm font-semibold ${jobId === p.id ? "bg-navy text-sand" : "bg-paper text-navy shadow-card"}`}
+            data-testid={`plan-job-${p.id}`}
+          >
+            {p.name}
+          </button>
+        ))}
+      </div>
+
+      {jobs.find((p) => p.id === jobId) ? (
+        <a
+          href={sagPath(slugForProject(jobs.find((p) => p.id === jobId)!), ["plan"])}
+          className="flex min-h-14 items-center justify-between rounded-[20px] bg-paper px-4 no-underline shadow-card"
+          data-testid="plan-open"
+        >
+          <span>
+            <span className="block font-display text-2xl text-navy">Plan</span>
+            <span className="block text-sm text-muted">{jobs.find((p) => p.id === jobId)?.name}</span>
+          </span>
+          <span className="rounded-full bg-navy px-4 py-2 text-sm font-semibold text-sand">Åbn plan</span>
+        </a>
+      ) : null}
+
+      <div data-testid="plan-mandskab">
       <Card className="rounded-[20px]">
         <SectionLabel>
-          {t(lang, "planWeek")} {weekNo}
+          Mandskab · {t(lang, "planWeek")} {weekNo}
         </SectionLabel>
         <p className="mb-2 text-xs text-muted">{t(lang, "planLongPress")}</p>
         <WeekSwipe weekStart={weekStart} onWeekStart={shiftWeek}>
@@ -120,6 +152,7 @@ export function PlanPane({ lang }: { lang: Lang }) {
         </WeekSwipe>
         {plans.length === 0 ? <p className="mt-2 text-sm text-muted">{t(lang, "planEmpty")}</p> : null}
       </Card>
+      </div>
 
       <Card className="rounded-[20px]">
         <SectionLabel>{t(lang, "planStepPerson")}</SectionLabel>

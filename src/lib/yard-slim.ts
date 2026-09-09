@@ -1,6 +1,6 @@
 import { mergeLangMap } from "./chat.ts";
 import { dayKey } from "./seed.ts";
-import type { ChatFile, ChatMessage, ChatPhoto, DayLog, KsPhoto, KsReport, Lang, MaterialNeed, MaterialOrder, Todo } from "./types.ts";
+import type { ChatFile, ChatMessage, ChatPhoto, DayLog, KsPhoto, KsReport, Lang, MaterialNeed, MaterialOrder, PlanBlock, Todo } from "./types.ts";
 
 function slimMedia<T extends { dataUrl?: string; driveFileId?: string }>(row: T): T {
   if (row.driveFileId) return { ...row, dataUrl: "" };
@@ -94,6 +94,34 @@ export function mergeSkippingHeld<T extends { id: string }>(local: T[], remote: 
     local,
     remote.filter((row) => heldAt(row.id) + ms < now),
   );
+}
+
+/** Keep just-clicked plan days/todo if cloud still lacks the new columns. */
+export function mergePlans(local: PlanBlock[], remote: PlanBlock[], ms = 12000): PlanBlock[] {
+  const now = Date.now();
+  const map = new Map<string, PlanBlock>();
+  for (const row of local) map.set(row.id, row);
+  for (const row of remote) {
+    if (heldAt(row.id) + ms >= now) continue;
+    const prev = map.get(row.id);
+    if (!prev) {
+      map.set(row.id, row);
+      continue;
+    }
+    const days = row.days?.length ? row.days : prev.days;
+    const todoId = row.todoId || prev.todoId;
+    const comment = row.comment || prev.comment;
+    const updatedAt = stamp(row) >= stamp(prev) ? row.updatedAt || prev.updatedAt : prev.updatedAt || row.updatedAt;
+    map.set(row.id, {
+      ...prev,
+      ...row,
+      ...(days?.length ? { days } : {}),
+      ...(todoId ? { todoId } : {}),
+      ...(comment ? { comment } : {}),
+      ...(updatedAt ? { updatedAt } : {}),
+    });
+  }
+  return [...map.values()];
 }
 
 function stamp(row: { updatedAt?: string }) {

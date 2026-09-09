@@ -98,6 +98,7 @@ export function projectToRow(p: Project) {
     archived_at: p.archivedAt ?? null,
     reopen_reason: p.reopenReason ?? null,
     reopen_at: p.reopenAt ?? null,
+    ledelse_pin: p.ledelsePin ?? null,
   };
 }
 export function projectFromRow(r: Record<string, unknown>): Project {
@@ -125,6 +126,7 @@ export function projectFromRow(r: Record<string, unknown>): Project {
     archivedAt: str(r.archived_at) || undefined,
     reopenReason: (r.reopen_reason as Project["reopenReason"]) || undefined,
     reopenAt: str(r.reopen_at) || undefined,
+    ...( /^\d{4}$/.test(str(r.ledelse_pin)) ? { ledelsePin: str(r.ledelse_pin) } : {}),
   };
 }
 
@@ -167,6 +169,7 @@ export function todoToRow(t: Todo) {
     done_lng: t.doneLng ?? null,
     order_id: t.orderId ?? null,
     from_chat_id: t.fromChatId ?? null,
+    ledelse_status: t.ledelseStatus ?? null,
   };
 }
 export function todoFromRow(r: Record<string, unknown>): Todo {
@@ -201,6 +204,7 @@ export function todoFromRow(r: Record<string, unknown>): Todo {
     doneLng: num(r.done_lng),
     orderId: str(r.order_id) || undefined,
     fromChatId: str(r.from_chat_id) || undefined,
+    ...ledelseOf(r.ledelse_status),
   };
 }
 
@@ -654,6 +658,7 @@ export function issueFromRow(r: Record<string, unknown>): Issue {
 }
 
 export function planToRow(p: PlanBlock) {
+  const days = p.days?.length ? p.days : undefined;
   return {
     id: p.id,
     employee_id: p.employeeId,
@@ -666,21 +671,32 @@ export function planToRow(p: PlanBlock) {
     created_by: p.createdBy,
     source: p.source ?? null,
     place: p.place ?? null,
+    comment: p.comment ?? null,
+    days: days ?? [],
+    todo_id: p.todoId ?? null,
+    updated_at: p.updatedAt ?? new Date().toISOString(),
   };
 }
 export function planFromRow(r: Record<string, unknown>): PlanBlock {
+  const days = arr<string>(r.days).filter(Boolean);
+  const todoId = str(r.todo_id);
+  const comment = str(r.comment);
   return {
     id: str(r.id),
     employeeId: str(r.employee_id),
     employeeIds: arr<string>(r.employee_ids),
     projectId: str(r.project_id),
     title: str(r.title),
-    start: iso(r.start_at) || "",
-    end: iso(r.end_at) || "",
+    start: (iso(r.start_at) || "").slice(0, 10),
+    end: (iso(r.end_at) || "").slice(0, 10),
     createdAt: iso(r.created_at) || "",
     createdBy: str(r.created_by),
     source: str(r.source) || undefined,
     place: str(r.place) || undefined,
+    ...(comment ? { comment } : {}),
+    ...(days.length ? { days } : {}),
+    ...(todoId ? { todoId } : {}),
+    updatedAt: iso(r.updated_at) || undefined,
   };
 }
 

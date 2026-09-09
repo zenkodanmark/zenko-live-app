@@ -65,6 +65,7 @@ export type Project = {
   archivedAt?: string;
   reopenReason?: ReopenReason;
   reopenAt?: string;
+  ledelsePin?: string;
 };
 
 export type GpsFix = {
@@ -327,6 +328,9 @@ export type PlanBlock = {
   source?: string;
   place?: string;
   comment?: string;
+  days?: string[];
+  todoId?: string;
+  updatedAt?: string;
 };
 
 export type FieldItem = {
@@ -469,6 +473,7 @@ export type Todo = {
   doneLng?: number | null;
   orderId?: string;
   fromChatId?: string;
+  ledelseStatus?: LedelseStatus;
 };
 
 export type Supplier = { id: string; name: string; email: string };

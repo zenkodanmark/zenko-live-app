@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { getSagLedelse } from "./sag-ledelse.functions";
-import { pullEnts, pullOffers, pullSlips, pullTfs } from "./sb-live";
+import { pullEnts, pullOffers, pullPlans, pullProjects, pullSlips, pullTfs } from "./sb-live";
 import { pullTodos } from "./todo-live";
 import {
   buildSagSite,
@@ -13,7 +13,7 @@ import { softrKsPhotos, softrKsReports } from "./softr-ks";
 import { defaultLedelseStatus } from "./sag-ledelse-defaults";
 import { useYard } from "./store";
 import type { Entrepreneur, FieldItem, KsPhoto, KsReport, LedelseReply, LedelseStatus, Offer, Project, Slip, Tf } from "./types";
-import { mergeById, mergeReports, mergeSkippingHeld } from "./yard-slim";
+import { mergeById, mergePlans, mergeReports, mergeSkippingHeld } from "./yard-slim";
 
 type DbState = {
   tracked: boolean;
@@ -53,12 +53,14 @@ export function useSagSite(slug: string): { site: SagSite | null; missing: boole
     let live = true;
     async function pullReports() {
       try {
-        const [cloudTfs, cloudSlips, cloudEnts, cloudOffers, cloudTodos] = await Promise.all([
+        const [cloudTfs, cloudSlips, cloudEnts, cloudOffers, cloudTodos, cloudPlans, cloudProjects] = await Promise.all([
           pullTfs(),
           pullSlips(),
           pullEnts(),
           pullOffers(),
           pullTodos(),
+          pullPlans(),
+          pullProjects(),
         ]);
         if (!live) return;
         const s = useYard.getState();
@@ -68,6 +70,8 @@ export function useSagSite(slug: string): { site: SagSite | null; missing: boole
           ents: cloudEnts ? mergeReports(s.ents, cloudEnts) : s.ents,
           offers: cloudOffers ? mergeReports(s.offers ?? [], cloudOffers) : s.offers ?? [],
           todos: cloudTodos ? mergeSkippingHeld(s.todos, cloudTodos) : s.todos,
+          plans: cloudPlans ? mergePlans(s.plans ?? [], cloudPlans) : s.plans ?? [],
+          projects: cloudProjects ? mergeById(s.projects, cloudProjects) : s.projects,
         });
       } catch {
         /* guest page still works from bundled + store */

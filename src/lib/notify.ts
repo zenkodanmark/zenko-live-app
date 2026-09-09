@@ -151,6 +151,28 @@ export function noticeForTodo(td: Todo) {
   )[0] ?? null;
 }
 
+export function noticeForPlanEdit(opts: {
+  title: string;
+  projectId: string;
+  fromId: string;
+  employees: Employee[];
+}): Notice | null {
+  const toIds = masterIds(opts.employees).filter((id) => id && id !== opts.fromId);
+  if (!toIds.length) return null;
+  return {
+    id: `nt-plan-${Date.now().toString(36)}`,
+    at: new Date().toISOString(),
+    kind: "todo",
+    title: "Plan ændret",
+    body: opts.title,
+    toIds,
+    fromId: opts.fromId,
+    refId: opts.projectId,
+    projectId: opts.projectId,
+    readBy: [],
+  };
+}
+
 export function noticeForTodoDone(before: Todo, after: Todo, employees: Employee[]) {
   return noticesFromDiff(
     { ksReports: [], chats: [], todos: [before], employees, assignments: [] },

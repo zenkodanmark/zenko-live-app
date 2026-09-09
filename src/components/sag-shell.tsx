@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { BackArrow, SagPng, type SagPngName } from "@/components/sag-icons";
+import { ToastHost } from "@/components/toast-host";
 import type { SagJobMeta } from "@/lib/sag-ledelse";
 
 export const SAG_FONT = {
@@ -29,6 +30,7 @@ export function SagShell({ job, hero = false, children }: { job?: SagJobMeta | n
         {hero && job?.address ? <p className="mt-1 text-sm text-sand/80">{job.address}</p> : null}
       </header>
       <div className={`mx-auto max-w-lg space-y-3 px-4 ${hero ? "py-4" : "pt-3 pb-8"}`}>{children}</div>
+      <ToastHost />
     </main>
   );
 }

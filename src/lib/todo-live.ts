@@ -14,8 +14,12 @@ export async function pullTodos(): Promise<Todo[] | null> {
 
 export async function publishTodo(todo: Todo): Promise<boolean> {
   try {
-    const { error } = await supabase().from("todos").upsert(todoToRow(todo));
-    return !error;
+    const row = todoToRow(todo);
+    const { error } = await supabase().from("todos").upsert(row);
+    if (!error) return true;
+    const { ledelse_status, ...rest } = row as typeof row & { ledelse_status?: unknown };
+    const retry = await supabase().from("todos").upsert(rest);
+    return !retry.error;
   } catch {
     return false;
   }

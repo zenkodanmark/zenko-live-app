@@ -19,6 +19,7 @@ import {
   SEED_PLANS,
   SEED_SLIPS,
   SEED_TFS,
+  SEED_TODOS,
   copenhagenDate,
   dayKey,
   ensureBotWeek37,
@@ -220,8 +221,21 @@ type YardState = {
     original?: string;
     orderId?: string;
     fromChatId?: string;
+    ledelseStatus?: import("./types").LedelseStatus;
   }) => Todo;
-  addPlan: (input: { employeeId?: string; employeeIds?: string[]; projectId: string; title: string; start: string; end: string; source?: PlanBlock["source"]; place?: string }) => PlanBlock;
+  addPlan: (input: {
+    employeeId?: string;
+    employeeIds?: string[];
+    projectId: string;
+    title: string;
+    start: string;
+    end: string;
+    source?: PlanBlock["source"];
+    place?: string;
+    days?: string[];
+    todoId?: string;
+    comment?: string;
+  }) => PlanBlock;
   patchPlan: (id: string, patch: Partial<PlanBlock>) => void;
   removePlan: (id: string) => void;
   toggleTodo: (id: string) => void;
@@ -467,6 +481,7 @@ function makeTodo(input: Parameters<YardState["addTodo"]>[0], fromId: string): T
     original: input.original ?? input.body ?? input.title,
     orderId: input.orderId,
     fromChatId: input.fromChatId,
+    ledelseStatus: input.ledelseStatus,
     createdAt: (new Date()).toISOString()
   };
 }
@@ -488,7 +503,7 @@ export const useYard = create<YardState>()(
   packs: SEED_PACKS,
   ksReports: SEED_KS_REPORTS,
   docs: SEED_DOCS,
-  todos: [],
+  todos: SEED_TODOS,
   problems: [],
   notes: SEED_NOTES,
   cal: SEED_CAL,
@@ -1168,7 +1183,9 @@ export const useYard = create<YardState>()(
     set((s) => ({ todos: [row, ...(s.todos ?? [])] }));
     const n = noticeForTodo(row);
     if (n) get().pushNotice(n);
+    holdRow(row.id);
     emitYard({ kind: "todo", id: row.id, payload: slimTodo(row), isNew: true, actorId: get().employeeId ?? row.fromId });
+    void import("./todo-live").then((m) => m.publishTodo(row));
     return row;
   },
   addPlan: (input) => {
@@ -1182,16 +1199,27 @@ export const useYard = create<YardState>()(
       start: input.start,
       end: input.end,
       place: input.place,
+      days: input.days,
+      todoId: input.todoId,
+      comment: input.comment,
       createdAt: (new Date()).toISOString(),
       createdBy: get().employeeId ?? "emp-ole",
-      source: input.source ?? "manual"
+      source: input.source ?? "manual",
+      updatedAt: new Date().toISOString(),
     };
-    const key = (p: PlanBlock) => `${[...(p.employeeIds?.length ? p.employeeIds : [p.employeeId])].slice().sort().join(",")}|${p.start}|${p.end}|${p.projectId}|${p.title}`;
-    set((s) => ({ plans: [...s.plans.filter((p) => key(p) !== key(row)), row] }));
+    const key = (p: PlanBlock) => `${[...(p.employeeIds?.length ? p.employeeIds : [p.employeeId])].slice().sort().join(",")}|${p.start}|${p.end}|${p.projectId}|${p.title}|${p.todoId ?? ""}`;
+    set((s) => ({ plans: [...s.plans.filter((p) => key(p) !== key(row) && p.id !== row.id), row] }));
+    holdRow(row.id);
+    void import("./sb-live").then((m) => m.publishPlan(row));
     return row;
   },
   patchPlan: (id, patch) => {
-    set((s) => ({ plans: s.plans.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
+    set((s) => ({ plans: s.plans.map((p) => (p.id === id ? { ...p, ...patch, updatedAt: new Date().toISOString() } : p)) }));
+    const row = get().plans.find((p) => p.id === id);
+    if (row) {
+      holdRow(row.id);
+      void import("./sb-live").then((m) => m.publishPlan(row));
+    }
   },
   removePlan: (id) => set((s) => ({ plans: s.plans.filter((p) => p.id !== id) })),
   toggleTodo: (id) => set((s) => ({ todos: s.todos.map((t) => {

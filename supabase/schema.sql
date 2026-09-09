@@ -45,7 +45,8 @@ create table projects (
   handed_over_at timestamptz,
   archived_at timestamptz,
   reopen_reason text,
-  reopen_at timestamptz
+  reopen_at timestamptz,
+  ledelse_pin text
 );
 
 create table assignments (
@@ -85,6 +86,7 @@ create table todos (
   done_lng double precision,
   order_id text,
   from_chat_id text,
+  ledelse_status text,
   updated_at timestamptz default now()
 );
 
@@ -286,6 +288,9 @@ create table plan_blocks (
   created_by text,
   source text,
   place text,
+  comment text,
+  days jsonb default '[]',
+  todo_id text,
   updated_at timestamptz default now()
 );
 

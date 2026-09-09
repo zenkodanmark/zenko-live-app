@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { holdRow, mergeById, mergeChats, mergeReports, slimChat } from "./yard-slim.ts";
-import type { ChatMessage, Todo } from "./types.ts";
+import { holdRow, mergeById, mergeChats, mergePlans, mergeReports, slimChat } from "./yard-slim.ts";
+import type { ChatMessage, PlanBlock, Todo } from "./types.ts";
 
 test("server overskriver lokal to-do med samme id", () => {
   const local = [{ id: "td-1", title: "gammel" } as Todo, { id: "td-2", title: "kun her" } as Todo];
@@ -83,4 +83,38 @@ test("mergeReports tager den nyeste hak når tiderne er sat", () => {
   const remote: Row[] = [{ id: "tf-007", ledelseStatus: "skjult", updatedAt: "2026-09-09T10:00:00.000Z" }];
   const merged = mergeReports(local, remote, 0);
   assert.equal(merged[0]?.ledelseStatus, "med_til_ledelse");
+});
+
+test("mergePlans beholder lokale dage når skyen er tom", () => {
+  const local: PlanBlock[] = [
+    {
+      id: "pl-1",
+      employeeId: "emp-ole",
+      projectId: "job-hillerodsholm",
+      title: "Ryd stillads",
+      start: "2026-09-09",
+      end: "2026-09-10",
+      createdAt: "2026-09-09T10:00:00.000Z",
+      createdBy: "ledelse",
+      source: "plan-grid",
+      days: ["2026-09-09", "2026-09-10"],
+      todoId: "td-ryd-stillads",
+    },
+  ];
+  const remote: PlanBlock[] = [
+    {
+      id: "pl-1",
+      employeeId: "emp-ole",
+      projectId: "job-hillerodsholm",
+      title: "Ryd stillads",
+      start: "2026-09-09",
+      end: "2026-09-10",
+      createdAt: "2026-09-09T10:00:00.000Z",
+      createdBy: "ledelse",
+      source: "plan-grid",
+    },
+  ];
+  const merged = mergePlans(local, remote, 0);
+  assert.deepEqual(merged[0]?.days, ["2026-09-09", "2026-09-10"]);
+  assert.equal(merged[0]?.todoId, "td-ryd-stillads");
 });

@@ -23,9 +23,8 @@ import { PrimaryButton } from "@/components/zenko";
 import { useYard } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import { projectIdFromSlug } from "@/lib/ks-customer";
-import { planPlaceLabel } from "@/lib/plan";
 import { todoPeopleLine } from "@/lib/todo-people";
-import type { LedelseReply, PlanBlock } from "@/lib/types";
+import type { LedelseReply } from "@/lib/types";
 
 function dmy(iso: string) {
   const d = new Date(iso);
@@ -64,7 +63,22 @@ export function SagHome({ site }: { site: SagSite | null }) {
         <SagTypeBtn href={sagPath(job.slug, ["tb"])} icon="as" title="TB" count={tbs.length} line={tbLine} testId="ledelse-btn-tb" />
         <LedelseTodoBtn slug={job.slug} projectId={job.projectId} />
       </nav>
-      <LedelsePlan projectId={job.projectId} />
+      <section className="rounded-[24px] bg-paper px-4 py-4 shadow-card" data-testid="plan-open-card">
+        <div className="flex items-center gap-3">
+          <TabPng name="plan" px={64} />
+          <div className="min-w-0 flex-1">
+            <p className="font-display text-3xl leading-none text-navy">Plan</p>
+            <p className="mt-1 text-sm text-muted">Uge-gitter for sagen</p>
+          </div>
+          <a
+            href={sagPath(job.slug, ["plan"])}
+            className="inline-flex min-h-11 shrink-0 items-center rounded-full bg-navy px-4 text-sm font-semibold text-sand no-underline"
+            data-testid="plan-open"
+          >
+            Åbn plan
+          </a>
+        </div>
+      </section>
     </SagShell>
   );
 }
@@ -764,61 +778,6 @@ export function SagTodoList({ site }: { site: SagSite | null }) {
       </div>
       <LedelseTodos projectId={site.job.projectId} />
     </SagShell>
-  );
-}
-
-function LedelsePlan({ projectId }: { projectId: string }) {
-  const allPlans = useYard((s) => s.plans) ?? [];
-  const employees = useYard((s) => s.employees);
-  const patchPlan = useYard((s) => s.patchPlan);
-  const plans = allPlans.filter((p) => p.projectId === projectId).slice().sort((a, b) => a.start.localeCompare(b.start));
-  const [edits, setEdits] = useState<Record<string, string>>({});
-
-  function who(p: PlanBlock) {
-    const ids = p.employeeIds?.length ? p.employeeIds : [p.employeeId];
-    return ids.map((id) => employees.find((e) => e.id === id)?.name ?? "").filter(Boolean).join(", ");
-  }
-
-  function save(id: string) {
-    const comment = (edits[id] ?? plans.find((p) => p.id === id)?.comment ?? "").trim();
-    patchPlan(id, { comment });
-  }
-
-  return (
-    <section className="rounded-[24px] bg-paper px-4 py-4 shadow-card" data-testid="ledelse-plan">
-      <div className="flex items-center gap-2">
-        <TabPng name="plan" px={56} />
-        <h2 className="font-display text-3xl text-navy">Plan</h2>
-      </div>
-      <p className="mt-1 text-sm text-muted">Opgaver, hvornår og hvor. Kommentér hver opgave.</p>
-      {plans.length ? (
-        <ul className="mt-3 space-y-3">
-          {plans.map((p) => (
-            <li key={p.id} className="rounded-2xl bg-sand px-3 py-3">
-              <p className="font-semibold text-navy">{p.title}</p>
-              <p className="text-sm text-muted">
-                {dmy(p.start)}
-                {p.end !== p.start ? ` – ${dmy(p.end)}` : ""}
-                {` · ${planPlaceLabel(p)}`}
-                {who(p) ? ` · ${who(p)}` : ""}
-              </p>
-              <textarea
-                className="mt-2 min-h-20 w-full rounded-xl bg-paper px-3 py-2 text-base outline-none"
-                placeholder="Kommentar til opgaven"
-                value={edits[p.id] ?? p.comment ?? ""}
-                onChange={(e) => setEdits((cur) => ({ ...cur, [p.id]: e.target.value }))}
-                data-testid={`ledelse-plan-comment-${p.id}`}
-              />
-              <PrimaryButton className="mt-2 min-h-11 w-auto px-4 text-sm" onClick={() => save(p.id)}>
-                Gem kommentar
-              </PrimaryButton>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-3 text-sm text-muted">Ingen planlagt opgave på sagen endnu.</p>
-      )}
-    </section>
   );
 }
 
