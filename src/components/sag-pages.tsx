@@ -4,6 +4,7 @@ import {
   asPdfFilename,
   filterAs,
   filterEr,
+  filterKs,
   filterTfs,
   paginate,
   sagJobFields,
@@ -12,14 +13,19 @@ import {
   tfCounts,
   type SagAsView,
   type SagErView,
+  type SagKsView,
   type SagSite,
   type SagTfView,
 } from "@/lib/sag-ledelse";
-import { BackArrow } from "@/components/sag-icons";
-import { SagBack, SagMetaGrid, SagMissing, SagPhotos, SagRow, SagShell } from "@/components/sag-shell";
+import { BackArrow, SagPng, TabPng } from "@/components/sag-icons";
+import { SagBack, SagMetaGrid, SagMissing, SagPhotos, SagShell, SagTypeBtn } from "@/components/sag-shell";
+import { PrimaryButton } from "@/components/zenko";
 import { useYard } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import { projectIdFromSlug } from "@/lib/ks-customer";
+import { planPlaceLabel } from "@/lib/plan";
+import { todoPeopleLine } from "@/lib/todo-people";
+import type { LedelseReply, PlanBlock } from "@/lib/types";
 
 function dmy(iso: string) {
   const d = new Date(iso);
@@ -29,56 +35,46 @@ function dmy(iso: string) {
 
 export function SagHome({ site }: { site: SagSite | null }) {
   if (!site) return <SagMissing />;
-  const { job, tfs, slips, tbs, ents } = site;
+  const { job, tfs, slips, tbs, ents, kss } = site;
   const tf = tfCounts(tfs);
   const asSum = sumAsPrices(slips);
   const tbSum = sumAsPrices(tbs);
   const tfLine =
-    tf.total === 0
-      ? "Ingen endnu"
-      : `${tf.open} ${tf.open === 1 ? "åben" : "åbne"} · ${tf.answered} besvaret`;
+    tf.total === 0 ? "Ingen endnu" : `${tf.open} ${tf.open === 1 ? "åben" : "åbne"} · ${tf.answered} besvaret`;
   const asLine =
     slips.length === 0
       ? "Ingen endnu"
-      : `${slips.length} ${slips.length === 1 ? "seddel" : "sedler"}${asSum.sum ? ` · ${asSum.label} ekskl. moms` : ""}`;
+      : `${slips.length} ${slips.length === 1 ? "seddel" : "sedler"}${asSum.sum ? ` · ${asSum.label}` : ""}`;
   const tbLine =
     tbs.length === 0
       ? "Ingen endnu"
-      : `${tbs.length} ${tbs.length === 1 ? "tilbud" : "tilbud"}${tbSum.sum ? ` · ${tbSum.label} ekskl. moms` : ""}`;
-  const erLine =
-    ents.length === 0 ? "Ingen endnu" : `${ents.length} ${ents.length === 1 ? "rapport" : "rapporter"}`;
+      : `${tbs.length} ${tbs.length === 1 ? "tilbud" : "tilbud"}${tbSum.sum ? ` · ${tbSum.label}` : ""}`;
+  const erLine = ents.length === 0 ? "Ingen endnu" : `${ents.length} ${ents.length === 1 ? "rapport" : "rapporter"}`;
+  const ksLine = kss.length === 0 ? "Ingen endnu" : `${kss.length} ${kss.length === 1 ? "rapport" : "rapporter"}`;
 
   return (
     <SagShell job={job} hero>
       <UdforselBack slug={job.slug} />
       <SagMetaGrid rows={sagJobFields(job)} />
-      <nav className="mt-16">
-        <SagRow n="01" href={sagPath(job.slug, ["tf"])}>
-          Tekniske forespørgsler
-          <span className="mt-1 block text-sm tracking-wide text-kunde-muted">{tfLine}</span>
-        </SagRow>
-        <SagRow n="02" href={sagPath(job.slug, ["as"])}>
-          Aftalesedler
-          <span className="mt-1 block text-sm tracking-wide text-kunde-muted">{asLine}</span>
-        </SagRow>
-        <SagRow n="03" href={sagPath(job.slug, ["tb"])}>
-          Tilbud
-          <span className="mt-1 block text-sm tracking-wide text-kunde-muted">{tbLine}</span>
-        </SagRow>
-        <SagRow n="04" href={sagPath(job.slug, ["er"])}>
-          Entreprenørrapporter
-          <span className="mt-1 block text-sm tracking-wide text-kunde-muted">{erLine}</span>
-        </SagRow>
+      <nav className="space-y-3" data-testid="ledelse-types">
+        <SagTypeBtn href={sagPath(job.slug, ["tf"])} icon="tf" title="TF" count={tfs.length} line={tfLine} testId="ledelse-btn-tf" />
+        <SagTypeBtn href={sagPath(job.slug, ["as"])} icon="as" title="AS" count={slips.length} line={asLine} testId="ledelse-btn-as" />
+        <SagTypeBtn href={sagPath(job.slug, ["er"])} icon="er" title="ER" count={ents.length} line={erLine} testId="ledelse-btn-er" />
+        <SagTypeBtn href={sagPath(job.slug, ["ks"])} icon="ks" title="KS" count={kss.length} line={ksLine} testId="ledelse-btn-ks" />
+        <SagTypeBtn href={sagPath(job.slug, ["tb"])} icon="as" title="TB" count={tbs.length} line={tbLine} testId="ledelse-btn-tb" />
+        <LedelseTodoBtn slug={job.slug} projectId={job.projectId} />
       </nav>
-      <footer className="mt-20 border-t border-kunde-line pt-6 text-sm text-kunde-muted">
-        <p>
-          {job.name} · Byggeledelse
-        </p>
-        <p className="mt-1">
-          {job.firm} · CVR {job.cvr}
-        </p>
-      </footer>
+      <LedelsePlan projectId={job.projectId} />
     </SagShell>
+  );
+}
+
+function LedelseTodoBtn({ slug, projectId }: { slug: string; projectId: string }) {
+  const allTodos = useYard((s) => s.todos);
+  const n = allTodos.filter((td) => td.projectId === projectId && !td.done).length;
+  const line = n === 0 ? "Ingen åbne" : `${n} ${n === 1 ? "åben" : "åbne"}`;
+  return (
+    <SagTypeBtn href={sagPath(slug, ["todo"])} icon="todo" title="To-do" count={n} line={line} testId="ledelse-btn-todo" />
   );
 }
 
@@ -89,7 +85,7 @@ function UdforselBack({ slug }: { slug: string }) {
   const jobId = projectIdFromSlug(slug, projects) || "";
   const href = jobId ? `/mester?open=sager&job=${encodeURIComponent(jobId)}` : "/mester?open=sager";
   return (
-    <a href={href} className="kunde-no-print mb-6 mt-2 inline-block text-base font-bold text-kunde-ink no-underline" data-testid="udfoersel-back">
+    <a href={href} className="mb-1 inline-flex min-h-11 items-center text-sm font-semibold text-navy no-underline" data-testid="udfoersel-back">
       {t(lang, "back")}
     </a>
   );
@@ -98,29 +94,37 @@ function UdforselBack({ slug }: { slug: string }) {
 function FilterField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex min-w-0 flex-1 flex-col gap-1">
-      <span className="text-[0.68rem] tracking-[0.18em] text-kunde-muted uppercase">{label}</span>
+      <span className="text-xs font-semibold tracking-wide text-muted uppercase">{label}</span>
       {children}
     </label>
   );
 }
 
-const filterInput =
-  "w-full border-0 border-b border-kunde-line bg-transparent py-2 text-base text-kunde-ink outline-none";
+const filterInput = "min-h-11 w-full rounded-xl bg-paper px-3 text-base text-ink shadow-card outline-none";
 
 function Pager({ page, pages, onPage }: { page: number; pages: number; onPage: (n: number) => void }) {
   if (pages <= 1) return null;
   return (
-    <div className="mt-10 flex items-center justify-between gap-4 text-sm text-kunde-muted">
-      <button type="button" className="text-kunde-accent disabled:text-kunde-muted" disabled={page <= 1} onClick={() => onPage(page - 1)}>
+    <div className="mt-4 flex items-center justify-between gap-4 text-sm text-muted">
+      <button type="button" className="min-h-11 text-navy disabled:text-muted" disabled={page <= 1} onClick={() => onPage(page - 1)}>
         Forrige
       </button>
       <span>
         Side {page} af {pages}
       </span>
-      <button type="button" className="text-kunde-accent disabled:text-kunde-muted" disabled={page >= pages} onClick={() => onPage(page + 1)}>
+      <button type="button" className="min-h-11 text-navy disabled:text-muted" disabled={page >= pages} onClick={() => onPage(page + 1)}>
         Næste
       </button>
     </div>
+  );
+}
+
+function ReportCard({ href, number, line }: { href: string; number: string; line: string }) {
+  return (
+    <a href={href} className="block rounded-[20px] bg-paper px-4 py-4 no-underline shadow-card" data-testid={`ledelse-row-${number}`}>
+      <span className="block font-display text-2xl text-navy">{number}</span>
+      <span className="mt-1 block text-sm text-muted">{line}</span>
+    </a>
   );
 }
 
@@ -137,26 +141,21 @@ export function SagTfList({ site }: { site: SagSite | null }) {
   return (
     <SagShell job={site.job}>
       <SagBack to={sagPath(site.job.slug)}>Tilbage til {site.job.name}</SagBack>
-      <p className="text-sm font-medium tracking-[0.18em] text-kunde-accent">01</p>
-      <h1 className="mt-3 text-[clamp(2rem,5vw,3.2rem)] leading-tight font-light">Tekniske forespørgsler</h1>
-      <p className="mt-4 text-sm text-kunde-muted">{filtered.length} {filtered.length === 1 ? "forespørgsel" : "forespørgsler"}.</p>
-      <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
+      <div className="flex items-center gap-2">
+        <SagPng name="tf" px={64} />
+        <h1 className="font-display text-3xl text-navy">TF</h1>
+      </div>
+      <p className="text-sm text-muted">
+        {filtered.length} {filtered.length === 1 ? "forespørgsel" : "forespørgsler"}.
+      </p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <FilterField label="Søg">
           <input className={filterInput} value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Nr eller tekst" />
         </FilterField>
         <FilterField label="Status">
-          <span className="flex flex-wrap gap-x-4 py-2 text-base">
-            {([
-              ["all", "Alle"],
-              ["open", "Åbne"],
-              ["answered", "Besvaret"],
-            ] as const).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                className={status === id ? "text-kunde-accent" : "text-kunde-muted"}
-                onClick={() => { setStatus(id); setPage(1); }}
-              >
+          <span className="flex min-h-11 flex-wrap items-center gap-x-4 text-base">
+            {([["all", "Alle"], ["open", "Åbne"], ["answered", "Besvaret"]] as const).map(([id, label]) => (
+              <button key={id} type="button" className={status === id ? "font-semibold text-navy" : "text-muted"} onClick={() => { setStatus(id); setPage(1); }}>
                 {label}
               </button>
             ))}
@@ -166,18 +165,18 @@ export function SagTfList({ site }: { site: SagSite | null }) {
           <input type="date" className={filterInput} value={day} onChange={(e) => { setDay(e.target.value); setPage(1); }} />
         </FilterField>
       </div>
-      <nav className="mt-12">
+      <nav className="space-y-2">
         {paged.slice.length ? (
           paged.slice.map((tf) => (
-            <SagRow key={tf.id} href={sagPath(site.job.slug, ["tf", tf.slug])}>
-              <span className="text-kunde-accent">TF {tf.number}</span>
-              <span className="mt-1 block text-sm tracking-wide text-kunde-muted">
-                {tf.answered || tf.replies.length ? "BESVARET" : "ÅBEN"} · {dmy(tf.createdAt)}
-              </span>
-            </SagRow>
+            <ReportCard
+              key={tf.id}
+              href={sagPath(site.job.slug, ["tf", tf.slug])}
+              number={tf.number}
+              line={`${tf.answered || tf.replies.length ? "Besvaret" : "Åben"} · ${dmy(tf.createdAt)}`}
+            />
           ))
         ) : (
-          <p className="border-t border-kunde-line py-5 text-sm text-kunde-muted">Ingen tekniske forespørgsler matcher.</p>
+          <p className="rounded-2xl bg-paper px-4 py-5 text-sm text-muted shadow-card">Ingen tekniske forespørgsler matcher.</p>
         )}
       </nav>
       <Pager page={usePage} pages={paged.pages} onPage={setPage} />
@@ -223,13 +222,15 @@ function SagSeddelList({ site, kind }: { site: SagSite | null; kind: "as" | "tb"
   return (
     <SagShell job={site.job}>
       <SagBack to={sagPath(site.job.slug)}>Tilbage til {site.job.name}</SagBack>
-      <p className="text-sm font-medium tracking-[0.18em] text-kunde-accent">{kind === "tb" ? "03" : "02"}</p>
-      <h1 className="mt-3 text-[clamp(2rem,5vw,3.2rem)] leading-tight font-light">{kind === "tb" ? "Tilbud" : "Aftalesedler"}</h1>
-      <p className="mt-4 text-sm text-kunde-muted">
-        {filtered.length} {kind === "tb" ? (filtered.length === 1 ? "tilbud" : "tilbud") : filtered.length === 1 ? "seddel" : "sedler"}
-        {sumAsPrices(filtered).sum ? ` · ${sumAsPrices(filtered).label} ekskl. moms` : ""}.
+      <div className="flex items-center gap-2">
+        <SagPng name="as" px={64} />
+        <h1 className="font-display text-3xl text-navy">{kind === "tb" ? "TB" : "AS"}</h1>
+      </div>
+      <p className="text-sm text-muted">
+        {filtered.length} {kind === "tb" ? "tilbud" : filtered.length === 1 ? "seddel" : "sedler"}
+        {sumAsPrices(filtered).sum ? ` · ${sumAsPrices(filtered).label}` : ""}.
       </p>
-      <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <FilterField label="Søg">
           <input className={filterInput} value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Nr eller tekst" />
         </FilterField>
@@ -240,47 +241,38 @@ function SagSeddelList({ site, kind }: { site: SagSite | null; kind: "as" | "tb"
           <input className={filterInput} inputMode="numeric" value={minRaw} onChange={(e) => { setMinRaw(e.target.value); setPage(1); }} placeholder="0" />
         </FilterField>
       </div>
-      <div className="mt-8 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-sm">
-        <button type="button" className="text-kunde-accent" onClick={toggleAll}>
-          {filtered.length && filtered.every((s) => picked.includes(s.id)) ? "Fjern hak" : "Hak alle"}
-        </button>
-        <p className="text-kunde-muted">
-          {picked.length} valgt
-          {picked.length ? ` · ${sumAsPrices(selected).label} ekskl. moms` : ""}
-        </p>
-        {samlingHref ? (
-          <a href={samlingHref} className="text-kunde-accent no-underline">
-            Lav PDF-rapport
-          </a>
-        ) : (
-          <span className="text-kunde-muted">Hak mindst én til PDF</span>
-        )}
-      </div>
-      <nav className="mt-8">
+      {kind === "as" ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+          <button type="button" className="min-h-11 font-semibold text-navy" onClick={toggleAll}>
+            {filtered.length && filtered.every((s) => picked.includes(s.id)) ? "Fjern hak" : "Hak alle"}
+          </button>
+          <p className="text-muted">
+            {picked.length} valgt
+            {picked.length ? ` · ${sumAsPrices(selected).label}` : ""}
+          </p>
+          {samlingHref ? (
+            <a href={samlingHref} className="min-h-11 font-semibold text-brick no-underline">
+              PDF
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+      <nav className="space-y-2">
         {paged.slice.length ? (
           paged.slice.map((as) => (
-            <div key={as.id} className="flex items-start gap-3 border-t border-kunde-line py-5">
-              <label className="mt-1 flex min-h-11 min-w-11 cursor-pointer items-center justify-center">
-                <input
-                  type="checkbox"
-                  checked={picked.includes(as.id)}
-                  onChange={() => toggle(as.id)}
-                  className="size-4 accent-[#B2472D]"
-                  aria-label={`Hak ${as.number} til PDF`}
-                />
-              </label>
-              <a href={sagPath(site.job.slug, [pathSeg, as.slug])} className="min-w-0 flex-1 no-underline">
-                <span className="block text-[1.2rem] font-light text-kunde-ink sm:text-[1.45rem]">
-                  <span className="text-kunde-accent">{as.number}</span>
-                </span>
-                <span className="mt-1 block text-sm text-kunde-muted">
-                  {dmy(as.createdAt)} · {as.priceLabel} ekskl. moms
-                </span>
-              </a>
+            <div key={as.id} className="flex items-stretch gap-2">
+              {kind === "as" ? (
+                <label className="flex min-h-11 min-w-11 items-center justify-center rounded-2xl bg-paper shadow-card">
+                  <input type="checkbox" checked={picked.includes(as.id)} onChange={() => toggle(as.id)} className="size-4 accent-brick" aria-label={`Hak ${as.number} til PDF`} />
+                </label>
+              ) : null}
+              <div className="min-w-0 flex-1">
+                <ReportCard href={sagPath(site.job.slug, [pathSeg, as.slug])} number={as.number} line={`${dmy(as.createdAt)} · ${as.priceLabel}`} />
+              </div>
             </div>
           ))
         ) : (
-          <p className="border-t border-kunde-line py-5 text-sm text-kunde-muted">{kind === "tb" ? "Ingen tilbud matcher." : "Ingen aftalesedler matcher."}</p>
+          <p className="rounded-2xl bg-paper px-4 py-5 text-sm text-muted shadow-card">{kind === "tb" ? "Ingen tilbud matcher." : "Ingen aftalesedler matcher."}</p>
         )}
       </nav>
       <Pager page={Math.min(page, paged.pages)} pages={paged.pages} onPage={setPage} />
@@ -299,10 +291,14 @@ export function SagErList({ site }: { site: SagSite | null }) {
   return (
     <SagShell job={site.job}>
       <SagBack to={sagPath(site.job.slug)}>Tilbage til {site.job.name}</SagBack>
-      <p className="text-sm font-medium tracking-[0.18em] text-kunde-accent">04</p>
-      <h1 className="mt-3 text-[clamp(2rem,5vw,3.2rem)] leading-tight font-light">Entreprenørrapporter</h1>
-      <p className="mt-4 text-sm text-kunde-muted">{filtered.length} {filtered.length === 1 ? "rapport" : "rapporter"}.</p>
-      <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <div className="flex items-center gap-2">
+        <SagPng name="er" px={64} />
+        <h1 className="font-display text-3xl text-navy">ER</h1>
+      </div>
+      <p className="text-sm text-muted">
+        {filtered.length} {filtered.length === 1 ? "rapport" : "rapporter"}.
+      </p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <FilterField label="Søg">
           <input className={filterInput} value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Nr eller tekst" />
         </FilterField>
@@ -310,16 +306,58 @@ export function SagErList({ site }: { site: SagSite | null }) {
           <input type="date" className={filterInput} value={day} onChange={(e) => { setDay(e.target.value); setPage(1); }} />
         </FilterField>
       </div>
-      <nav className="mt-12">
+      <nav className="space-y-2">
         {paged.slice.length ? (
           paged.slice.map((er) => (
-            <SagRow key={er.id} href={sagPath(site.job.slug, ["er", er.slug])}>
-              <span className="text-kunde-accent">{er.number}</span>
-              <span className="mt-1 block text-sm tracking-wide text-kunde-muted">{dmy(er.createdAt)}</span>
-            </SagRow>
+            <ReportCard key={er.id} href={sagPath(site.job.slug, ["er", er.slug])} number={er.number} line={dmy(er.createdAt)} />
           ))
         ) : (
-          <p className="border-t border-kunde-line py-5 text-sm text-kunde-muted">Ingen entreprenørrapporter matcher.</p>
+          <p className="rounded-2xl bg-paper px-4 py-5 text-sm text-muted shadow-card">Ingen entreprenørrapporter matcher.</p>
+        )}
+      </nav>
+      <Pager page={Math.min(page, paged.pages)} pages={paged.pages} onPage={setPage} />
+    </SagShell>
+  );
+}
+
+export function SagKsList({ site }: { site: SagSite | null }) {
+  const [q, setQ] = useState("");
+  const [day, setDay] = useState("");
+  const [page, setPage] = useState(1);
+  if (!site) return <SagMissing />;
+  const filtered = filterKs(site.kss, { q, day });
+  const paged = paginate(filtered, page);
+
+  return (
+    <SagShell job={site.job}>
+      <SagBack to={sagPath(site.job.slug)}>Tilbage til {site.job.name}</SagBack>
+      <div className="flex items-center gap-2">
+        <SagPng name="ks" px={64} />
+        <h1 className="font-display text-3xl text-navy">KS</h1>
+      </div>
+      <p className="text-sm text-muted">
+        {filtered.length} {filtered.length === 1 ? "rapport" : "rapporter"}.
+      </p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <FilterField label="Søg">
+          <input className={filterInput} value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Nr eller tekst" />
+        </FilterField>
+        <FilterField label="Dato">
+          <input type="date" className={filterInput} value={day} onChange={(e) => { setDay(e.target.value); setPage(1); }} />
+        </FilterField>
+      </div>
+      <nav className="space-y-2">
+        {paged.slice.length ? (
+          paged.slice.map((ks) => (
+            <ReportCard
+              key={ks.id}
+              href={sagPath(site.job.slug, ["ks", ks.slug])}
+              number={`KS-${ks.number}`}
+              line={`${ks.partTitle} · ${dmy(ks.createdAt)}`}
+            />
+          ))
+        ) : (
+          <p className="rounded-2xl bg-paper px-4 py-5 text-sm text-muted shadow-card">Ingen KS-rapporter matcher.</p>
         )}
       </nav>
       <Pager page={Math.min(page, paged.pages)} pages={paged.pages} onPage={setPage} />
@@ -332,7 +370,7 @@ export function SagTfPage({ site, number }: { site: SagSite | null; number: stri
   if (!site || !tf) return <SagMissing />;
   return (
     <SagShell job={site.job}>
-      <SagBack to={sagPath(site.job.slug, ["tf"])}>Tilbage til tekniske forespørgsler</SagBack>
+      <SagBack to={sagPath(site.job.slug, ["tf"])}>Tilbage til TF</SagBack>
       <SagTfBody tf={tf} job={site.job} />
     </SagShell>
   );
@@ -351,23 +389,26 @@ function SagTfBody({ tf, job }: { tf: SagTfView; job: SagSite["job"] }) {
     setError("");
     try {
       const res = await addSagTfReply({ data: { slug: job.slug, projectId: job.projectId, tfId: tf.id, text } });
-      if (res.ok) {
-        setReplies(res.replies);
-        useYard.getState().patchReport("tf", tf.id, {
-          answered: true,
-          answer: text,
-          answeredAt: new Date().toISOString(),
-          ledelseReplies: res.replies,
-        });
-        setDraft("");
-        return;
-      }
-      useYard.getState().answerTf(tf.id, text);
-      setReplies((cur) => [...cur, { id: `rpl-${Date.now().toString(36)}`, text, at: new Date().toISOString() }]);
+      const at = new Date().toISOString();
+      const next = res.ok ? res.replies : [...replies, { id: `rpl-${Date.now().toString(36)}`, text, at }];
+      setReplies(next);
+      useYard.getState().patchReport("tf", tf.id, {
+        answered: true,
+        answer: text,
+        answeredAt: at,
+        ledelseReplies: next,
+      });
       setDraft("");
     } catch {
-      useYard.getState().answerTf(tf.id, text);
-      setReplies((cur) => [...cur, { id: `rpl-${Date.now().toString(36)}`, text, at: new Date().toISOString() }]);
+      const at = new Date().toISOString();
+      const next = [...replies, { id: `rpl-${Date.now().toString(36)}`, text, at }];
+      setReplies(next);
+      useYard.getState().patchReport("tf", tf.id, {
+        answered: true,
+        answer: text,
+        answeredAt: at,
+        ledelseReplies: next,
+      });
       setDraft("");
     } finally {
       setBusy(false);
@@ -379,45 +420,13 @@ function SagTfBody({ tf, job }: { tf: SagTfView; job: SagSite["job"] }) {
     ["Dato", dmy(tf.createdAt)],
     ["Byggesag", tf.projectName],
     ["Sag / adresse", tf.address],
-    ["Status", replies.length ? "BESVARET" : "ÅBEN"],
+    ["Status", replies.length ? "Besvaret" : "Åben"],
   ].filter(([, v]) => v.trim()) as [string, string][];
 
   return (
     <article>
-      <p className="text-[0.7rem] font-medium tracking-[0.22em] text-kunde-muted">
-        TEKNISK FORESPØRGSEL <span className="text-kunde-line">|</span> {tf.number}
-      </p>
-      <h1 className="mt-3 text-[clamp(2rem,5vw,3.2rem)] leading-tight font-light">{tf.title}</h1>
-      <SagMetaGrid rows={rows} />
-      <section className="mt-12">
-        <p className="text-[0.68rem] tracking-[0.18em] text-kunde-muted uppercase">Forespørgsel</p>
-        <p className="mt-3 max-w-prose whitespace-pre-wrap text-[1.05rem] leading-[1.65]">{tf.body}</p>
-      </section>
-      <SagPhotos photos={tf.photos} />
-      <section className="mt-12">
-        <p className="text-[0.68rem] tracking-[0.18em] text-kunde-muted uppercase">Svar fra byggeledelse</p>
-        {replies.map((r) => (
-          <div key={r.id} className="mt-4 max-w-prose border-t border-kunde-line pt-4">
-            <p className="text-xs tracking-wide text-kunde-muted">{dmy(r.at)}</p>
-            <p className="mt-2 whitespace-pre-wrap text-[1.05rem] leading-relaxed">{r.text}</p>
-          </div>
-        ))}
-        <textarea
-          className="kunde-no-print mt-6 min-h-32 w-full border border-kunde-line bg-transparent p-3 text-base text-kunde-ink"
-          placeholder="Skriv svar…"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-        />
-        {error ? <p className="mt-2 text-sm text-kunde-accent">{error}</p> : null}
-        <button
-          type="button"
-          className="kunde-no-print mt-3 bg-transparent p-0 text-sm tracking-wide text-kunde-accent disabled:text-kunde-muted"
-          disabled={!draft.trim() || busy}
-          onClick={() => void send()}
-        >
-          {busy ? "Sender…" : "Send svar"}
-        </button>
-      </section>
+      <ReadSlip kicker="TF" number={tf.number} title={tf.title} rows={rows} body={tf.body} photos={tf.photos} />
+      <LedelseComment replies={replies} draft={draft} busy={busy} error={error} onDraft={setDraft} onSend={() => void send()} />
     </article>
   );
 }
@@ -427,7 +436,7 @@ export function SagAsPage({ site, number }: { site: SagSite | null; number: stri
   if (!site || !as) return <SagMissing />;
   return (
     <SagShell job={site.job}>
-      <SagBack to={sagPath(site.job.slug, ["as"])}>Tilbage til aftalesedler</SagBack>
+      <SagBack to={sagPath(site.job.slug, ["as"])}>Tilbage til AS</SagBack>
       <SagAsBody as={as} print={false} />
     </SagShell>
   );
@@ -438,7 +447,7 @@ export function SagTbPage({ site, number }: { site: SagSite | null; number: stri
   if (!site || !row) return <SagMissing />;
   return (
     <SagShell job={site.job}>
-      <SagBack to={sagPath(site.job.slug, ["tb"])}>Tilbage til tilbud</SagBack>
+      <SagBack to={sagPath(site.job.slug, ["tb"])}>Tilbage til TB</SagBack>
       <SagAsBody as={row} print={false} kind="tb" />
     </SagShell>
   );
@@ -454,53 +463,42 @@ export function SagAsBody({ as, print, kind = "as" }: { as: SagAsView; print?: b
 
   return (
     <article>
-      <p className="text-[0.7rem] font-medium tracking-[0.22em] text-kunde-muted">
-        {kind === "tb" ? "TILBUD" : "AFTALESEDEL"} <span className="text-kunde-line">|</span> {as.number}
-      </p>
-      <h1 className="mt-3 text-[clamp(2rem,5vw,3.2rem)] leading-tight font-light">{as.title}</h1>
-      <SagMetaGrid rows={rows} />
-      {as.description ? (
-        <section className="mt-12">
-          <p className="text-[0.68rem] tracking-[0.18em] text-kunde-muted uppercase">Beskrivelse</p>
-          <p className="mt-3 max-w-prose whitespace-pre-wrap text-[1.05rem] leading-[1.65]">{as.description}</p>
-        </section>
-      ) : as.body ? (
-        <section className="mt-12">
-          <p className="text-[0.68rem] tracking-[0.18em] text-kunde-muted uppercase">Beskrivelse</p>
-          <p className="mt-3 max-w-prose whitespace-pre-wrap text-[1.05rem] leading-[1.65]">{as.body}</p>
-        </section>
-      ) : null}
-      {as.materials.length ? (
-        <section className="mt-12">
-          <p className="text-[0.68rem] tracking-[0.18em] text-kunde-muted uppercase">Materialer</p>
-          <ul className="mt-3 max-w-prose space-y-2 text-[1.05rem] leading-relaxed">
-            {as.materials.map((m, i) => (
-              <li key={i} className="flex justify-between gap-4">
-                <span>{m.text.replace(/\s+\d{1,3}(?:\.\d{3})+\s*,-\s*$/, "").trim() || m.text}</span>
-                <span className="shrink-0 tabular-nums text-kunde-muted">{m.amount != null ? `${m.amount.toLocaleString("da-DK")},-` : ""}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-      {as.note ? (
-        <section className="mt-12">
-          <p className="text-[0.68rem] tracking-[0.18em] text-kunde-muted uppercase">Kunde bemærkning</p>
-          <p className="mt-3 max-w-prose whitespace-pre-wrap text-[1.05rem] leading-relaxed">{as.note}</p>
-        </section>
-      ) : null}
-      <section className="mt-12">
-        <p className="text-[0.68rem] tracking-[0.18em] text-kunde-muted uppercase">Pris ekskl. moms</p>
-        <p className="mt-2 text-2xl font-light">{as.priceLabel}</p>
-      </section>
-      <SagPhotos photos={as.photos} />
-      {print ? null : (
-        <footer className="kunde-no-print mt-16 border-t border-kunde-line pt-6 text-sm text-kunde-muted">
-          <button type="button" className="text-kunde-accent" onClick={() => window.print()}>
-            Gem som PDF
-          </button>
-        </footer>
-      )}
+      <ReadSlip
+        kicker={kind === "tb" ? "TB" : "AS"}
+        number={as.number}
+        title={as.title}
+        rows={rows}
+        body={as.description || as.body}
+        photos={as.photos}
+        extra={
+          <>
+            {as.materials.length ? (
+              <section className="mt-4 rounded-[20px] bg-paper px-4 py-4 shadow-card">
+                <p className="text-xs font-semibold tracking-wide text-muted uppercase">Materialer</p>
+                <ul className="mt-2 space-y-2 text-base">
+                  {as.materials.map((m, i) => (
+                    <li key={i} className="flex justify-between gap-4">
+                      <span>{m.text.replace(/\s+\d{1,3}(?:\.\d{3})+\s*,-\s*$/, "").trim() || m.text}</span>
+                      <span className="shrink-0 tabular-nums text-muted">{m.amount != null ? `${m.amount.toLocaleString("da-DK")},-` : ""}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+            {as.note ? (
+              <section className="mt-4 rounded-[20px] bg-paper px-4 py-4 shadow-card">
+                <p className="text-xs font-semibold tracking-wide text-muted uppercase">Kunde bemærkning</p>
+                <p className="mt-2 whitespace-pre-wrap text-base leading-relaxed">{as.note}</p>
+              </section>
+            ) : null}
+            <section className="mt-4 rounded-[20px] bg-paper px-4 py-4 shadow-card">
+              <p className="text-xs font-semibold tracking-wide text-muted uppercase">Pris ekskl. moms</p>
+              <p className="mt-1 font-display text-3xl text-navy">{as.priceLabel}</p>
+            </section>
+          </>
+        }
+      />
+      {print ? null : <ReportComment kind={kind === "tb" ? "offer" : "slip"} id={as.id} start={as.replies ?? []} />}
     </article>
   );
 }
@@ -510,7 +508,7 @@ export function SagErPage({ site, number }: { site: SagSite | null; number: stri
   if (!site || !er) return <SagMissing />;
   return (
     <SagShell job={site.job}>
-      <SagBack to={sagPath(site.job.slug, ["er"])}>Tilbage til entreprenørrapporter</SagBack>
+      <SagBack to={sagPath(site.job.slug, ["er"])}>Tilbage til ER</SagBack>
       <SagErBody er={er} />
     </SagShell>
   );
@@ -525,28 +523,302 @@ function SagErBody({ er }: { er: SagErView }) {
   ].filter(([, v]) => v.trim()) as [string, string][];
   return (
     <article>
-      <p className="text-[0.7rem] font-medium tracking-[0.22em] text-kunde-muted">
-        ENTREPRENØRRAPPORT <span className="text-kunde-line">|</span> {er.number}
+      <ReadSlip
+        kicker="ER"
+        number={er.number}
+        title={er.title}
+        rows={rows}
+        body={er.body}
+        photos={er.photos}
+        extra={
+          er.note ? (
+            <section className="mt-4 rounded-[20px] bg-paper px-4 py-4 shadow-card">
+              <p className="text-xs font-semibold tracking-wide text-muted uppercase">Kunde bemærkning</p>
+              <p className="mt-2 whitespace-pre-wrap text-base leading-relaxed">{er.note}</p>
+            </section>
+          ) : null
+        }
+      />
+      <ReportComment kind="ent" id={er.id} start={er.replies ?? []} />
+    </article>
+  );
+}
+
+export function SagKsPage({ site, number }: { site: SagSite | null; number: string }) {
+  const ks = site?.kss.find((r) => r.slug === number || r.number === number || r.number === `KS-${number}` || `KS-${r.number}` === number);
+  if (!site || !ks) return <SagMissing />;
+  return (
+    <SagShell job={site.job}>
+      <SagBack to={sagPath(site.job.slug, ["ks"])}>Tilbage til KS</SagBack>
+      <SagKsBody ks={ks} />
+    </SagShell>
+  );
+}
+
+function SagKsBody({ ks }: { ks: SagKsView }) {
+  const rows: [string, string][] = [
+    ["Dato", dmy(ks.createdAt)],
+    ["Lokation", ks.location],
+    ["Kontrolpunkt", ks.point],
+    ["Udført af", ks.employeeName],
+    ["Kontrolomfang", ks.qcScope],
+    ["Metode", ks.qcMethod],
+  ].filter(([, v]) => v.trim()) as [string, string][];
+  return (
+    <article>
+      <ReadSlip
+        kicker="KS"
+        number={ks.number}
+        title={ks.title}
+        rows={rows}
+        body=""
+        photos={ks.photos}
+        extra={
+          <>
+            {ks.partTitle ? (
+              <section className="mt-4 rounded-[20px] bg-paper px-4 py-4 shadow-card">
+                <p className="text-xs font-semibold tracking-wide text-muted uppercase">Punkt</p>
+                <p className="mt-2 text-base leading-relaxed">
+                  {ks.partCode !== "ovrige" ? `${ks.partCode} · ` : ""}
+                  {ks.partTitle}
+                </p>
+              </section>
+            ) : null}
+            <section className="mt-4 rounded-[20px] bg-paper px-4 py-4 shadow-card">
+              <p className="text-xs font-semibold tracking-wide text-muted uppercase">Afvigelser</p>
+              <p className="mt-2 whitespace-pre-wrap text-base leading-relaxed">{ks.deviations || "Ingen"}</p>
+            </section>
+          </>
+        }
+      />
+      <ReportComment kind="ks" id={ks.id} start={ks.replies ?? []} />
+    </article>
+  );
+}
+
+function ReadSlip({
+  kicker,
+  number,
+  title,
+  rows,
+  body,
+  photos,
+  extra,
+}: {
+  kicker: string;
+  number: string;
+  title: string;
+  rows: [string, string][];
+  body: string;
+  photos: { id: string; src: string; n: string }[];
+  extra?: ReactNode;
+}) {
+  return (
+    <div data-testid="ledelse-slip">
+      <p className="text-xs font-semibold tracking-wide text-brick uppercase">
+        {kicker} · {number}
       </p>
-      <h1 className="mt-3 text-[clamp(2rem,5vw,3.2rem)] leading-tight font-light">{er.title}</h1>
-      <SagMetaGrid rows={rows} />
-      <section className="mt-12">
-        <p className="text-[0.68rem] tracking-[0.18em] text-kunde-muted uppercase">Beskrivelse</p>
-        <p className="mt-3 max-w-prose whitespace-pre-wrap text-[1.05rem] leading-[1.65]">{er.body}</p>
-      </section>
-      {er.note ? (
-        <section className="mt-12">
-          <p className="text-[0.68rem] tracking-[0.18em] text-kunde-muted uppercase">Kunde bemærkning</p>
-          <p className="mt-3 max-w-prose whitespace-pre-wrap text-[1.05rem] leading-relaxed">{er.note}</p>
+      <h1 className="mt-1 font-display text-3xl leading-tight text-navy">{title}</h1>
+      <div className="mt-4">
+        <SagMetaGrid rows={rows} />
+      </div>
+      {body ? (
+        <section className="mt-4 rounded-[20px] bg-paper px-4 py-4 shadow-card">
+          <p className="text-xs font-semibold tracking-wide text-muted uppercase">Rapport</p>
+          <p className="mt-2 whitespace-pre-wrap text-base leading-relaxed text-ink">{body}</p>
         </section>
       ) : null}
-      <SagPhotos photos={er.photos} />
-      <footer className="kunde-no-print mt-16 border-t border-kunde-line pt-6 text-sm text-kunde-muted">
-        <button type="button" className="text-kunde-accent" onClick={() => window.print()}>
-          Gem som PDF
-        </button>
-      </footer>
-    </article>
+      {extra}
+      <SagPhotos photos={photos} />
+    </div>
+  );
+}
+
+function LedelseComment({
+  replies,
+  draft,
+  busy,
+  error,
+  onDraft,
+  onSend,
+}: {
+  replies: LedelseReply[];
+  draft: string;
+  busy: boolean;
+  error: string;
+  onDraft: (v: string) => void;
+  onSend: () => void;
+}) {
+  return (
+    <section className="mt-4 rounded-[20px] bg-paper px-4 py-4 shadow-card" data-testid="ledelse-comment">
+      <p className="text-xs font-semibold tracking-wide text-muted uppercase">Kommentar</p>
+      {replies.map((r) => (
+        <div key={r.id} className="mt-3 border-t border-line pt-3">
+          <p className="text-xs text-muted">{dmy(r.at)}</p>
+          <p className="mt-1 whitespace-pre-wrap text-base leading-relaxed">{r.text}</p>
+        </div>
+      ))}
+      <textarea
+        className="mt-3 min-h-28 w-full rounded-xl bg-sand px-3 py-2 text-base text-ink outline-none"
+        placeholder="Skriv kommentar…"
+        value={draft}
+        onChange={(e) => onDraft(e.target.value)}
+        data-testid="ledelse-comment-input"
+      />
+      {error ? <p className="mt-2 text-sm text-brick">{error}</p> : null}
+      <PrimaryButton className="mt-3 min-h-12 w-auto px-5" disabled={!draft.trim() || busy} onClick={onSend}>
+        {busy ? "Gemmer…" : "Send kommentar"}
+      </PrimaryButton>
+    </section>
+  );
+}
+
+function ReportComment({ kind, id, start }: { kind: "slip" | "offer" | "ent" | "ks"; id: string; start: LedelseReply[] }) {
+  const [draft, setDraft] = useState("");
+  const [replies, setReplies] = useState(start);
+  const [busy, setBusy] = useState(false);
+
+  function send() {
+    const text = draft.trim();
+    if (!text || busy) return;
+    setBusy(true);
+    const next: LedelseReply[] = [...replies, { id: `rpl-${Date.now().toString(36)}`, text, at: new Date().toISOString() }];
+    useYard.getState().patchReport(kind, id, { ledelseReplies: next });
+    setReplies(next);
+    setDraft("");
+    setBusy(false);
+  }
+
+  return <LedelseComment replies={replies} draft={draft} busy={busy} error="" onDraft={setDraft} onSend={send} />;
+}
+
+function LedelseTodos({ projectId }: { projectId: string }) {
+  const allTodos = useYard((s) => s.todos);
+  const employees = useYard((s) => s.employees);
+  const patchTodo = useYard((s) => s.patchTodo);
+  const addTodo = useYard((s) => s.addTodo);
+  const todos = allTodos.filter((td) => td.projectId === projectId && !td.done);
+  const [draft, setDraft] = useState("");
+  const [edits, setEdits] = useState<Record<string, string>>({});
+
+  function save(id: string) {
+    const body = (edits[id] ?? todos.find((t) => t.id === id)?.body ?? "").trim();
+    patchTodo(id, { body, title: body.split("\n")[0]?.slice(0, 80) || todos.find((t) => t.id === id)?.title });
+  }
+
+  function add() {
+    const body = draft.trim();
+    if (!body) return;
+    addTodo({
+      projectId,
+      assigneeId: useYard.getState().employeeId || "emp-ole",
+      title: body.split("\n")[0]!.slice(0, 80),
+      body,
+      due: "",
+    });
+    setDraft("");
+  }
+
+  return (
+    <section data-testid="ledelse-todo">
+      <p className="text-sm text-muted">Åbne to-dos på sagen. Du kan tilføje og rette beskrivelsen.</p>
+      <ul className="mt-3 space-y-3">
+        {todos.map((td) => (
+          <li key={td.id} className="rounded-[20px] bg-paper px-3 py-3 shadow-card">
+            <p className="text-sm font-semibold text-navy">{td.title}</p>
+            <p className="text-xs text-muted">{todoPeopleLine(td, employees)}</p>
+            <textarea
+              className="mt-2 min-h-20 w-full rounded-xl bg-sand px-3 py-2 text-base outline-none"
+              value={edits[td.id] ?? td.body ?? td.title ?? ""}
+              onChange={(e) => setEdits((cur) => ({ ...cur, [td.id]: e.target.value }))}
+              data-testid={`ledelse-todo-body-${td.id}`}
+            />
+            <PrimaryButton className="mt-2 min-h-11 w-auto px-4 text-sm" onClick={() => save(td.id)}>
+              Gem beskrivelse
+            </PrimaryButton>
+          </li>
+        ))}
+      </ul>
+      <textarea
+        className="mt-3 min-h-20 w-full rounded-xl bg-paper px-3 py-2 text-base outline-none shadow-card"
+        placeholder="Ny to-do — skriv beskrivelsen"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        data-testid="ledelse-todo-new"
+      />
+      <PrimaryButton className="mt-2 min-h-11 w-auto px-4" disabled={!draft.trim()} onClick={add}>
+        Tilføj to-do
+      </PrimaryButton>
+    </section>
+  );
+}
+
+export function SagTodoList({ site }: { site: SagSite | null }) {
+  if (!site) return <SagMissing />;
+  return (
+    <SagShell job={site.job}>
+      <SagBack to={sagPath(site.job.slug)}>Tilbage til {site.job.name}</SagBack>
+      <div className="flex items-center gap-2">
+        <SagPng name="todo" px={64} />
+        <h1 className="font-display text-3xl text-navy">To-do</h1>
+      </div>
+      <LedelseTodos projectId={site.job.projectId} />
+    </SagShell>
+  );
+}
+
+function LedelsePlan({ projectId }: { projectId: string }) {
+  const allPlans = useYard((s) => s.plans) ?? [];
+  const employees = useYard((s) => s.employees);
+  const patchPlan = useYard((s) => s.patchPlan);
+  const plans = allPlans.filter((p) => p.projectId === projectId).slice().sort((a, b) => a.start.localeCompare(b.start));
+  const [edits, setEdits] = useState<Record<string, string>>({});
+
+  function who(p: PlanBlock) {
+    const ids = p.employeeIds?.length ? p.employeeIds : [p.employeeId];
+    return ids.map((id) => employees.find((e) => e.id === id)?.name ?? "").filter(Boolean).join(", ");
+  }
+
+  function save(id: string) {
+    const comment = (edits[id] ?? plans.find((p) => p.id === id)?.comment ?? "").trim();
+    patchPlan(id, { comment });
+  }
+
+  return (
+    <section className="rounded-[24px] bg-paper px-4 py-4 shadow-card" data-testid="ledelse-plan">
+      <div className="flex items-center gap-2">
+        <TabPng name="plan" px={56} />
+        <h2 className="font-display text-3xl text-navy">Plan</h2>
+      </div>
+      <p className="mt-1 text-sm text-muted">Opgaver, hvornår og hvor. Kommentér hver opgave.</p>
+      {plans.length ? (
+        <ul className="mt-3 space-y-3">
+          {plans.map((p) => (
+            <li key={p.id} className="rounded-2xl bg-sand px-3 py-3">
+              <p className="font-semibold text-navy">{p.title}</p>
+              <p className="text-sm text-muted">
+                {dmy(p.start)}
+                {p.end !== p.start ? ` – ${dmy(p.end)}` : ""}
+                {` · ${planPlaceLabel(p)}`}
+                {who(p) ? ` · ${who(p)}` : ""}
+              </p>
+              <textarea
+                className="mt-2 min-h-20 w-full rounded-xl bg-paper px-3 py-2 text-base outline-none"
+                placeholder="Kommentar til opgaven"
+                value={edits[p.id] ?? p.comment ?? ""}
+                onChange={(e) => setEdits((cur) => ({ ...cur, [p.id]: e.target.value }))}
+                data-testid={`ledelse-plan-comment-${p.id}`}
+              />
+              <PrimaryButton className="mt-2 min-h-11 w-auto px-4 text-sm" onClick={() => save(p.id)}>
+                Gem kommentar
+              </PrimaryButton>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-3 text-sm text-muted">Ingen planlagt opgave på sagen endnu.</p>
+      )}
+    </section>
   );
 }
 
@@ -574,22 +846,17 @@ export function SagSamling({ site, numbers }: { site: SagSite | null; numbers: s
   const day = dmy(new Date().toISOString());
 
   return (
-    <main className="kunde-a">
-      <div className="kunde-brick-top">
-        <img src="/kunde/mursten.jpg" alt="" className="h-[110px] w-full object-cover lg:h-16" />
-      </div>
-      <div className="mx-auto max-w-[42rem] px-6 py-12 sm:px-10">
-        <div className="kunde-no-print mb-10 flex flex-wrap items-center gap-6 text-sm">
-          <BackArrow href={sagPath(job.slug, ["as"])} label="Tilbage til aftalesedler" />
-          <button type="button" className="text-kunde-accent" onClick={() => window.print()}>
-            Gem som PDF
+    <main className="min-h-dvh bg-sand pb-16">
+      <div className="mx-auto max-w-lg px-4 py-6">
+        <div className="mb-6 flex flex-wrap items-center gap-4 text-sm">
+          <BackArrow href={sagPath(job.slug, ["as"])} label="Tilbage til AS" />
+          <button type="button" className="min-h-11 font-semibold text-navy" onClick={() => window.print()}>
+            Print / PDF
           </button>
         </div>
-
-        <section>
-          <p className="text-[0.7rem] font-medium tracking-[0.28em]">ZENKO DANMARK</p>
-          <p className="mt-6 text-[0.7rem] font-medium tracking-[0.28em] text-kunde-accent">AFTALESEDLER · SAMLING</p>
-          <h1 className="mt-4 text-[clamp(2.4rem,7vw,4.2rem)] leading-[1.05] font-light">{job.name}</h1>
+        <section className="rounded-[24px] bg-paper px-4 py-5 shadow-card">
+          <p className="text-xs font-semibold tracking-wide text-brick uppercase">AS · samling</p>
+          <h1 className="mt-1 font-display text-4xl text-navy">{job.name}</h1>
           <SagMetaGrid
             rows={
               [
@@ -599,18 +866,18 @@ export function SagSamling({ site, numbers }: { site: SagSite | null; numbers: s
               ].filter(([, v]) => v.trim()) as [string, string][]
             }
           />
-          <table className="mt-12 w-full text-left text-sm">
+          <table className="mt-6 w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-kunde-line text-[0.68rem] tracking-[0.18em] text-kunde-muted uppercase">
+              <tr className="border-b border-line text-xs tracking-wide text-muted uppercase">
                 <th className="py-2 font-medium">Nr</th>
                 <th className="py-2 font-medium">Titel</th>
                 <th className="py-2 font-medium">Dato</th>
-                <th className="py-2 text-right font-medium">Beløb ekskl. moms</th>
+                <th className="py-2 text-right font-medium">Beløb</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-b border-kunde-line">
+                <tr key={r.id} className="border-b border-line">
                   <td className="py-3">{r.number}</td>
                   <td className="py-3">{r.title}</td>
                   <td className="py-3">{dmy(r.createdAt)}</td>
@@ -619,18 +886,17 @@ export function SagSamling({ site, numbers }: { site: SagSite | null; numbers: s
               ))}
             </tbody>
           </table>
-          <p className="mt-8 text-xl font-light">I alt ekskl. moms {tot.label}</p>
-          <p className="mt-10 text-sm text-kunde-muted">
-            Side 1 af {pages} · CVR {job.cvr} · {job.firmLine}
-            {tot.missing ? ` · ${tot.missing} seddel${tot.missing === 1 ? "" : "er"} uden beløb er ikke talt med` : ""}
+          <p className="mt-6 font-display text-2xl text-navy">I alt {tot.label}</p>
+          <p className="mt-4 text-sm text-muted">
+            Side 1 af {pages} · CVR {job.cvr}
+            {tot.missing ? ` · ${tot.missing} uden beløb er ikke talt med` : ""}
           </p>
         </section>
-
         {rows.map((r, i) => (
-          <section key={r.id} className="kunde-break mt-16 border-t border-kunde-line pt-10">
+          <section key={r.id} className="mt-6">
             <SagAsBody as={r} print />
-            <p className="mt-10 text-sm text-kunde-muted">
-              Side {i + 2} af {pages} · CVR {job.cvr} · {job.firmLine}
+            <p className="mt-3 text-sm text-muted">
+              Side {i + 2} af {pages} · CVR {job.cvr}
             </p>
           </section>
         ))}

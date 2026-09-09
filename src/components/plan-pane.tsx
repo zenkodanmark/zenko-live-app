@@ -307,6 +307,7 @@ export function PlanWeekRow({
           >
             <span className="block truncate text-[10px] font-semibold leading-tight">{planPlaceLabel(hit)}</span>
             <span className="block truncate text-[10px] leading-tight opacity-80">{hit.title}</span>
+            {hit.comment ? <span className="block truncate text-[10px] leading-tight opacity-70">{hit.comment}</span> : null}
           </button>
         );
       })}

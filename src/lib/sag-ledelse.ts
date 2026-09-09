@@ -1,5 +1,5 @@
 import { FIRM, FIRM_CVR, FIRM_LINE, FIRM_MAIL, FIRM_PHONE, PROJECTS } from "./seed.ts";
-import { slugForProject, slugFromName, isKundeSlug, projectIdFromSlug, kundeMeta } from "./ks-customer.ts";
+import { slugForProject, slugFromName, isKundeSlug, projectIdFromSlug, kundeMeta, toKundeReport, padReportNo } from "./ks-customer.ts";
 import { scanForProject } from "./udbud-plan.ts";
 import { softrAsFieldItems, softrAsSlips } from "./softr-as.ts";
 import { softrErReports } from "./softr-er.ts";
@@ -7,7 +7,7 @@ import { softrTfReports } from "./softr-tf.ts";
 import { SEED_ENTS, SEED_FIELD_ITEMS, SEED_SLIPS, SEED_TFS } from "./seed.ts";
 import { photoSrc } from "./tf-share.ts";
 import { defaultLedelseStatus } from "./sag-ledelse-defaults.ts";
-import type { Entrepreneur, FieldItem, LedelseReply, Offer, Project, Slip, Tf } from "./types.ts";
+import type { Entrepreneur, FieldItem, KsPhoto, KsReport, LedelseReply, Offer, Project, Slip, Tf } from "./types.ts";
 
 export type SagKind = "tf" | "as" | "tb" | "er";
 
@@ -65,6 +65,7 @@ export type SagAsView = {
   note: string;
   materials: SagMaterial[];
   photos: SagPhoto[];
+  replies: LedelseReply[];
 };
 
 export type SagErView = {
@@ -80,6 +81,26 @@ export type SagErView = {
   address: string;
   note: string;
   photos: SagPhoto[];
+  replies: LedelseReply[];
+};
+
+export type SagKsView = {
+  id: string;
+  number: string;
+  slug: string;
+  title: string;
+  createdAt: string;
+  location: string;
+  point: string;
+  partCode: string;
+  partTitle: string;
+  task: string;
+  qcScope: string;
+  qcMethod: string;
+  deviations: string;
+  employeeName: string;
+  photos: SagPhoto[];
+  replies: LedelseReply[];
 };
 
 export type SagSite = {
@@ -88,6 +109,7 @@ export type SagSite = {
   slips: SagAsView[];
   tbs: SagAsView[];
   ents: SagErView[];
+  kss: SagKsView[];
 };
 
 export { slugForProject, slugFromName, isKundeSlug, projectIdFromSlug };
@@ -249,6 +271,7 @@ export function toSagAs(slip: Slip, job: Project, fields: FieldItem[]): SagAsVie
     note: /ingen/i.test(note) ? "" : note,
     materials: parsed.lines,
     photos: photosOf(slip.photoIds ?? [], fields),
+    replies: slip.ledelseReplies ?? [],
   };
 }
 
@@ -275,6 +298,30 @@ export function toSagEr(ent: Entrepreneur, job: Project, fields: FieldItem[]): S
     address: job.address,
     note: /ingen/i.test(note) ? "" : note,
     photos: photosOf(ent.photoIds ?? [], fields),
+    replies: ent.ledelseReplies ?? [],
+  };
+}
+
+export function toSagKs(report: KsReport, job: Project, photos: KsPhoto[]): SagKsView | null {
+  if (report.trashedAt) return null;
+  const view = toKundeReport(report, job, photos);
+  return {
+    id: view.id,
+    number: view.number,
+    slug: padReportNo(view.number),
+    title: view.task || view.part.title,
+    createdAt: view.createdAt,
+    location: view.location,
+    point: view.point,
+    partCode: view.part.code,
+    partTitle: view.part.title,
+    task: view.task,
+    qcScope: view.qcScope,
+    qcMethod: view.qcMethod,
+    deviations: view.deviations,
+    employeeName: view.employeeName,
+    photos: view.photos,
+    replies: report.ledelseReplies ?? [],
   };
 }
 
@@ -284,6 +331,8 @@ export function buildSagSite(opts: {
   slips: Slip[];
   tbs?: Offer[];
   ents: Entrepreneur[];
+  kss?: KsReport[];
+  ksPhotos?: KsPhoto[];
   fieldItems: FieldItem[];
   published?: { tf?: string[]; as?: string[]; tb?: string[]; er?: string[] } | null;
   jobExtra?: Partial<SagJobMeta>;
@@ -314,7 +363,12 @@ export function buildSagSite(opts: {
     .map((r) => toSagEr({ ...r, ledelseStatus: "med_til_ledelse" }, opts.project, opts.fieldItems))
     .filter((r): r is SagErView => Boolean(r))
     .sort((a, b) => a.number.localeCompare(b.number, "da"));
-  return { job, tfs, slips, tbs, ents };
+  const kss = (opts.kss ?? [])
+    .filter((r) => r.projectId === opts.project.id && !r.trashedAt)
+    .map((r) => toSagKs(r, opts.project, opts.ksPhotos ?? []))
+    .filter((r): r is SagKsView => Boolean(r))
+    .sort((a, b) => Number(a.number) - Number(b.number) || a.number.localeCompare(b.number, "da"));
+  return { job, tfs, slips, tbs, ents, kss };
 }
 
 export function bundledSagInputs() {
@@ -396,5 +450,14 @@ export function filterEr(rows: SagErView[], opts: { q?: string; day?: string }) 
   return rows.filter((r) => {
     if (!matchesDay(r.createdAt, day)) return false;
     return matchesQuery(`${r.number} ${r.title} ${r.body} ${r.location}`, q);
+  });
+}
+
+export function filterKs(rows: SagKsView[], opts: { q?: string; day?: string }) {
+  const q = opts.q ?? "";
+  const day = opts.day ?? "";
+  return rows.filter((r) => {
+    if (!matchesDay(r.createdAt, day)) return false;
+    return matchesQuery(`${r.number} ${r.title} ${r.task} ${r.location} ${r.partTitle} ${r.point}`, q);
   });
 }

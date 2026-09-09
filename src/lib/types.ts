@@ -181,6 +181,7 @@ export type KsReport = {
   qcScope?: string;
   qcMethod?: string;
   source?: string;
+  ledelseReplies?: LedelseReply[];
 };
 
 export type Slip = {
@@ -325,6 +326,7 @@ export type PlanBlock = {
   createdBy: string;
   source?: string;
   place?: string;
+  comment?: string;
 };
 
 export type FieldItem = {

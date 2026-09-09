@@ -321,6 +321,7 @@ export function ksFromRow(r: Record<string, unknown>): KsReport {
     qcScope: str(r.qc_scope) || undefined,
     qcMethod: str(r.qc_method) || undefined,
     source: str(r.source) || undefined,
+    ...(Array.isArray(r.ledelse_replies) ? { ledelseReplies: arr(r.ledelse_replies) } : {}),
   };
 }
 

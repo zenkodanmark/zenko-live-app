@@ -28,9 +28,11 @@ import { Route as RKindNumberRouteImport } from './routes/r.$kind.$number'
 import { Route as SagSlugIndexRouteImport } from './routes/sag.$slug.index'
 import { Route as SagSlugAsRouteImport } from './routes/sag.$slug.as'
 import { Route as SagSlugErRouteImport } from './routes/sag.$slug.er'
+import { Route as SagSlugKsRouteImport } from './routes/sag.$slug.ks'
 import { Route as SagSlugSamlingRouteImport } from './routes/sag.$slug.samling'
 import { Route as SagSlugTbRouteImport } from './routes/sag.$slug.tb'
 import { Route as SagSlugTfRouteImport } from './routes/sag.$slug.tf'
+import { Route as SagSlugTodoRouteImport } from './routes/sag.$slug.todo'
 import { Route as KundeSlugPunktIndexRouteImport } from './routes/kunde.$slug.$punkt.index'
 import { Route as KundeSlugPunktRapportRouteImport } from './routes/kunde.$slug.$punkt.$rapport'
 import { Route as MaSagOrdreIndexRouteImport } from './routes/ma.$sag.$ordre.index'
@@ -41,10 +43,13 @@ import { Route as SagSlugAsIndexRouteImport } from './routes/sag.$slug.as.index'
 import { Route as SagSlugAsNumberRouteImport } from './routes/sag.$slug.as.$number'
 import { Route as SagSlugErIndexRouteImport } from './routes/sag.$slug.er.index'
 import { Route as SagSlugErNumberRouteImport } from './routes/sag.$slug.er.$number'
+import { Route as SagSlugKsIndexRouteImport } from './routes/sag.$slug.ks.index'
+import { Route as SagSlugKsNumberRouteImport } from './routes/sag.$slug.ks.$number'
 import { Route as SagSlugTbIndexRouteImport } from './routes/sag.$slug.tb.index'
 import { Route as SagSlugTbNumberRouteImport } from './routes/sag.$slug.tb.$number'
 import { Route as SagSlugTfIndexRouteImport } from './routes/sag.$slug.tf.index'
 import { Route as SagSlugTfNumberRouteImport } from './routes/sag.$slug.tf.$number'
+import { Route as SagSlugTodoIndexRouteImport } from './routes/sag.$slug.todo.index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -141,6 +146,11 @@ const SagSlugErRoute = SagSlugErRouteImport.update({
   path: '/er',
   getParentRoute: () => SagSlugRoute,
 } as any)
+const SagSlugKsRoute = SagSlugKsRouteImport.update({
+  id: '/ks',
+  path: '/ks',
+  getParentRoute: () => SagSlugRoute,
+} as any)
 const SagSlugSamlingRoute = SagSlugSamlingRouteImport.update({
   id: '/samling',
   path: '/samling',
@@ -154,6 +164,11 @@ const SagSlugTbRoute = SagSlugTbRouteImport.update({
 const SagSlugTfRoute = SagSlugTfRouteImport.update({
   id: '/tf',
   path: '/tf',
+  getParentRoute: () => SagSlugRoute,
+} as any)
+const SagSlugTodoRoute = SagSlugTodoRouteImport.update({
+  id: '/todo',
+  path: '/todo',
   getParentRoute: () => SagSlugRoute,
 } as any)
 const KundeSlugPunktIndexRoute = KundeSlugPunktIndexRouteImport.update({
@@ -206,6 +221,16 @@ const SagSlugErNumberRoute = SagSlugErNumberRouteImport.update({
   path: '/$number',
   getParentRoute: () => SagSlugErRoute,
 } as any)
+const SagSlugKsIndexRoute = SagSlugKsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SagSlugKsRoute,
+} as any)
+const SagSlugKsNumberRoute = SagSlugKsNumberRouteImport.update({
+  id: '/$number',
+  path: '/$number',
+  getParentRoute: () => SagSlugKsRoute,
+} as any)
 const SagSlugTbIndexRoute = SagSlugTbIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -226,6 +251,11 @@ const SagSlugTfNumberRoute = SagSlugTfNumberRouteImport.update({
   path: '/$number',
   getParentRoute: () => SagSlugTfRoute,
 } as any)
+const SagSlugTodoIndexRoute = SagSlugTodoIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SagSlugTodoRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -244,9 +274,11 @@ export interface FileRoutesByFullPath {
   '/r/$kind/$number': typeof RKindNumberRoute
   '/sag/$slug/as': typeof SagSlugAsRouteWithChildren
   '/sag/$slug/er': typeof SagSlugErRouteWithChildren
+  '/sag/$slug/ks': typeof SagSlugKsRouteWithChildren
   '/sag/$slug/samling': typeof SagSlugSamlingRoute
   '/sag/$slug/tb': typeof SagSlugTbRouteWithChildren
   '/sag/$slug/tf': typeof SagSlugTfRouteWithChildren
+  '/sag/$slug/todo': typeof SagSlugTodoRouteWithChildren
   '/kunde/$slug/': typeof KundeSlugIndexRoute
   '/ma/$sag/': typeof MaSagIndexRoute
   '/sag/$slug/': typeof SagSlugIndexRoute
@@ -256,14 +288,17 @@ export interface FileRoutesByFullPath {
   '/ma/$sag/$ordre/pdf': typeof MaSagOrdrePdfRoute
   '/sag/$slug/as/$number': typeof SagSlugAsNumberRoute
   '/sag/$slug/er/$number': typeof SagSlugErNumberRoute
+  '/sag/$slug/ks/$number': typeof SagSlugKsNumberRoute
   '/sag/$slug/tb/$number': typeof SagSlugTbNumberRoute
   '/sag/$slug/tf/$number': typeof SagSlugTfNumberRoute
   '/kunde/$slug/$punkt/': typeof KundeSlugPunktIndexRoute
   '/ma/$sag/$ordre/': typeof MaSagOrdreIndexRoute
   '/sag/$slug/as/': typeof SagSlugAsIndexRoute
   '/sag/$slug/er/': typeof SagSlugErIndexRoute
+  '/sag/$slug/ks/': typeof SagSlugKsIndexRoute
   '/sag/$slug/tb/': typeof SagSlugTbIndexRoute
   '/sag/$slug/tf/': typeof SagSlugTfIndexRoute
+  '/sag/$slug/todo/': typeof SagSlugTodoIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -284,14 +319,17 @@ export interface FileRoutesByTo {
   '/ma/$sag/$ordre/pdf': typeof MaSagOrdrePdfRoute
   '/sag/$slug/as/$number': typeof SagSlugAsNumberRoute
   '/sag/$slug/er/$number': typeof SagSlugErNumberRoute
+  '/sag/$slug/ks/$number': typeof SagSlugKsNumberRoute
   '/sag/$slug/tb/$number': typeof SagSlugTbNumberRoute
   '/sag/$slug/tf/$number': typeof SagSlugTfNumberRoute
   '/kunde/$slug/$punkt': typeof KundeSlugPunktIndexRoute
   '/ma/$sag/$ordre': typeof MaSagOrdreIndexRoute
   '/sag/$slug/as': typeof SagSlugAsIndexRoute
   '/sag/$slug/er': typeof SagSlugErIndexRoute
+  '/sag/$slug/ks': typeof SagSlugKsIndexRoute
   '/sag/$slug/tb': typeof SagSlugTbIndexRoute
   '/sag/$slug/tf': typeof SagSlugTfIndexRoute
+  '/sag/$slug/todo': typeof SagSlugTodoIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -311,9 +349,11 @@ export interface FileRoutesById {
   '/r/$kind/$number': typeof RKindNumberRoute
   '/sag/$slug/as': typeof SagSlugAsRouteWithChildren
   '/sag/$slug/er': typeof SagSlugErRouteWithChildren
+  '/sag/$slug/ks': typeof SagSlugKsRouteWithChildren
   '/sag/$slug/samling': typeof SagSlugSamlingRoute
   '/sag/$slug/tb': typeof SagSlugTbRouteWithChildren
   '/sag/$slug/tf': typeof SagSlugTfRouteWithChildren
+  '/sag/$slug/todo': typeof SagSlugTodoRouteWithChildren
   '/kunde/$slug/': typeof KundeSlugIndexRoute
   '/ma/$sag/': typeof MaSagIndexRoute
   '/sag/$slug/': typeof SagSlugIndexRoute
@@ -323,14 +363,17 @@ export interface FileRoutesById {
   '/ma/$sag/$ordre/pdf': typeof MaSagOrdrePdfRoute
   '/sag/$slug/as/$number': typeof SagSlugAsNumberRoute
   '/sag/$slug/er/$number': typeof SagSlugErNumberRoute
+  '/sag/$slug/ks/$number': typeof SagSlugKsNumberRoute
   '/sag/$slug/tb/$number': typeof SagSlugTbNumberRoute
   '/sag/$slug/tf/$number': typeof SagSlugTfNumberRoute
   '/kunde/$slug/$punkt/': typeof KundeSlugPunktIndexRoute
   '/ma/$sag/$ordre/': typeof MaSagOrdreIndexRoute
   '/sag/$slug/as/': typeof SagSlugAsIndexRoute
   '/sag/$slug/er/': typeof SagSlugErIndexRoute
+  '/sag/$slug/ks/': typeof SagSlugKsIndexRoute
   '/sag/$slug/tb/': typeof SagSlugTbIndexRoute
   '/sag/$slug/tf/': typeof SagSlugTfIndexRoute
+  '/sag/$slug/todo/': typeof SagSlugTodoIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -351,9 +394,11 @@ export interface FileRouteTypes {
     | '/r/$kind/$number'
     | '/sag/$slug/as'
     | '/sag/$slug/er'
+    | '/sag/$slug/ks'
     | '/sag/$slug/samling'
     | '/sag/$slug/tb'
     | '/sag/$slug/tf'
+    | '/sag/$slug/todo'
     | '/kunde/$slug/'
     | '/ma/$sag/'
     | '/sag/$slug/'
@@ -363,14 +408,17 @@ export interface FileRouteTypes {
     | '/ma/$sag/$ordre/pdf'
     | '/sag/$slug/as/$number'
     | '/sag/$slug/er/$number'
+    | '/sag/$slug/ks/$number'
     | '/sag/$slug/tb/$number'
     | '/sag/$slug/tf/$number'
     | '/kunde/$slug/$punkt/'
     | '/ma/$sag/$ordre/'
     | '/sag/$slug/as/'
     | '/sag/$slug/er/'
+    | '/sag/$slug/ks/'
     | '/sag/$slug/tb/'
     | '/sag/$slug/tf/'
+    | '/sag/$slug/todo/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -391,14 +439,17 @@ export interface FileRouteTypes {
     | '/ma/$sag/$ordre/pdf'
     | '/sag/$slug/as/$number'
     | '/sag/$slug/er/$number'
+    | '/sag/$slug/ks/$number'
     | '/sag/$slug/tb/$number'
     | '/sag/$slug/tf/$number'
     | '/kunde/$slug/$punkt'
     | '/ma/$sag/$ordre'
     | '/sag/$slug/as'
     | '/sag/$slug/er'
+    | '/sag/$slug/ks'
     | '/sag/$slug/tb'
     | '/sag/$slug/tf'
+    | '/sag/$slug/todo'
   id:
     | '__root__'
     | '/'
@@ -417,9 +468,11 @@ export interface FileRouteTypes {
     | '/r/$kind/$number'
     | '/sag/$slug/as'
     | '/sag/$slug/er'
+    | '/sag/$slug/ks'
     | '/sag/$slug/samling'
     | '/sag/$slug/tb'
     | '/sag/$slug/tf'
+    | '/sag/$slug/todo'
     | '/kunde/$slug/'
     | '/ma/$sag/'
     | '/sag/$slug/'
@@ -429,14 +482,17 @@ export interface FileRouteTypes {
     | '/ma/$sag/$ordre/pdf'
     | '/sag/$slug/as/$number'
     | '/sag/$slug/er/$number'
+    | '/sag/$slug/ks/$number'
     | '/sag/$slug/tb/$number'
     | '/sag/$slug/tf/$number'
     | '/kunde/$slug/$punkt/'
     | '/ma/$sag/$ordre/'
     | '/sag/$slug/as/'
     | '/sag/$slug/er/'
+    | '/sag/$slug/ks/'
     | '/sag/$slug/tb/'
     | '/sag/$slug/tf/'
+    | '/sag/$slug/todo/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -585,6 +641,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SagSlugErRouteImport
       parentRoute: typeof SagSlugRoute
     }
+    '/sag/$slug/ks': {
+      id: '/sag/$slug/ks'
+      path: '/ks'
+      fullPath: '/sag/$slug/ks'
+      preLoaderRoute: typeof SagSlugKsRouteImport
+      parentRoute: typeof SagSlugRoute
+    }
     '/sag/$slug/samling': {
       id: '/sag/$slug/samling'
       path: '/samling'
@@ -604,6 +667,13 @@ declare module '@tanstack/react-router' {
       path: '/tf'
       fullPath: '/sag/$slug/tf'
       preLoaderRoute: typeof SagSlugTfRouteImport
+      parentRoute: typeof SagSlugRoute
+    }
+    '/sag/$slug/todo': {
+      id: '/sag/$slug/todo'
+      path: '/todo'
+      fullPath: '/sag/$slug/todo'
+      preLoaderRoute: typeof SagSlugTodoRouteImport
       parentRoute: typeof SagSlugRoute
     }
     '/kunde/$slug/$punkt/': {
@@ -676,6 +746,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SagSlugErNumberRouteImport
       parentRoute: typeof SagSlugErRoute
     }
+    '/sag/$slug/ks/': {
+      id: '/sag/$slug/ks/'
+      path: '/'
+      fullPath: '/sag/$slug/ks/'
+      preLoaderRoute: typeof SagSlugKsIndexRouteImport
+      parentRoute: typeof SagSlugKsRoute
+    }
+    '/sag/$slug/ks/$number': {
+      id: '/sag/$slug/ks/$number'
+      path: '/$number'
+      fullPath: '/sag/$slug/ks/$number'
+      preLoaderRoute: typeof SagSlugKsNumberRouteImport
+      parentRoute: typeof SagSlugKsRoute
+    }
     '/sag/$slug/tb/': {
       id: '/sag/$slug/tb/'
       path: '/'
@@ -703,6 +787,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/sag/$slug/tf/$number'
       preLoaderRoute: typeof SagSlugTfNumberRouteImport
       parentRoute: typeof SagSlugTfRoute
+    }
+    '/sag/$slug/todo/': {
+      id: '/sag/$slug/todo/'
+      path: '/'
+      fullPath: '/sag/$slug/todo/'
+      preLoaderRoute: typeof SagSlugTodoIndexRouteImport
+      parentRoute: typeof SagSlugTodoRoute
     }
   }
 }
@@ -809,6 +900,20 @@ const SagSlugErRouteWithChildren = SagSlugErRoute._addFileChildren(
   SagSlugErRouteChildren,
 )
 
+interface SagSlugKsRouteChildren {
+  SagSlugKsNumberRoute: typeof SagSlugKsNumberRoute
+  SagSlugKsIndexRoute: typeof SagSlugKsIndexRoute
+}
+
+const SagSlugKsRouteChildren: SagSlugKsRouteChildren = {
+  SagSlugKsNumberRoute: SagSlugKsNumberRoute,
+  SagSlugKsIndexRoute: SagSlugKsIndexRoute,
+}
+
+const SagSlugKsRouteWithChildren = SagSlugKsRoute._addFileChildren(
+  SagSlugKsRouteChildren,
+)
+
 interface SagSlugTbRouteChildren {
   SagSlugTbNumberRoute: typeof SagSlugTbNumberRoute
   SagSlugTbIndexRoute: typeof SagSlugTbIndexRoute
@@ -837,21 +942,37 @@ const SagSlugTfRouteWithChildren = SagSlugTfRoute._addFileChildren(
   SagSlugTfRouteChildren,
 )
 
+interface SagSlugTodoRouteChildren {
+  SagSlugTodoIndexRoute: typeof SagSlugTodoIndexRoute
+}
+
+const SagSlugTodoRouteChildren: SagSlugTodoRouteChildren = {
+  SagSlugTodoIndexRoute: SagSlugTodoIndexRoute,
+}
+
+const SagSlugTodoRouteWithChildren = SagSlugTodoRoute._addFileChildren(
+  SagSlugTodoRouteChildren,
+)
+
 interface SagSlugRouteChildren {
   SagSlugAsRoute: typeof SagSlugAsRouteWithChildren
   SagSlugErRoute: typeof SagSlugErRouteWithChildren
+  SagSlugKsRoute: typeof SagSlugKsRouteWithChildren
   SagSlugSamlingRoute: typeof SagSlugSamlingRoute
   SagSlugTbRoute: typeof SagSlugTbRouteWithChildren
   SagSlugTfRoute: typeof SagSlugTfRouteWithChildren
+  SagSlugTodoRoute: typeof SagSlugTodoRouteWithChildren
   SagSlugIndexRoute: typeof SagSlugIndexRoute
 }
 
 const SagSlugRouteChildren: SagSlugRouteChildren = {
   SagSlugAsRoute: SagSlugAsRouteWithChildren,
   SagSlugErRoute: SagSlugErRouteWithChildren,
+  SagSlugKsRoute: SagSlugKsRouteWithChildren,
   SagSlugSamlingRoute: SagSlugSamlingRoute,
   SagSlugTbRoute: SagSlugTbRouteWithChildren,
   SagSlugTfRoute: SagSlugTfRouteWithChildren,
+  SagSlugTodoRoute: SagSlugTodoRouteWithChildren,
   SagSlugIndexRoute: SagSlugIndexRoute,
 }
 

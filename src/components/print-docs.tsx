@@ -504,6 +504,19 @@ export function SlipDoc({ slip, heading }: { slip: Slip; heading?: string }) {
         </Box>
       </div>
       <FieldBilag ids={slip.photoIds} label="Billeder:" />
+      {(slip.ledelseReplies ?? []).length ? (
+        <div className="mt-5">
+          <h2 className="mb-3 text-xl font-bold">Byggeledelse:</h2>
+          <div className="space-y-3">
+            {(slip.ledelseReplies ?? []).map((r) => (
+              <Box key={r.id}>
+                <div className="text-xs text-gray-500">{dmyDot(r.at)}</div>
+                <div className="mt-1">{r.text}</div>
+              </Box>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </A4>
   );
 }
@@ -636,6 +649,18 @@ export function EntDoc({ ent }: { ent: Entrepreneur }) {
         <Box title="Kunde bemærkning">{ent.noteHe || "Ingen bemærkning"}</Box>
       </div>
       <FieldBilag ids={ent.photoIds} label="Fotos" />
+      {(ent.ledelseReplies ?? []).length ? (
+        <div className="mt-5">
+          <Box title="Byggeledelse">
+            {(ent.ledelseReplies ?? []).map((r) => (
+              <div key={r.id} className="border-t border-gray-200 pt-3 first:border-0 first:pt-0">
+                <p className="text-xs text-gray-500">{dmyDot(r.at)}</p>
+                <p className="mt-1 whitespace-pre-wrap">{r.text}</p>
+              </div>
+            ))}
+          </Box>
+        </div>
+      ) : null}
     </A4>
   );
 }
@@ -789,6 +814,20 @@ export function KsDoc({ report, photos }: { report: KsReport; photos: KsPhoto[] 
         <KsField label="Kontrolomfang">{report.qcScope ?? point?.qcScope ?? "—"}</KsField>
         <KsField label="Metode">{report.qcMethod ?? "Visuel/foto kontrol"}</KsField>
       </dl>
+
+      {(report.ledelseReplies ?? []).length ? (
+        <section className="mt-6">
+          <h2 className="mb-3 text-xl font-bold">Byggeledelse:</h2>
+          <div className="space-y-3">
+            {(report.ledelseReplies ?? []).map((r) => (
+              <div key={r.id} className="rounded-xl bg-[#f6e7c8] px-4 py-3">
+                <p className="text-xs text-gray-500">{dmyDash(r.at)}</p>
+                <p className="mt-1 whitespace-pre-wrap">{r.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="mt-8">
         <table className="w-full border-collapse text-sm">

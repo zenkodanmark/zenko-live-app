@@ -222,6 +222,7 @@ type YardState = {
     fromChatId?: string;
   }) => Todo;
   addPlan: (input: { employeeId?: string; employeeIds?: string[]; projectId: string; title: string; start: string; end: string; source?: PlanBlock["source"]; place?: string }) => PlanBlock;
+  patchPlan: (id: string, patch: Partial<PlanBlock>) => void;
   removePlan: (id: string) => void;
   toggleTodo: (id: string) => void;
   completeTodo: (id: string, byId?: string, extra?: { photoFileIds?: string[]; lat?: number | null; lng?: number | null; gpsLabel?: string }) => void;
@@ -1189,6 +1190,9 @@ export const useYard = create<YardState>()(
     set((s) => ({ plans: [...s.plans.filter((p) => key(p) !== key(row)), row] }));
     return row;
   },
+  patchPlan: (id, patch) => {
+    set((s) => ({ plans: s.plans.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
+  },
   removePlan: (id) => set((s) => ({ plans: s.plans.filter((p) => p.id !== id) })),
   toggleTodo: (id) => set((s) => ({ todos: s.todos.map((t) => {
     if (t.id !== id) return t;
@@ -1628,6 +1632,12 @@ export const useYard = create<YardState>()(
       if (row) {
         holdRow(row.id);
         void import("./sb-live").then((m) => m.publishEnt(row));
+      }
+    } else if (kind === "ks") {
+      const row = s.ksReports.find((x) => x.id === id);
+      if (row) {
+        holdRow(row.id);
+        emitYard({ kind: "ks", id: row.id, payload: slimKs(row), isNew: false, actorId: get().employeeId ?? row.employeeId ?? "" });
       }
     }
   },

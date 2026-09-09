@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getSagLedelse } from "./sag-ledelse.functions";
 import { pullEnts, pullOffers, pullSlips, pullTfs } from "./sb-live";
+import { pullTodos } from "./todo-live";
 import {
   buildSagSite,
   bundledSagInputs,
@@ -8,10 +9,11 @@ import {
   type SagJobMeta,
   type SagSite,
 } from "./sag-ledelse";
+import { softrKsPhotos, softrKsReports } from "./softr-ks";
 import { defaultLedelseStatus } from "./sag-ledelse-defaults";
 import { useYard } from "./store";
-import type { Entrepreneur, FieldItem, LedelseReply, LedelseStatus, Offer, Project, Slip, Tf } from "./types";
-import { mergeById, mergeReports } from "./yard-slim";
+import type { Entrepreneur, FieldItem, KsPhoto, KsReport, LedelseReply, LedelseStatus, Offer, Project, Slip, Tf } from "./types";
+import { mergeById, mergeReports, mergeSkippingHeld } from "./yard-slim";
 
 type DbState = {
   tracked: boolean;
@@ -40,6 +42,8 @@ export function useSagSite(slug: string): { site: SagSite | null; missing: boole
   const slips = useYard((s) => s.slips) ?? [];
   const offers = useYard((s) => s.offers) ?? [];
   const ents = useYard((s) => s.ents) ?? [];
+  const ksReports = useYard((s) => s.ksReports) ?? [];
+  const drivePhotos = useYard((s) => s.drivePhotos) ?? [];
   const fieldItems = useYard((s) => s.fieldItems) ?? [];
   const [db, setDb] = useState<DbState | null>(null);
   const [busy, setBusy] = useState(true);
@@ -49,11 +53,12 @@ export function useSagSite(slug: string): { site: SagSite | null; missing: boole
     let live = true;
     async function pullReports() {
       try {
-        const [cloudTfs, cloudSlips, cloudEnts, cloudOffers] = await Promise.all([
+        const [cloudTfs, cloudSlips, cloudEnts, cloudOffers, cloudTodos] = await Promise.all([
           pullTfs(),
           pullSlips(),
           pullEnts(),
           pullOffers(),
+          pullTodos(),
         ]);
         if (!live) return;
         const s = useYard.getState();
@@ -62,6 +67,7 @@ export function useSagSite(slug: string): { site: SagSite | null; missing: boole
           slips: cloudSlips ? mergeReports(s.slips, cloudSlips) : s.slips,
           ents: cloudEnts ? mergeReports(s.ents, cloudEnts) : s.ents,
           offers: cloudOffers ? mergeReports(s.offers ?? [], cloudOffers) : s.offers ?? [],
+          todos: cloudTodos ? mergeSkippingHeld(s.todos, cloudTodos) : s.todos,
         });
       } catch {
         /* guest page still works from bundled + store */
@@ -132,6 +138,8 @@ export function useSagSite(slug: string): { site: SagSite | null; missing: boole
     const allAs: Slip[] = applyStatus(mergeById(bundled.slips, slips), "as", db);
     const allTb: Offer[] = applyStatus(offers as Offer[], "tb", db);
     const allEr: Entrepreneur[] = applyStatus(mergeById(bundled.ents, ents), "er", db);
+    const allKs: KsReport[] = mergeById(softrKsReports(), ksReports);
+    const ksPhotos: KsPhoto[] = mergeById(softrKsPhotos(), drivePhotos);
     const fields: FieldItem[] = mergeById(bundled.fieldItems, fieldItems);
 
     const repliesByTf = new Map<string, LedelseReply[]>();
@@ -155,11 +163,13 @@ export function useSagSite(slug: string): { site: SagSite | null; missing: boole
       slips: allAs,
       tbs: allTb,
       ents: allEr,
+      kss: allKs,
+      ksPhotos,
       fieldItems: fields,
       jobExtra: db?.jobExtra ?? undefined,
     });
-    return { site, missing: false, busy: busy && !site.tfs.length && !site.slips.length && !site.ents.length };
-  }, [slug, projects, tfs, slips, offers, ents, fieldItems, db, busy]);
+    return { site, missing: false, busy: busy && !site.tfs.length && !site.slips.length && !site.ents.length && !site.kss.length };
+  }, [slug, projects, tfs, slips, offers, ents, ksReports, drivePhotos, fieldItems, db, busy]);
 
   return { ...value, reload: () => setTick((n) => n + 1) };
 }

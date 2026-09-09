@@ -3,6 +3,7 @@ import test from "node:test";
 import { PROJECTS } from "./seed.ts";
 import { softrAsSlips } from "./softr-as.ts";
 import { softrErReports } from "./softr-er.ts";
+import { softrKsPhotos, softrKsReports } from "./softr-ks.ts";
 import { softrTfReports } from "./softr-tf.ts";
 import { SEED_TFS } from "./seed.ts";
 import {
@@ -30,6 +31,9 @@ test("slug og sti er /sag/hilleroedsholm", () => {
   assert.equal(sagPath("hilleroedsholm", ["tf"]), "/sag/hilleroedsholm/tf");
   assert.equal(sagPath("hilleroedsholm", ["as"]), "/sag/hilleroedsholm/as");
   assert.equal(sagPath("hilleroedsholm", ["er"]), "/sag/hilleroedsholm/er");
+  assert.equal(sagPath("hilleroedsholm", ["ks"]), "/sag/hilleroedsholm/ks");
+  assert.equal(sagPath("hilleroedsholm", ["tb"]), "/sag/hilleroedsholm/tb");
+  assert.equal(sagPath("hilleroedsholm", ["todo"]), "/sag/hilleroedsholm/todo");
   assert.equal(sagPath("hilleroedsholm", ["tf", "Z-TF-2026-006"]), "/sag/hilleroedsholm/tf/Z-TF-2026-006");
   assert.equal(sagPath("hilleroedsholm", ["as", "292"]), "/sag/hilleroedsholm/as/292");
 });
@@ -63,6 +67,22 @@ test("Hillerød byggeledelse viser kun hakket TF-006, AS-292 og ER-366", () => {
   assert.equal(site.slips.find((s) => s.slug === "292")?.price, 38825);
   assert.ok(site.ents.some((e) => e.number === "ER-366"));
   assert.ok(!site.slips.some((s) => s.number === "AS-36"));
+});
+
+test("Hillerød byggeledelse har KS-rapporter på sagen", () => {
+  const job = PROJECTS.find((p) => p.id === "job-hillerodsholm")!;
+  const bundled = bundledSagInputs();
+  const site = buildSagSite({
+    project: job,
+    tfs: bundled.tfs,
+    slips: bundled.slips,
+    ents: bundled.ents,
+    fieldItems: bundled.fieldItems,
+    kss: softrKsReports(),
+    ksPhotos: softrKsPhotos(),
+  });
+  assert.ok(site.kss.length > 0);
+  assert.ok(site.kss.every((k) => k.id && k.number && k.title));
 });
 
 test("demo-hak rammer kun de seks AS, TF-006 og ER-366", () => {
