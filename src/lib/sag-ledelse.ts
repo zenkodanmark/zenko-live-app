@@ -304,6 +304,7 @@ export function toSagEr(ent: Entrepreneur, job: Project, fields: FieldItem[]): S
 
 export function toSagKs(report: KsReport, job: Project, photos: KsPhoto[]): SagKsView | null {
   if (report.trashedAt) return null;
+  if (!isLedelseOn(report)) return null;
   const view = toKundeReport(report, job, photos);
   return {
     id: view.id,
@@ -364,7 +365,7 @@ export function buildSagSite(opts: {
     .filter((r): r is SagErView => Boolean(r))
     .sort((a, b) => a.number.localeCompare(b.number, "da"));
   const kss = (opts.kss ?? [])
-    .filter((r) => r.projectId === opts.project.id && !r.trashedAt)
+    .filter((r) => r.projectId === opts.project.id && !r.trashedAt && isLedelseOn(r))
     .map((r) => toSagKs(r, opts.project, opts.ksPhotos ?? []))
     .filter((r): r is SagKsView => Boolean(r))
     .sort((a, b) => Number(a.number) - Number(b.number) || a.number.localeCompare(b.number, "da"));

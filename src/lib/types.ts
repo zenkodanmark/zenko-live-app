@@ -178,6 +178,7 @@ export type KsReport = {
   task?: string;
   fromChatId?: string;
   kundeStatus?: KundeStatus;
+  ledelseStatus?: LedelseStatus;
   trashedAt?: string;
   qcScope?: string;
   qcMethod?: string;

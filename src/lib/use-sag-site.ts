@@ -9,7 +9,6 @@ import {
   type SagJobMeta,
   type SagSite,
 } from "./sag-ledelse";
-import { softrKsPhotos, softrKsReports } from "./softr-ks";
 import { defaultLedelseStatus } from "./sag-ledelse-defaults";
 import { useYard } from "./store";
 import type { Entrepreneur, FieldItem, KsPhoto, KsReport, LedelseReply, LedelseStatus, Offer, Project, Slip, Tf } from "./types";
@@ -142,8 +141,8 @@ export function useSagSite(slug: string): { site: SagSite | null; missing: boole
     const allAs: Slip[] = applyStatus(mergeById(bundled.slips, slips), "as", db);
     const allTb: Offer[] = applyStatus(offers as Offer[], "tb", db);
     const allEr: Entrepreneur[] = applyStatus(mergeById(bundled.ents, ents), "er", db);
-    const allKs: KsReport[] = mergeById(softrKsReports(), ksReports);
-    const ksPhotos: KsPhoto[] = mergeById(softrKsPhotos(), drivePhotos);
+    const allKs: KsReport[] = ksReports;
+    const ksPhotos: KsPhoto[] = drivePhotos;
     const fields: FieldItem[] = mergeById(bundled.fieldItems, fieldItems);
 
     const repliesByTf = new Map<string, LedelseReply[]>();

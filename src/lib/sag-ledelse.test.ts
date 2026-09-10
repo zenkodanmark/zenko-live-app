@@ -69,7 +69,7 @@ test("Hillerød byggeledelse viser kun hakket TF-006, AS-292 og ER-366", () => {
   assert.ok(!site.slips.some((s) => s.number === "AS-36"));
 });
 
-test("Hillerød byggeledelse har KS-rapporter på sagen", () => {
+test("byggeledelse viser ikke dummy-KS uden Byggeleder-hak", () => {
   const job = PROJECTS.find((p) => p.id === "job-hillerodsholm")!;
   const bundled = bundledSagInputs();
   const site = buildSagSite({
@@ -81,8 +81,41 @@ test("Hillerød byggeledelse har KS-rapporter på sagen", () => {
     kss: softrKsReports(),
     ksPhotos: softrKsPhotos(),
   });
-  assert.ok(site.kss.length > 0);
-  assert.ok(site.kss.every((k) => k.id && k.number && k.title));
+  assert.equal(site.kss.length, 0);
+});
+
+test("kun KS med Byggeleder-hak vises — mester-KS uden hak er skjult", () => {
+  const job = PROJECTS.find((p) => p.id === "job-hillerodsholm")!;
+  const bundled = bundledSagInputs();
+  const rows = softrKsReports().filter((r) => r.projectId === job.id);
+  const hakked = { ...rows[0]!, id: "ks-hakket", ledelseStatus: "med_til_ledelse" as const };
+  const mester = { ...rows[1]!, id: "ks-mester", kundeStatus: "med_til_kunden" as const };
+  const site = buildSagSite({
+    project: job,
+    tfs: bundled.tfs,
+    slips: bundled.slips,
+    ents: bundled.ents,
+    fieldItems: bundled.fieldItems,
+    kss: [hakked, mester],
+    ksPhotos: softrKsPhotos(),
+  });
+  assert.equal(site.kss.length, 1);
+  assert.equal(site.kss[0]?.id, "ks-hakket");
+});
+
+test("Islevvænge byggeledelse har 0 KS uden hak", () => {
+  const job = PROJECTS.find((p) => p.id === "job-islevvaenge")!;
+  const bundled = bundledSagInputs();
+  const site = buildSagSite({
+    project: job,
+    tfs: bundled.tfs,
+    slips: bundled.slips,
+    ents: bundled.ents,
+    fieldItems: bundled.fieldItems,
+    kss: softrKsReports(),
+    ksPhotos: softrKsPhotos(),
+  });
+  assert.equal(site.kss.length, 0);
 });
 
 test("demo-hak rammer kun de seks AS, TF-006 og ER-366", () => {
