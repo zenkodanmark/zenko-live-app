@@ -18,6 +18,7 @@ import { hydrateSoftrSlip, softrAsFieldItems } from "@/lib/softr-as";
 import { hydrateSoftrEnt } from "@/lib/softr-er";
 import { hydrateSoftrTf } from "@/lib/softr-tf";
 import { hydrateSoftrReport, softrKsPhotos } from "@/lib/softr-ks";
+import { mesterKsForJob } from "@/lib/mester-ks";
 import type { Lang } from "@/lib/types";
 
 type Kind = "felt" | "ks" | "tf" | "slip" | "ent" | "pack" | "lon";
@@ -61,8 +62,8 @@ export function ReportsPane({ lang }: { lang: Lang }) {
   const liveEnts = ents.filter((s) => !s.trashedAt && (!pick || s.projectId === pick)).slice().sort(byNoDesc);
   const trashEnts = ents.filter((s) => s.trashedAt && (!pick || s.projectId === pick)).slice().sort(byNoDesc);
   const sagEnts = showTrash && kind === "ent" ? trashEnts : liveEnts;
-  const liveKs = ksReports.filter((s) => !s.trashedAt && (!pick || s.projectId === pick)).slice().sort(byNoAsc);
-  const trashKs = ksReports.filter((s) => s.trashedAt && (!pick || s.projectId === pick)).slice().sort(byNoAsc);
+  const liveKs = mesterKsForJob(ksReports, pick, { allJobs: !pick }).slice().sort(byNoAsc);
+  const trashKs = mesterKsForJob(ksReports, pick, { allJobs: !pick, trashed: true }).slice().sort(byNoAsc);
   const sagKs = showTrash && kind === "ks" ? trashKs : liveKs;
   const sagPacks = packs.filter((s) => !pick || s.projectId === pick);
   const tabs: { id: Kind; label: string; count?: number }[] = [
@@ -272,6 +273,7 @@ export function ReportsPane({ lang }: { lang: Lang }) {
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <TfShareChip tf={live} lang={lang} />
                   <LedelseHak kind="tf" report={live} lang={lang} />
+                  <KundeHak kind="tf" report={live} lang={lang} />
                   {showTrash ? (
                     <GhostButton className="shrink-0 rounded-full bg-sand px-3 text-action" onClick={() => restoreReport("tf", s.id)}>
                       {t(lang, "restoreTrash")}
@@ -315,6 +317,7 @@ export function ReportsPane({ lang }: { lang: Lang }) {
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <ErShareChip ent={live} lang={lang} />
                   <LedelseHak kind="er" report={live} lang={lang} />
+                  <KundeHak kind="er" report={live} lang={lang} />
                   {showTrash ? (
                     <GhostButton className="shrink-0 rounded-full bg-sand px-3 text-action" onClick={() => restoreReport("ent", s.id)}>
                       {t(lang, "restoreTrash")}
@@ -354,7 +357,7 @@ export function ReportsPane({ lang }: { lang: Lang }) {
                 </button>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <KsShareChip report={live} lang={lang} />
-                  <KundeHak report={live} lang={lang} />
+                  <KundeHak kind="ks" report={live} lang={lang} />
                   {showTrash ? (
                     <GhostButton className="shrink-0 rounded-full bg-sand px-3 text-action" onClick={() => restoreReport("ks", s.id)}>
                       {t(lang, "restoreTrash")}

@@ -12,7 +12,7 @@ import {
 import { defaultLedelseStatus } from "./sag-ledelse-defaults";
 import { useYard } from "./store";
 import type { Entrepreneur, FieldItem, KsPhoto, KsReport, LedelseReply, LedelseStatus, Offer, Project, Slip, Tf } from "./types";
-import { mergeById, mergePlans, mergeReports, mergeSkippingHeld } from "./yard-slim";
+import { mergeById, mergePlans, mergeReports } from "./yard-slim";
 
 type DbState = {
   tracked: boolean;
@@ -68,7 +68,7 @@ export function useSagSite(slug: string): { site: SagSite | null; missing: boole
           slips: cloudSlips ? mergeReports(s.slips, cloudSlips) : s.slips,
           ents: cloudEnts ? mergeReports(s.ents, cloudEnts) : s.ents,
           offers: cloudOffers ? mergeReports(s.offers ?? [], cloudOffers) : s.offers ?? [],
-          todos: cloudTodos ? mergeSkippingHeld(s.todos, cloudTodos) : s.todos,
+          todos: cloudTodos ? mergeReports(s.todos, cloudTodos) : s.todos,
           plans: cloudPlans ? mergePlans(s.plans ?? [], cloudPlans) : s.plans ?? [],
           projects: cloudProjects ? mergeById(s.projects, cloudProjects) : s.projects,
         });

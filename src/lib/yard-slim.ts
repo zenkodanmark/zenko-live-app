@@ -129,8 +129,8 @@ function stamp(row: { updatedAt?: string }) {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Cloud merge for TF/AS/TB/ER — keep a just-toggled hak across refresh until cloud catches up. */
-export function mergeReports<T extends { id: string; ledelseStatus?: string; updatedAt?: string }>(local: T[], remote: T[], ms = 12000): T[] {
+/** Cloud merge for TF/AS/TB/ER/KS — keep a just-toggled hak across refresh until cloud catches up. */
+export function mergeReports<T extends { id: string; ledelseStatus?: string; kundeStatus?: string; updatedAt?: string }>(local: T[], remote: T[], ms = 12000): T[] {
   const now = Date.now();
   const map = new Map<string, T>();
   for (const row of local) map.set(row.id, row);
@@ -149,8 +149,22 @@ export function mergeReports<T extends { id: string; ledelseStatus?: string; upd
       const ls = stamp(prev);
       ledelseStatus = rs || ls ? (rs >= ls ? remoteStatus : localStatus) : remoteStatus;
     }
+    const remoteKunde = row.kundeStatus;
+    const localKunde = prev.kundeStatus;
+    let kundeStatus = remoteKunde || localKunde;
+    if (remoteKunde && localKunde && remoteKunde !== localKunde) {
+      const rs = stamp(row);
+      const ls = stamp(prev);
+      kundeStatus = rs || ls ? (rs >= ls ? remoteKunde : localKunde) : remoteKunde;
+    }
     const updatedAt = stamp(row) >= stamp(prev) ? row.updatedAt || prev.updatedAt : prev.updatedAt || row.updatedAt;
-    map.set(row.id, { ...prev, ...row, ...(ledelseStatus ? { ledelseStatus } : {}), ...(updatedAt ? { updatedAt } : {}) });
+    map.set(row.id, {
+      ...prev,
+      ...row,
+      ...(ledelseStatus ? { ledelseStatus } : {}),
+      ...(kundeStatus ? { kundeStatus } : {}),
+      ...(updatedAt ? { updatedAt } : {}),
+    });
   }
   return [...map.values()];
 }

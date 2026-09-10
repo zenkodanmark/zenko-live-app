@@ -250,6 +250,7 @@ export type Entrepreneur = {
   fromChatId?: string;
   ledelseStatus?: LedelseStatus;
   ledelseReplies?: LedelseReply[];
+  kundeStatus?: KundeStatus;
   materialsEst?: string;
   hoursEst?: number;
   trashedAt?: string;

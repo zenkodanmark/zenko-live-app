@@ -57,7 +57,7 @@ async function applyPull() {
   useYard.setState({
     todos: mergeReports(s.todos, cloudTodos),
     chats: mergeChats(s.chats, cloudChats),
-    ksReports: remote.ok ? mergeById(s.ksReports, remote.ksReports) : s.ksReports,
+    ksReports: remote.ok ? mergeReports(s.ksReports, remote.ksReports) : s.ksReports,
     days: mergeDays(s.days, [...(remote.ok ? remote.days : []), ...(clientDays ?? [])]),
     needs: remote.ok ? mergeById(s.needs ?? [], remote.needs ?? []) : s.needs,
     orders: mergeById(s.orders ?? [], cloudOrders),

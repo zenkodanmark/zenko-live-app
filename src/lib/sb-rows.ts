@@ -8,6 +8,7 @@ import type {
   FieldItem,
   Issue,
   KsReport,
+  KundeStatus,
   LedelseStatus,
   MaterialNeed,
   MaterialOrder,
@@ -44,6 +45,56 @@ function ledelseOf(v: unknown): { ledelseStatus: LedelseStatus } | Record<string
   const s = str(v);
   if (s === "med_til_ledelse" || s === "skjult") return { ledelseStatus: s };
   return {};
+}
+
+function kundeOf(v: unknown): { kundeStatus: KundeStatus } | Record<string, never> {
+  const s = str(v);
+  if (s === "med_til_kunden" || s === "skjult") return { kundeStatus: s };
+  return {};
+}
+
+const KUNDE_SENTINEL = "__kunde";
+
+function repliesWithoutKunde(raw: unknown): { id: string; text: string; at: string }[] {
+  return arr<{ id: string; text: string; at: string }>(raw).filter((r) => r && r.id !== KUNDE_SENTINEL);
+}
+
+function entRepliesToRow(e: Pick<Entrepreneur, "ledelseReplies" | "kundeStatus">) {
+  const out = repliesWithoutKunde(e.ledelseReplies);
+  if (e.kundeStatus === "med_til_kunden" || e.kundeStatus === "skjult") {
+    out.push({ id: KUNDE_SENTINEL, text: e.kundeStatus, at: e.kundeStatus ? new Date().toISOString() : "" });
+  }
+  return out;
+}
+
+function kundeFromEnt(r: Record<string, unknown>): { kundeStatus: KundeStatus } | Record<string, never> {
+  const col = kundeOf(r.kunde_status);
+  if ("kundeStatus" in col) return col;
+  const hit = arr<{ id?: string; text?: string }>(r.ledelse_replies).find((x) => x && x.id === KUNDE_SENTINEL);
+  return kundeOf(hit?.text);
+}
+
+const TODO_LED_KEY = "__ledelse";
+
+export function ledelseFromTodoRow(r: Record<string, unknown>): { ledelseStatus: LedelseStatus } | Record<string, never> {
+  const col = ledelseOf(r.ledelse_status);
+  if ("ledelseStatus" in col) return col;
+  const trans = r.translations;
+  if (trans && typeof trans === "object") return ledelseOf((trans as Record<string, unknown>)[TODO_LED_KEY]);
+  return {};
+}
+
+export function translationsForTodo(t: Pick<Todo, "translations" | "ledelseStatus">): Record<string, string> {
+  const out: Record<string, string> = { ...((t.translations ?? {}) as Record<string, string>) };
+  delete out[TODO_LED_KEY];
+  if (t.ledelseStatus === "med_til_ledelse" || t.ledelseStatus === "skjult") out[TODO_LED_KEY] = t.ledelseStatus;
+  return out;
+}
+
+function translationsFromTodoRow(raw: unknown): Todo["translations"] {
+  if (!raw || typeof raw !== "object") return undefined;
+  const { [TODO_LED_KEY]: _drop, ...rest } = raw as Record<string, string>;
+  return Object.keys(rest).length ? (rest as Todo["translations"]) : undefined;
 }
 
 export function empToRow(e: Employee) {
@@ -152,7 +203,7 @@ export function todoToRow(t: Todo) {
     done_at: t.doneAt ?? null,
     done_by_id: t.doneById ?? null,
     needs_photo: t.needsPhoto ?? null,
-    translations: t.translations ?? {},
+    translations: translationsForTodo(t),
     drive_file_id: t.driveFileId ?? null,
     photo_file_ids: t.photoFileIds ?? [],
     lat: t.lat ?? null,
@@ -188,7 +239,7 @@ export function todoFromRow(r: Record<string, unknown>): Todo {
     doneAt: iso(r.done_at) || undefined,
     doneById: str(r.done_by_id) || undefined,
     needsPhoto: r.needs_photo == null ? undefined : bool(r.needs_photo),
-    translations: (r.translations as Todo["translations"]) ?? undefined,
+    translations: translationsFromTodoRow(r.translations),
     driveFileId: str(r.drive_file_id) || undefined,
     photoFileIds: arr<string>(r.photo_file_ids),
     lat: num(r.lat),
@@ -205,7 +256,7 @@ export function todoFromRow(r: Record<string, unknown>): Todo {
     doneLng: num(r.done_lng),
     orderId: str(r.order_id) || undefined,
     fromChatId: str(r.from_chat_id) || undefined,
-    ...ledelseOf(r.ledelse_status),
+    ...ledelseFromTodoRow(r),
     updatedAt: iso(r.updated_at) || undefined,
   };
 }
@@ -601,7 +652,8 @@ export function entToRow(e: Entrepreneur) {
     photo_ids: e.photoIds ?? [],
     from_chat_id: e.fromChatId ?? null,
     ledelse_status: e.ledelseStatus ?? null,
-    ledelse_replies: e.ledelseReplies ?? [],
+    ledelse_replies: entRepliesToRow(e),
+    kunde_status: e.kundeStatus ?? null,
     materials_est: e.materialsEst ?? null,
     hours_est: e.hoursEst ?? null,
     trashed_at: e.trashedAt ?? null,
@@ -623,7 +675,8 @@ export function entFromRow(r: Record<string, unknown>): Entrepreneur {
     photoIds: arr<string>(r.photo_ids),
     fromChatId: str(r.from_chat_id) || undefined,
     ...ledelseOf(r.ledelse_status),
-    ledelseReplies: arr(r.ledelse_replies),
+    ledelseReplies: repliesWithoutKunde(r.ledelse_replies),
+    ...kundeFromEnt(r),
     materialsEst: str(r.materials_est) || undefined,
     hoursEst: r.hours_est == null ? undefined : Number(r.hours_est),
     trashedAt: iso(r.trashed_at) || undefined,

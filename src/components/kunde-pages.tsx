@@ -143,6 +143,44 @@ export function KundeRapport({ site, code, pad }: { site: KundeSite | null; code
 }
 
 function KundeReportBody({ report, jobName, slug, print }: { report: KundeReportView; jobName: string; slug: string; print?: boolean }) {
+  const kind = report.kind ?? "ks";
+  if (kind === "tf" || kind === "er") {
+    const rows: [string, string][] = [
+      ["Byggesag", jobName],
+      ["Dato", dmy(report.createdAt)],
+      ["Lokation", report.location],
+    ].filter(([, v]) => v.trim()) as [string, string][];
+    return (
+      <article>
+        <p className="text-[0.7rem] font-medium tracking-[0.22em] text-kunde-muted">
+          {kind === "tf" ? "TEKNISK FORESPØRGSEL" : "ENTREPRENØRRAPPORT"} <span className="text-kunde-line">|</span> {report.number}
+        </p>
+        <h1 className="mt-3 text-[clamp(2rem,5vw,3.2rem)] leading-tight font-light">{report.task}</h1>
+        <KundeMetaGrid rows={rows} />
+        {report.body ? (
+          <section className="mt-12">
+            <p className="text-[0.68rem] tracking-[0.18em] text-kunde-muted uppercase">{kind === "tf" ? "Spørgsmål" : "Beskrivelse"}</p>
+            <p className="mt-2 max-w-prose whitespace-pre-wrap text-[1.05rem] leading-relaxed">{report.body}</p>
+          </section>
+        ) : null}
+        {report.deviations && report.deviations !== "Ingen" ? (
+          <section className="mt-12">
+            <p className="text-[0.68rem] tracking-[0.18em] text-kunde-muted uppercase">{kind === "tf" ? "Svar" : "Note"}</p>
+            <p className="mt-2 max-w-prose whitespace-pre-wrap text-[1.05rem] leading-relaxed">{report.deviations}</p>
+          </section>
+        ) : null}
+        {report.photos.length ? <KundePhotos photos={report.photos} /> : null}
+        {print ? null : (
+          <footer className="mt-16 border-t border-kunde-line pt-6 text-sm text-kunde-muted">
+            <p>{jobName}</p>
+            <button type="button" className="mt-3 text-kunde-accent" onClick={() => window.print()}>
+              Gem som PDF
+            </button>
+          </footer>
+        )}
+      </article>
+    );
+  }
   const rows: [string, string][] = [
     ["Byggesag", jobName],
     ["Dato", dmy(report.createdAt)],

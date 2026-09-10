@@ -66,5 +66,5 @@ export function ensureSoftrEr(state: { ents: Entrepreneur[] }) {
 export function hydrateSoftrEnt(ent: Entrepreneur): Entrepreneur {
   const fresh = softrErReports().find((e) => e.id === ent.id);
   if (!fresh) return { ...ent, ledelseStatus: ent.ledelseStatus ?? defaultLedelseStatus("er", ent.number) };
-  return { ...ent, ...fresh, trashedAt: ent.trashedAt, ledelseStatus: ent.ledelseStatus ?? fresh.ledelseStatus };
+  return { ...ent, ...fresh, trashedAt: ent.trashedAt, ledelseStatus: ent.ledelseStatus ?? fresh.ledelseStatus, kundeStatus: ent.kundeStatus ?? fresh.kundeStatus, ledelseReplies: ent.ledelseReplies };
 }

@@ -256,6 +256,7 @@ create table ents (
   from_chat_id text,
   ledelse_status text,
   ledelse_replies jsonb default '[]',
+  kunde_status text,
   materials_est text,
   hours_est double precision,
   trashed_at timestamptz,

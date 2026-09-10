@@ -267,6 +267,8 @@ const da = {
   ledelseHak: "Med til byggeledelse",
   ledelseHakOn: "Med til byggeledelse",
   ledelseHakOff: "Skjult for byggeledelse",
+  hakByggeleder: "Byggeleder",
+  hakKunde: "Kunde",
   ledelseOpen: "Åbn byggeledelse-side",
   ledelseCopied: "Byggeledelse-link kopieret.",
   sagFieldsTitle: "Sagsdata til byggeledelse",

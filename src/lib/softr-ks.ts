@@ -149,7 +149,6 @@ export function ensureSoftrKs(state: { ksReports: KsReport[]; drivePhotos?: KsPh
     prev.point = row.point;
     prev.deviations = row.deviations;
     prev.approved = row.approved;
-    prev.projectId = row.projectId;
     if (prev.kundeStatus == null) prev.kundeStatus = row.kundeStatus;
   }
   const photos = softrKsPhotos();

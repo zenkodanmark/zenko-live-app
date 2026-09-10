@@ -3,7 +3,7 @@ import { matchUdbudPart, planForProject, scanForProject, type UdbudPart } from "
 import { seedDrivePhotos } from "./ks-drive.ts";
 import { softrKsPhotos, softrKsReports } from "./softr-ks.ts";
 import { photoSrc } from "./tf-share.ts";
-import type { KsPhoto, KsReport, KsType, Project } from "./types.ts";
+import type { Entrepreneur, FieldItem, KsPhoto, KsReport, KsType, Project, Tf } from "./types.ts";
 import { isKundeSlug } from "./route-guards.ts";
 
 export { isKundeSlug };
@@ -15,6 +15,8 @@ export type KundePart = {
 };
 
 export type KundePhoto = { id: string; src: string; n: string };
+
+export type KundeDocKind = "ks" | "tf" | "er";
 
 export type KundeReportView = {
   id: string;
@@ -31,6 +33,8 @@ export type KundeReportView = {
   criteria: string;
   deviations: string;
   photos: KundePhoto[];
+  kind?: KundeDocKind;
+  body?: string;
 };
 
 export type KundeJobMeta = {
@@ -217,7 +221,7 @@ export function partForReport(report: Pick<KsReport, "point" | "task" | "locatio
   return partFromOwnField(report, plan) ?? OVRIGE_PART;
 }
 
-export function isPublished(report: Pick<KsReport, "kundeStatus" | "trashedAt">) {
+export function isPublished(report: { kundeStatus?: string; trashedAt?: string }) {
   return report.kundeStatus === "med_til_kunden" && !report.trashedAt;
 }
 
@@ -309,11 +313,75 @@ export function toKundeReport(report: KsReport, job: Project, photos: KsPhoto[])
   };
 }
 
+export const TF_PART: KundePart = { code: "tf", title: "Tekniske forespørgsler", controlPoint: "" };
+export const ER_PART: KundePart = { code: "er", title: "Entreprenørrapporter", controlPoint: "" };
+
+function fieldPhotos(ids: string[], items: FieldItem[]): KundePhoto[] {
+  const out: KundePhoto[] = [];
+  const seen = new Set<string>();
+  let n = 0;
+  for (const item of items) {
+    if (!ids.includes(item.id) && !ids.includes(item.driveFileId ?? "")) continue;
+    if (seen.has(item.id)) continue;
+    const src = photoSrc(item);
+    if (!src) continue;
+    seen.add(item.id);
+    n += 1;
+    out.push({ id: item.id, src, n: String(n).padStart(2, "0") });
+  }
+  return out;
+}
+
+export function toKundeTf(tf: Tf, fields: FieldItem[]): KundeReportView {
+  return {
+    id: tf.id,
+    number: tf.number,
+    pad: tf.number,
+    createdAt: tf.createdAt,
+    employeeName: "",
+    location: "",
+    point: "",
+    part: TF_PART,
+    task: (tf.title ?? "").trim() || tf.question,
+    qcScope: "",
+    qcMethod: "",
+    criteria: "",
+    deviations: tf.answer || "",
+    photos: fieldPhotos(tf.photoIds ?? [], fields),
+    kind: "tf",
+    body: tf.question,
+  };
+}
+
+export function toKundeEr(ent: Entrepreneur, fields: FieldItem[]): KundeReportView {
+  return {
+    id: ent.id,
+    number: ent.number,
+    pad: ent.number,
+    createdAt: ent.createdAt,
+    employeeName: "",
+    location: ent.location || "",
+    point: "",
+    part: ER_PART,
+    task: ent.title,
+    qcScope: "",
+    qcMethod: "",
+    criteria: "",
+    deviations: (ent.noteHe || "").trim(),
+    photos: fieldPhotos(ent.photoIds ?? [], fields),
+    kind: "er",
+    body: ent.body,
+  };
+}
+
 export function buildKundeSite(opts: {
   project: Project;
   reports: KsReport[];
   photos: KsPhoto[];
   publishedIds?: string[] | null;
+  tfs?: Tf[];
+  ents?: Entrepreneur[];
+  fieldItems?: FieldItem[];
 }): KundeSite {
   const job = kundeMeta(opts.project);
   const allow = opts.publishedIds ? new Set(opts.publishedIds) : null;
@@ -323,9 +391,24 @@ export function buildKundeSite(opts: {
     if (allow) return allow.has(r.id) || isPublished(r);
     return isPublished(r);
   });
-  const views = chosen
-    .map((r) => toKundeReport(r, opts.project, opts.photos))
-    .sort((a, b) => a.part.code.localeCompare(b.part.code) || Number(a.number) - Number(b.number));
+  const fields = opts.fieldItems ?? [];
+  const tfChosen = (opts.tfs ?? []).filter((r) => {
+    if (r.trashedAt) return false;
+    if (r.projectId !== opts.project.id) return false;
+    if (allow) return allow.has(r.id) || isPublished(r);
+    return isPublished(r);
+  });
+  const erChosen = (opts.ents ?? []).filter((r) => {
+    if (r.trashedAt) return false;
+    if (r.projectId !== opts.project.id) return false;
+    if (allow) return allow.has(r.id) || isPublished(r);
+    return isPublished(r);
+  });
+  const views = [
+    ...chosen.map((r) => toKundeReport(r, opts.project, opts.photos)),
+    ...tfChosen.map((r) => toKundeTf(r, fields)),
+    ...erChosen.map((r) => toKundeEr(r, fields)),
+  ].sort((a, b) => a.part.code.localeCompare(b.part.code) || Number(a.number) - Number(b.number) || a.number.localeCompare(b.number));
   const parts: KundePart[] = [];
   const seen = new Set<string>();
   for (const r of views) {
@@ -334,8 +417,8 @@ export function buildKundeSite(opts: {
     parts.push(r.part);
   }
   parts.sort((a, b) => {
-    if (a.code === OVRIGE_PART.code) return 1;
-    if (b.code === OVRIGE_PART.code) return -1;
+    if (a.code === OVRIGE_PART.code || a.code === "tf" || a.code === "er") return 1;
+    if (b.code === OVRIGE_PART.code || b.code === "tf" || b.code === "er") return -1;
     return a.code.localeCompare(b.code);
   });
   return { job, parts, reports: views, published: views.length };

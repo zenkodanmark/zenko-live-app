@@ -1,43 +1,73 @@
-import { type MouseEvent } from "react";
+import { type MouseEvent, useState } from "react";
+import { HakBtn } from "@/components/hak-btn";
 import { lookupProject, useYard } from "@/lib/store";
 import { slugForProject, snapshotKundeReport } from "@/lib/ks-customer";
 import { setKundeReportStatus } from "@/lib/ks-customer.functions";
 import { softrKsPhotos } from "@/lib/softr-ks";
 import { t } from "@/lib/i18n";
-import type { KsReport, Lang } from "@/lib/types";
+import type { Entrepreneur, KsReport, Lang, Tf } from "@/lib/types";
 
-export function KundeHak({ report, lang }: { report: KsReport; lang: Lang }) {
-  const patchReport = useYard((s) => s.patchReport);
+type KundeHakKind = "ks" | "tf" | "er";
+
+function storeKindOf(kind: KundeHakKind) {
+  if (kind === "tf") return "tf" as const;
+  if (kind === "er") return "ent" as const;
+  return "ks" as const;
+}
+
+export function KundeHak({
+  kind = "ks",
+  report,
+  lang,
+}: {
+  kind?: KundeHakKind;
+  report: KsReport | Tf | Entrepreneur;
+  lang: Lang;
+}) {
+  const setReportKunde = useYard((s) => s.setReportKunde);
   const drivePhotos = useYard((s) => s.drivePhotos);
-  const on = report.kundeStatus === "med_til_kunden";
+  const storeKind = storeKindOf(kind);
+  const live = useYard((s) => {
+    if (storeKind === "tf") return s.tfs.find((x) => x.id === report.id);
+    if (storeKind === "ent") return s.ents.find((x) => x.id === report.id);
+    return s.ksReports.find((x) => x.id === report.id);
+  }) ?? report;
+  const on = live.kundeStatus === "med_til_kunden";
+  const [busy, setBusy] = useState(false);
 
-  function toggle(e: MouseEvent) {
+  async function toggle(e: MouseEvent) {
     e.stopPropagation();
-    const next = on ? "skjult" : "med_til_kunden";
-    patchReport("ks", report.id, { kundeStatus: next });
-    const job = lookupProject(report.projectId);
-    const photos = [...softrKsPhotos(), ...drivePhotos];
-    const payload = snapshotKundeReport({ ...report, kundeStatus: next }, job, photos);
-    void setKundeReportStatus({
-      data: {
-        slug: slugForProject(job),
-        projectId: job.id,
-        reportId: report.id,
-        status: next,
-        payload,
-      },
-    });
+    if (busy) return;
+    setBusy(true);
+    const ok = await setReportKunde(storeKind, live.id);
+    if (ok && kind === "ks") {
+      const ks = live as KsReport;
+      const next = ks.kundeStatus === "med_til_kunden" ? "skjult" : "med_til_kunden";
+      const job = lookupProject(ks.projectId);
+      const photos = [...softrKsPhotos(), ...drivePhotos];
+      const payload = snapshotKundeReport({ ...ks, kundeStatus: next }, job, photos);
+      void setKundeReportStatus({
+        data: {
+          slug: slugForProject(job),
+          projectId: job.id,
+          reportId: ks.id,
+          status: next,
+          payload,
+        },
+      });
+    }
+    setBusy(false);
   }
 
   return (
-    <button
-      type="button"
+    <HakBtn
+      on={on}
+      busy={busy}
+      label={t(lang, "hakKunde")}
       onClick={toggle}
-      className={`shrink-0 rounded-full px-3 py-1.5 text-action font-medium ${on ? "bg-moss text-sand" : "bg-paper text-ink"}`}
       title={t(lang, on ? "kundeHakOn" : "kundeHakOff")}
       data-kunde={on ? "on" : "off"}
-    >
-      {t(lang, "kundeHak")}
-    </button>
+      data-testid={`kunde-hak-${report.number}`}
+    />
   );
 }

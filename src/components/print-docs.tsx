@@ -97,11 +97,13 @@ export function PrintChrome({
         ) : (
           <span className="text-xs text-sand/70">Ikke sendt. I sender selv.</span>
         )}
-        {ksRow ? <KundeHak report={ksRow} lang={lang} /> : null}
+        {ksRow ? <KundeHak kind="ks" report={ksRow} lang={lang} /> : null}
         {slipRow && kind === "slip" ? <LedelseHak kind="as" report={slipRow} lang={lang} /> : null}
         {slipRow && kind === "offer" ? <LedelseHak kind="tb" report={slipRow} lang={lang} /> : null}
         {tfRow ? <LedelseHak kind="tf" report={tfRow} lang={lang} /> : null}
+        {tfRow ? <KundeHak kind="tf" report={tfRow} lang={lang} /> : null}
         {entRow ? <LedelseHak kind="er" report={entRow} lang={lang} /> : null}
+        {entRow ? <KundeHak kind="er" report={entRow} lang={lang} /> : null}
         {kind && kind !== "pack" && kind !== "offer" && current ? <MoveReportBar kind={kind} id={docId} projectId={"projectId" in current ? current.projectId : ""} /> : null}
         <PrimaryButton tone="sand" className="w-auto px-4 text-action" onClick={printDoc}>
           Print / PDF

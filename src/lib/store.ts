@@ -61,7 +61,9 @@ import type {
   IssueKind,
   KsPhoto,
   KsReport,
+  KundeStatus,
   Lang,
+  LedelseStatus,
   MaterialNeed,
   MaterialOrder,
   MaterialReceipt,
@@ -242,6 +244,7 @@ type YardState = {
   toggleTodo: (id: string) => void;
   completeTodo: (id: string, byId?: string, extra?: { photoFileIds?: string[]; lat?: number | null; lng?: number | null; gpsLabel?: string }) => void;
   patchTodo: (id: string, patch: Partial<Todo>) => void;
+  setTodoLedelse: (id: string) => Promise<boolean>;
   removeTodo: (id: string) => void;
   patchEmployee: (id: string, patch: Partial<Employee>) => void;
   convertTodo: (id: string, kind: "slip" | "tf" | "ent" | "ks", projectId?: string) => string | null;
@@ -265,6 +268,8 @@ type YardState = {
   addDoc: (input: Omit<SiteDoc, "id" | "excerpt" | "receivedAt" | "page"> & Partial<Pick<SiteDoc, "excerpt" | "receivedAt" | "page">>) => void;
   setReportStatus: (kind: "slip" | "offer" | "tf" | "ent" | "pack" | "ks", id: string, status: ReportStatus) => void;
   patchReport: (kind: "slip" | "offer" | "tf" | "ent" | "pack" | "ks", id: string, patch: Record<string, unknown>) => void;
+  setReportLedelse: (kind: "tf" | "slip" | "offer" | "ent", id: string) => Promise<boolean>;
+  setReportKunde: (kind: "tf" | "ent" | "ks", id: string) => Promise<boolean>;
   resetAlex: () => void;
   pushEvent: (text: string) => void;
   addChat: (input: Omit<ChatMessage, "id" | "at">) => ChatMessage;
@@ -347,6 +352,27 @@ function isSoftrRow(row: { id?: string; source?: string } | null | undefined) {
 }
 function liveRows<T extends { id?: string; source?: string }>(rows: T[] | undefined | null): T[] {
   return (rows ?? []).filter((r) => !isSoftrRow(r));
+}
+
+type ReportHakKind = "tf" | "slip" | "offer" | "ent" | "ks";
+
+function reportOf(s: Pick<YardState, "tfs" | "slips" | "offers" | "ents" | "ksReports">, kind: ReportHakKind, id: string) {
+  if (kind === "tf") return s.tfs.find((x) => x.id === id);
+  if (kind === "slip") return s.slips.find((x) => x.id === id);
+  if (kind === "offer") return (s.offers ?? []).find((x) => x.id === id);
+  if (kind === "ent") return s.ents.find((x) => x.id === id);
+  return s.ksReports.find((x) => x.id === id);
+}
+
+function patchReportList(kind: ReportHakKind, id: string, patch: object) {
+  useYard.setState((s) => {
+    const mix = <T extends { id: string }>(rows: T[]) => rows.map((x) => (x.id === id ? ({ ...x, ...patch } as T) : x));
+    if (kind === "tf") return { tfs: mix(s.tfs) };
+    if (kind === "slip") return { slips: mix(s.slips) };
+    if (kind === "offer") return { offers: mix(s.offers ?? []) };
+    if (kind === "ent") return { ents: mix(s.ents) };
+    return { ksReports: mix(s.ksReports) };
+  });
 }
 function releasePersistPush() {
   if (typeof window === "undefined") {
@@ -1085,6 +1111,7 @@ export const useYard = create<YardState>()(
       answered: false,
       photoIds: [],
       ledelseStatus: "skjult" as const,
+      kundeStatus: "skjult" as const,
       ...input
     };
     set((s) => ({
@@ -1120,6 +1147,7 @@ export const useYard = create<YardState>()(
       createdAt: (new Date()).toISOString(),
       status: "draft" as const,
       ledelseStatus: "skjult" as const,
+      kundeStatus: "skjult" as const,
       ...input,
       photoIds: input.photoIds ?? []
     };
@@ -1292,6 +1320,29 @@ export const useYard = create<YardState>()(
       holdRow(after.id);
       emitYard({ kind: "todo", id: after.id, payload: slimTodo(after), isNew: false, actorId: get().employeeId ?? after.fromId });
     }
+  },
+  setTodoLedelse: async (id) => {
+    const before = get().todos.find((t) => t.id === id);
+    if (!before || before.done) return false;
+    const next = before.ledelseStatus === "med_til_ledelse" ? ("skjult" as const) : ("med_til_ledelse" as const);
+    const updatedAt = new Date().toISOString();
+    set((s) => ({
+      todos: s.todos.map((t) => (t.id === id ? { ...t, ledelseStatus: next, updatedAt } : t)),
+    }));
+    holdRow(id);
+    const after = get().todos.find((t) => t.id === id);
+    if (!after) return false;
+    const ok = await import("./todo-live").then((m) => m.publishTodoLedelse(after, next));
+    if (!ok) {
+      set((s) => ({
+        todos: s.todos.map((t) => (t.id === id ? before : t)),
+        toast: "Kunne ikke gemme",
+      }));
+      return false;
+    }
+    const saved = get().todos.find((t) => t.id === id);
+    if (saved) emitYard({ kind: "todo", id: saved.id, payload: slimTodo(saved), isNew: false, actorId: get().employeeId ?? saved.fromId });
+    return true;
   },
   replyTodo: (id, fromId, text) => {
     const note = text.trim();
@@ -1681,6 +1732,41 @@ export const useYard = create<YardState>()(
         emitYard({ kind: "ks", id: row.id, payload: slimKs(row), isNew: false, actorId: get().employeeId ?? row.employeeId ?? "" });
       }
     }
+  },
+  setReportLedelse: async (kind, id) => {
+    const before = reportOf(get(), kind, id);
+    if (!before) return false;
+    const next: LedelseStatus = before.ledelseStatus === "med_til_ledelse" ? "skjult" : "med_til_ledelse";
+    const updatedAt = new Date().toISOString();
+    patchReportList(kind, id, { ledelseStatus: next, updatedAt });
+    holdRow(id);
+    const after = reportOf(get(), kind, id);
+    const ok = await import("./hak-live").then((m) => m.publishLedelseHak(kind, id, next, after as Tf | Slip | Offer | Entrepreneur | undefined));
+    if (!ok) {
+      patchReportList(kind, id, before);
+      set((s) => ({ toast: "Kunne ikke gemme" }));
+      return false;
+    }
+    return true;
+  },
+  setReportKunde: async (kind, id) => {
+    const before = reportOf(get(), kind, id);
+    if (!before) return false;
+    const next: KundeStatus = before.kundeStatus === "med_til_kunden" ? "skjult" : "med_til_kunden";
+    const updatedAt = new Date().toISOString();
+    const extra = kind === "ent" ? { ledelseReplies: (before as Entrepreneur).ledelseReplies } : {};
+    patchReportList(kind, id, { kundeStatus: next, updatedAt, ...extra });
+    holdRow(id);
+    const after = reportOf(get(), kind, id);
+    const ok = await import("./hak-live").then((m) =>
+      m.publishKundeHak(kind, id, next, after as Tf | Entrepreneur | KsReport | undefined),
+    );
+    if (!ok) {
+      patchReportList(kind, id, before);
+      set((s) => ({ toast: "Kunne ikke gemme" }));
+      return false;
+    }
+    return true;
   },
   resetAlex: () => {
     const key = dayKey("emp-alex");

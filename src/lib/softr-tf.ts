@@ -62,5 +62,5 @@ export function ensureSoftrTf(state: { tfs: Tf[] }) {
 export function hydrateSoftrTf(tf: Tf): Tf {
   const fresh = softrTfReports().find((e) => e.id === tf.id);
   if (!fresh) return { ...tf, ledelseStatus: tf.ledelseStatus ?? defaultLedelseStatus("tf", tf.number) };
-  return { ...tf, ...fresh, trashedAt: tf.trashedAt, answer: tf.answer, answered: tf.answered, shareToken: tf.shareToken, ledelseStatus: tf.ledelseStatus ?? fresh.ledelseStatus, ledelseReplies: tf.ledelseReplies };
+  return { ...tf, ...fresh, trashedAt: tf.trashedAt, answer: tf.answer, answered: tf.answered, shareToken: tf.shareToken, ledelseStatus: tf.ledelseStatus ?? fresh.ledelseStatus, ledelseReplies: tf.ledelseReplies, kundeStatus: tf.kundeStatus ?? fresh.kundeStatus };
 }

@@ -23,6 +23,7 @@ import { UD_FOLDERS } from "@/lib/ud-folders";
 import { fiveYearDate, fmtDaDate, handoverDate, oneYearDate } from "@/lib/job-archive";
 import { findControlPoint, projectById } from "@/lib/seed";
 import { softrKsPhotos, hydrateSoftrReport } from "@/lib/softr-ks";
+import { mesterKsForJob } from "@/lib/mester-ks";
 import { hydrateSoftrSlip, softrAsFieldItems } from "@/lib/softr-as";
 import { hydrateSoftrEnt } from "@/lib/softr-er";
 import { hydrateSoftrTf } from "@/lib/softr-tf";
@@ -100,7 +101,7 @@ export function SagerPane({
   const sagOffers = offers.filter((s) => (allJobs || s.projectId === jobId) && !s.trashedAt).slice().sort(allJobs ? byCreatedDesc : byAsNoDesc);
   const sagTfs = tfs.filter((s) => (allJobs || s.projectId === jobId) && !s.trashedAt).slice().sort(allJobs ? byCreatedDesc : byAsNoDesc);
   const sagEnts = ents.filter((s) => (allJobs || s.projectId === jobId) && !s.trashedAt).slice().sort(allJobs ? byCreatedDesc : byAsNoDesc);
-  const sagKs = ksReports.filter((s) => (allJobs || s.projectId === jobId) && !s.trashedAt);
+  const sagKs = mesterKsForJob(ksReports, jobId, { allJobs });
   const sagTodos = todos.filter((s) => allJobs || s.projectId === jobId);
   const sagTodosOpen = allJobs ? sagTodos.filter((s) => !s.done).slice().sort(byCreatedDesc) : sagTodos.filter((s) => !s.done);
   const sagNeeds = needs.filter((n) => (allJobs || n.projectId === jobId) && n.status === "need");
@@ -109,7 +110,7 @@ export function SagerPane({
   const trashOffers = offers.filter((s) => (allJobs || s.projectId === jobId) && s.trashedAt).slice().sort(allJobs ? byCreatedDesc : byAsNoDesc);
   const trashTfs = tfs.filter((s) => (allJobs || s.projectId === jobId) && s.trashedAt).slice().sort(allJobs ? byCreatedDesc : byAsNoDesc);
   const trashEnts = ents.filter((s) => (allJobs || s.projectId === jobId) && s.trashedAt).slice().sort(allJobs ? byCreatedDesc : byAsNoDesc);
-  const trashKs = ksReports.filter((s) => (allJobs || s.projectId === jobId) && s.trashedAt);
+  const trashKs = mesterKsForJob(ksReports, jobId, { allJobs, trashed: true });
   const asPhotos = useMemo(() => [...softrAsFieldItems(), ...fieldItems], [fieldItems]);
   const photos = useMemo(
     () => [...softrKsPhotos(), ...Object.values(days).flatMap((d) => d.photos), ...drivePhotos],
@@ -557,6 +558,7 @@ export function SagerPane({
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <TfShareChip tf={live} lang={lang} />
                         <LedelseHak kind="tf" report={live} lang={lang} />
+                        <KundeHak kind="tf" report={live} lang={lang} />
                         {showTrash ? (
                           <GhostButton className="shrink-0 rounded-full bg-paper px-3 text-action" onClick={() => restoreReport("tf", row.id)}>
                             {t(lang, "restoreTrash")}
@@ -619,6 +621,7 @@ export function SagerPane({
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <ErShareChip ent={live} lang={lang} />
                           <LedelseHak kind="er" report={live} lang={lang} />
+                          <KundeHak kind="er" report={live} lang={lang} />
                           {showTrash ? (
                             <GhostButton className="shrink-0 rounded-full bg-paper px-3 text-action" onClick={() => restoreReport("ent", row.id)}>
                               {t(lang, "restoreTrash")}
@@ -644,7 +647,7 @@ export function SagerPane({
                 {(showTrash ? trashKs : shownKs).map((row) => {
                   const live = hydrateSoftrReport(row);
                   return (
-                    <li key={row.id}>
+                    <li key={row.id} data-testid={`ks-row-${live.id}`}>
                       <div className="rounded-xl bg-sand p-3">
                         <button type="button" className="flex w-full items-start gap-3 text-left" onClick={() => setView({ kind: "ks", id: row.id })}>
                           <KsListThumb photoIds={live.photoIds ?? []} photos={photos} />
@@ -663,7 +666,7 @@ export function SagerPane({
                         </button>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <KsShareChip report={live} lang={lang} />
-                          <KundeHak report={live} lang={lang} />
+                          <KundeHak kind="ks" report={live} lang={lang} />
                           {showTrash ? (
                             <GhostButton className="shrink-0 rounded-full bg-paper px-3 text-action" onClick={() => restoreReport("ks", row.id)}>
                               {t(lang, "restoreTrash")}

@@ -1,4 +1,5 @@
-import type { MouseEvent } from "react";
+import { type MouseEvent, useState } from "react";
+import { HakBtn } from "@/components/hak-btn";
 import { isMasterRole } from "@/lib/crew";
 import { t } from "@/lib/i18n";
 import { useSessionEmployee, useYard } from "@/lib/store";
@@ -9,26 +10,30 @@ export function isTodoLedelseOn(todo: Pick<Todo, "ledelseStatus">) {
 }
 
 export function TodoLedelseHak({ todo, lang }: { todo: Todo; lang: Lang }) {
-  const patchTodo = useYard((s) => s.patchTodo);
+  const live = useYard((s) => s.todos.find((x) => x.id === todo.id)) ?? todo;
+  const setTodoLedelse = useYard((s) => s.setTodoLedelse);
   const me = useSessionEmployee();
-  if (!me || !isMasterRole(me.role) || todo.done) return null;
-  const on = isTodoLedelseOn(todo);
+  const [busy, setBusy] = useState(false);
+  if (!me || !isMasterRole(me.role) || live.done) return null;
+  const on = isTodoLedelseOn(live);
 
-  function toggle(e: MouseEvent) {
+  async function toggle(e: MouseEvent) {
     e.stopPropagation();
-    patchTodo(todo.id, { ledelseStatus: on ? "skjult" : "med_til_ledelse", updatedAt: new Date().toISOString() });
+    if (busy) return;
+    setBusy(true);
+    await setTodoLedelse(live.id);
+    setBusy(false);
   }
 
   return (
-    <button
-      type="button"
+    <HakBtn
+      on={on}
+      busy={busy}
+      label={t(lang, "hakByggeleder")}
       onClick={toggle}
-      className={`mt-1 min-h-9 rounded-full px-3 text-xs font-medium ${on ? "bg-moss text-sand" : "bg-white text-navy ring-1 ring-line"}`}
       title={t(lang, on ? "ledelseHakOn" : "ledelseHakOff")}
-      data-testid={`todo-ledelse-hak-${todo.id}`}
+      data-testid={`todo-ledelse-hak-${live.id}`}
       data-ledelse={on ? "on" : "off"}
-    >
-      {t(lang, "ledelseHak")}
-    </button>
+    />
   );
 }
