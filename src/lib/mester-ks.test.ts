@@ -20,19 +20,35 @@ function row(extra: Partial<KsReport>): KsReport {
 test("Kærhuset mester-liste viser Softr-KS uden id-prefix-filter", () => {
   const grok = row({ id: "ksr-grok-9", number: "Z-KS-9", projectId: "job-kaerhuset" });
   const other = row({ id: "ksr-grok-8", number: "Z-KS-8", projectId: "job-hillerodsholm" });
+  const storeSoftr = row({
+    id: "ksr-softr-8",
+    number: "8",
+    projectId: "job-kaerhuset",
+    point: "UDFØRSEL",
+    status: "issued",
+    source: "softr",
+  });
   const hidden = row({ id: "ksr-softr-3", number: "3", projectId: "job-wrong", kundeStatus: "skjult" });
-  const list = mesterKsForJob([grok, other, hidden], "job-kaerhuset");
+  const list = mesterKsForJob([grok, other, hidden, storeSoftr], "job-kaerhuset");
   assert.ok(list.some((r) => r.id === "ksr-grok-9"));
   assert.ok(!list.some((r) => r.id === "ksr-grok-8"));
-  const softr = softrKsReports().filter((r) => r.projectId === "job-kaerhuset");
-  assert.ok(softr.length > 0);
-  for (const r of softr) assert.ok(list.some((x) => x.id === r.id), r.id);
-  assert.ok(list.some((r) => r.id.startsWith("ksr-softr-")));
+  for (const n of ["8", "9", "82", "84", "85", "86", "87", "88"]) {
+    assert.ok(list.some((r) => r.id === `ksr-softr-${n}`), `mangler ksr-softr-${n}`);
+  }
+  assert.equal(list.find((r) => r.id === "ksr-softr-8")?.projectId, "job-kaerhuset");
+  assert.ok(list.some((r) => r.point === "UDFØRSEL"));
+  assert.ok(list.some((r) => r.status === "issued"));
   assert.ok(list.some((r) => r.kundeStatus !== "med_til_kunden"), "kunde-hak skjuler ikke");
+  assert.ok(!list.some((r) => r.projectId !== "job-kaerhuset"));
 });
 
 test("Hillerødsholm mester-liste matcher job-hillerodsholm", () => {
-  const list = mesterKsForJob([], "job-hillerodsholm");
-  assert.ok(list.every((r) => r.projectId === "job-hillerodsholm" || r.id.startsWith("ksr-softr-")));
-  assert.ok(list.length > 0);
+  const grok = row({ id: "ksr-grok-55-1sal", number: "Z-KS-2026-004", projectId: "job-hillerodsholm", point: "5.5" });
+  const list = mesterKsForJob([grok], "job-hillerodsholm");
+  assert.ok(list.every((r) => r.projectId === "job-hillerodsholm"));
+  assert.ok(list.some((r) => r.id === "ksr-grok-55-1sal" && r.number === "Z-KS-2026-004"));
+  assert.ok(list.some((r) => r.id === "ksr-softr-97"));
+  const bundled = softrKsReports().filter((r) => r.projectId === "job-hillerodsholm");
+  assert.ok(bundled.length > 0);
+  for (const r of bundled) assert.ok(list.some((x) => x.id === r.id), r.id);
 });

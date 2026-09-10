@@ -12,6 +12,7 @@ import { t } from "@/lib/i18n";
 import { listUdCounts } from "@/lib/drive.functions";
 import { findControlPoint } from "@/lib/seed";
 import { softrKsPhotos, hydrateSoftrReport } from "@/lib/softr-ks";
+import { mesterKsForJob } from "@/lib/mester-ks";
 import { hydrateSoftrEnt } from "@/lib/softr-er";
 import { hydrateSoftrTf } from "@/lib/softr-tf";
 import { softrAsFieldItems } from "@/lib/softr-as";
@@ -44,7 +45,7 @@ export function CrewSagHome({ project, lang }: { project: Project; lang: Lang })
   const sagTodosOpen = sagTodos.filter((s) => !s.done);
   const sagTfs = tfs.filter((s) => s.projectId === jobId && !s.trashedAt);
   const sagEnts = ents.filter((s) => s.projectId === jobId && !s.trashedAt);
-  const sagKs = ksReports.filter((s) => s.projectId === jobId && !s.trashedAt);
+  const sagKs = mesterKsForJob(ksReports, jobId);
   const sagNeeds = needs.filter((n) => n.projectId === jobId && n.status === "need");
   const sagOrders = orders.filter((o) => o.projectId === jobId);
   const asPhotos = useMemo(() => [...softrAsFieldItems(), ...fieldItems], [fieldItems]);
@@ -76,7 +77,7 @@ export function CrewSagHome({ project, lang }: { project: Project; lang: Lang })
     return row ? hydrateSoftrEnt(row) : null;
   })() : null;
   const ks = view?.kind === "ks" ? (() => {
-    const row = ksReports.find((s) => s.id === view.id);
+    const row = sagKs.find((s) => s.id === view.id) ?? ksReports.find((s) => s.id === view.id);
     return row ? hydrateSoftrReport(row) : null;
   })() : null;
   const todo = view?.kind === "todo" ? todos.find((s) => s.id === view.id) ?? null : null;

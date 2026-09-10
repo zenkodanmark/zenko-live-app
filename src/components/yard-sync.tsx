@@ -2,8 +2,8 @@ import { useEffect, useRef } from "react";
 import { pullChats, publishChat } from "@/lib/chat-live";
 import { pullTodos, publishTodo } from "@/lib/todo-live";
 import { pullDays, publishDay } from "@/lib/day-live";
-import { refreshCrewFromCloud } from "@/lib/crew-live";
-import { pullEnts, pullOffers, pullOrders, pullPlans, pullProjects, pullSlips, pullTfs, pullAssignments, publishOrder, mergeEmployeeAssignments } from "@/lib/sb-live";
+import { dropDummyEmployees, refreshCrewFromCloud } from "@/lib/crew-live";
+import { pullEnts, pullOffers, pullOrders, pullPlans, pullProjects, pullSlips, pullTfs, pullKs, pullAssignments, publishOrder, mergeEmployeeAssignments } from "@/lib/sb-live";
 import { onYardEvent } from "@/lib/yard-bus";
 import { mergeById, mergeChats, mergeDays, mergePlans, mergeReports, slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "@/lib/yard-slim";
 import { pullYard, saveYardChat, saveYardDay, saveYardKs, saveYardNeed, saveYardOrder, saveYardTodo } from "@/lib/yard-sync.functions";
@@ -34,6 +34,7 @@ async function applyPull() {
   const clientOrders = await pullOrders();
   const clientPlans = await pullPlans();
   const clientAssignments = await pullAssignments();
+  const clientKs = await pullKs();
   const cloudCrew = await refreshCrewFromCloud();
   const s = useYard.getState();
   const cloudChats = mergeChats(remote.ok ? remote.chats : [], clientChats ?? []);
@@ -44,7 +45,7 @@ async function applyPull() {
     await Promise.all([
       ...s.todos.filter((row) => !DUMMY_TODO.has(row.id)).slice(0, 40).map((row) => publishTodo(slimTodo(row))),
       ...s.chats.filter((row) => !DUMMY_CHAT.has(row.id)).slice(0, 40).map((row) => publishChat(slimChat(row))),
-      ...s.ksReports.slice(0, 40).map((row) => saveYardKs({ data: { report: slimKs(row), isNew: false, actorId: actor } }).catch(() => {})),
+      ...s.ksReports.filter((row) => row.source !== "softr" && !String(row.id || "").includes("-softr-")).slice(0, 40).map((row) => saveYardKs({ data: { report: slimKs(row), isNew: false, actorId: actor } }).catch(() => {})),
       ...Object.values(s.days).slice(0, 20).map((row) => {
         void publishDay(slimDay(row));
         return saveYardDay({ data: { id: `${row.employeeId}:${row.date}`, day: slimDay(row), event: null, actorId: actor } }).catch(() => {});
@@ -57,7 +58,7 @@ async function applyPull() {
   useYard.setState({
     todos: mergeReports(s.todos, cloudTodos),
     chats: mergeChats(s.chats, cloudChats),
-    ksReports: remote.ok ? mergeReports(s.ksReports, remote.ksReports) : s.ksReports,
+    ksReports: mergeReports(s.ksReports, [...(remote.ok ? remote.ksReports : []), ...(clientKs ?? [])]),
     days: mergeDays(s.days, [...(remote.ok ? remote.days : []), ...(clientDays ?? [])]),
     needs: remote.ok ? mergeById(s.needs ?? [], remote.needs ?? []) : s.needs,
     orders: mergeById(s.orders ?? [], cloudOrders),
@@ -68,7 +69,7 @@ async function applyPull() {
     ents: clientEnts ? mergeReports(s.ents, clientEnts as Entrepreneur[]) : s.ents,
     plans: clientPlans ? mergePlans(s.plans ?? [], clientPlans as PlanBlock[]) : s.plans ?? [],
     assignments: clientAssignments ? mergeEmployeeAssignments(s.assignments, clientAssignments as Assignment[]) : s.assignments,
-    ...(cloudCrew?.length ? { employees: mergeById(s.employees, cloudCrew) } : {}),
+    ...(cloudCrew?.length ? { employees: dropDummyEmployees(cloudCrew) } : {}),
   });
 }
 

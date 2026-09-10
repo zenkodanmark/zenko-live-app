@@ -2,25 +2,28 @@ import { softrKsReports } from "./softr-ks.ts";
 import { recalledKundePunkt } from "./ks-punkt.ts";
 import type { KsReport } from "./types.ts";
 
-/** Mester KS-liste: alle rækker til sagen. Intet id-prefix-filter. Kunde-hak skjuler ikke. Retter ikke project_id i tabellen. */
+/** Mester KS-liste: alle rækker med sagens project_id. Intet id-prefix-filter. Kunde-hak skjuler ikke. Retter ikke project_id. */
 export function mesterKsForJob(storeRows: KsReport[], jobId: string, opts?: { allJobs?: boolean; trashed?: boolean }): KsReport[] {
   const bundled = softrKsReports();
   const map = new Map<string, KsReport>();
-  for (const r of storeRows) map.set(r.id, r);
   for (const r of bundled) {
+    const mem = recalledKundePunkt(r.id);
+    map.set(r.id, mem && !r.kundePunkt ? { ...r, kundePunkt: mem } : r);
+  }
+  for (const r of storeRows) {
     const prev = map.get(r.id);
     if (!prev) {
-      const mem = recalledKundePunkt(r.id);
-      map.set(r.id, mem ? { ...r, kundePunkt: mem } : r);
+      map.set(r.id, r);
       continue;
     }
     map.set(r.id, {
-      ...r,
       ...prev,
-      kundeStatus: prev.kundeStatus ?? r.kundeStatus,
-      trashedAt: prev.trashedAt,
-      ledelseStatus: prev.ledelseStatus ?? r.ledelseStatus,
-      kundePunkt: prev.kundePunkt || recalledKundePunkt(r.id) || r.kundePunkt,
+      ...r,
+      projectId: r.projectId || prev.projectId,
+      kundeStatus: r.kundeStatus ?? prev.kundeStatus,
+      trashedAt: r.trashedAt,
+      ledelseStatus: r.ledelseStatus ?? prev.ledelseStatus,
+      kundePunkt: r.kundePunkt || recalledKundePunkt(r.id) || prev.kundePunkt,
     });
   }
   const wantTrash = Boolean(opts?.trashed);
@@ -31,8 +34,6 @@ export function mesterKsForJob(storeRows: KsReport[], jobId: string, opts?: { al
   }).filter((r) => {
     if (Boolean(r.trashedAt) !== wantTrash) return false;
     if (allJobs) return true;
-    if (r.projectId === jobId) return true;
-    const fromBundle = bundled.find((x) => x.id === r.id);
-    return fromBundle?.projectId === jobId;
+    return r.projectId === jobId;
   });
 }

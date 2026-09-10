@@ -44,6 +44,23 @@ function take<T>(rows: unknown, n: number): T[] {
   return Array.isArray(rows) ? (rows as T[]).slice(0, n) : [];
 }
 
+function isDummyEmployeeRow(e: { id?: string; name?: string } | null | undefined) {
+  if (!e) return true;
+  const id = String(e.id || "");
+  const name = String(e.name || "").trim();
+  if (!id) return true;
+  if (id === "emp-ny" || id.startsWith("emp-ny-")) return true;
+  if (/^testsvend$/i.test(name)) return true;
+  return false;
+}
+
+function isSoftrKsRow(r: { id?: string; source?: string } | null | undefined) {
+  if (!r) return true;
+  if (r.source === "softr") return true;
+  const id = String(r.id || "");
+  return id.includes("-softr-") || id.startsWith("softr-") || id.startsWith("ksr-softr-");
+}
+
 async function chunked(table: string, rows: Record<string, unknown>[]) {
   for (let i = 0; i < rows.length; i += 80) {
     const wrote = await sbUpsert(table, rows.slice(i, i + 80));
@@ -67,7 +84,7 @@ export const pushYardState = createServerFn({ method: "POST" })
       ? Object.values(state.days as Record<string, DayLog>)
       : take<DayLog>(state.days, 80);
 
-    const employees = take<Employee>(state.employees, 40).map(empToRow);
+    const employees = take<Employee>(state.employees, 40).filter((e) => !isDummyEmployeeRow(e)).map(empToRow);
     const projects = take<Project>(state.projects, 40).map(projectToRow);
     const assignments = take<Assignment>(state.assignments, 80).map(assignmentToRow);
     const emp = await chunked("employees", employees);
@@ -77,10 +94,12 @@ export const pushYardState = createServerFn({ method: "POST" })
     const asg = await chunked("assignments", assignments);
     if (!asg.ok) return asg;
 
+    const liveKs = take<KsReport>(state.ksReports, 200).filter((r) => !isSoftrKsRow(r));
+
     const results = await Promise.all([
       chunked("todos", take<Todo>(state.todos, 120).map(todoToRow)),
       chunked("messages", take<ChatMessage>(state.chats, 120).map(chatToRow)),
-      chunked("ks_reports", take<KsReport>(state.ksReports, 80).map(ksToRow)),
+      chunked("ks_reports", liveKs.map(ksToRow)),
       chunked("day_logs", daysObj.slice(0, 80).map((d) => dayToRow(d))),
       chunked("needs", take<MaterialNeed>(state.needs, 80).map(needToRow)),
       chunked("orders", take<MaterialOrder>(state.orders, 80).map(orderToRow)),

@@ -140,6 +140,7 @@ export function ensureSoftrKs(state: { ksReports: KsReport[]; drivePhotos?: KsPh
     }
     if (prev.trashedAt) continue;
     const kundePunkt = prev.kundePunkt;
+    const projectId = prev.projectId || row.projectId;
     prev.photoIds = row.photoIds;
     prev.employeeName = row.employeeName;
     prev.crew = row.crew;
@@ -151,6 +152,7 @@ export function ensureSoftrKs(state: { ksReports: KsReport[]; drivePhotos?: KsPh
     prev.point = row.point;
     prev.deviations = row.deviations;
     prev.approved = row.approved;
+    prev.projectId = projectId;
     if (prev.kundeStatus == null) prev.kundeStatus = row.kundeStatus;
     if (kundePunkt) prev.kundePunkt = kundePunkt;
     else if (prev.kundePunkt == null) prev.kundePunkt = recalledKundePunkt(prev.id) ?? row.kundePunkt;
@@ -166,5 +168,14 @@ export function ensureSoftrKs(state: { ksReports: KsReport[]; drivePhotos?: KsPh
 export function hydrateSoftrReport(report: KsReport): KsReport {
   const fresh = softrKsReports().find((r) => r.id === report.id || r.number === report.number);
   if (!fresh) return report;
-  return { ...report, ...fresh, trashedAt: report.trashedAt, kundeStatus: report.kundeStatus ?? fresh.kundeStatus, kundePunkt: report.kundePunkt ?? recalledKundePunkt(report.id) ?? fresh.kundePunkt, photoIds: report.photoIds?.length ? report.photoIds : fresh.photoIds };
+  return {
+    ...report,
+    ...fresh,
+    projectId: report.projectId || fresh.projectId,
+    trashedAt: report.trashedAt,
+    kundeStatus: report.kundeStatus ?? fresh.kundeStatus,
+    kundePunkt: report.kundePunkt ?? recalledKundePunkt(report.id) ?? fresh.kundePunkt,
+    photoIds: report.photoIds?.length ? report.photoIds : fresh.photoIds,
+    status: report.status || fresh.status,
+  };
 }

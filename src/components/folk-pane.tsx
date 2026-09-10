@@ -8,6 +8,7 @@ import { Card, Chip, GhostButton, PrimaryButton, SectionLabel } from "@/componen
 import { downloadHours, buildHoursPack } from "@/lib/bot-actions";
 import { downloadCsv } from "@/lib/csv";
 import { t, roleLabel } from "@/lib/i18n";
+import { dropDummyEmployees } from "@/lib/crew-live";
 import { pladsPath, uploadPladsBytes } from "@/lib/plads-file";
 import { copenhagenDate, copenhagenTime, hoursWorked, projectById } from "@/lib/seed";
 import { todayLog, useYard } from "@/lib/store";
@@ -19,7 +20,7 @@ const FOLK_PERSON = "/icons/folk/person.png";
 const FOLK_TIME = "/icons/folk/time.png";
 
 export function FolkPane({ lang }: { lang: Lang }) {
-  const employees = useYard((s) => s.employees);
+  const employees = dropDummyEmployees(useYard((s) => s.employees));
   const addEmployee = useYard((s) => s.addEmployee);
   const [name, setName] = useState("");
   const [pin, setPin] = useState("");

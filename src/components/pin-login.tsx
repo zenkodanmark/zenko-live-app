@@ -4,7 +4,7 @@ import { Avatar, Chip, Wordmark } from "@/components/zenko";
 import { t, roleLabel, LANGS } from "@/lib/i18n";
 import { acceptPin, destFor, employeeById, pinOf } from "@/lib/pin-enter";
 import { isMasterRole } from "@/lib/crew";
-import { loadCrew, refreshCrewFromCloud, saveCrew, pinOfLive } from "@/lib/crew-live";
+import { loadCrew, refreshCrewFromCloud, saveCrew, pinOfLive, dropDummyEmployees } from "@/lib/crew-live";
 import { useYard } from "@/lib/store";
 import type { Employee, Lang } from "@/lib/types";
 
@@ -38,10 +38,13 @@ function PinPad({ empId, pin = "" }: { empId?: string; pin?: string }) {
   const nav = useNavigate();
   const [digits, setDigits] = useState(() => String(pin || "").replace(/\D/g, "").slice(0, 4));
   const [busy, setBusy] = useState(false);
-  const [crew, setCrew] = useState<Employee[]>(() => loadCrew());
+  const [crew, setCrew] = useState<Employee[]>(() => dropDummyEmployees(loadCrew()));
   useEffect(() => {
     void refreshCrewFromCloud().then((rows) => {
-      if (rows?.length) setCrew(rows);
+      if (!rows?.length) return;
+      const live = dropDummyEmployees(rows);
+      setCrew(live);
+      useYard.setState({ employees: live });
     });
   }, []);
   const pick = crew.find((e) => e.id === empId) ?? employeeById(empId);

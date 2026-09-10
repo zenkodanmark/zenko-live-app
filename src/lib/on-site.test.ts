@@ -42,7 +42,7 @@ test("isOnSite kræver mødt uden gået", () => {
 });
 
 test("tavle tæller alle — også mester og nyoprettet", () => {
-  const people = [emp("emp-ole", "Ole", "mester"), emp("emp-alex", "Alex", "laerling"), emp("emp-ny", "Testsvend")];
+  const people = [emp("emp-ole", "Ole", "mester"), emp("emp-alex", "Alex", "laerling"), emp("emp-created", "Ny svend")];
   const days: Record<string, DayLog> = {
     [key("emp-ole")]: day("emp-ole", "job-hillerodsholm", true),
     [key("emp-alex")]: day("emp-alex", "job-hillerodsholm", false),

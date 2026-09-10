@@ -47,3 +47,16 @@ test("ensureSoftrKs og hydrate bevarer kundePunkt", () => {
   assert.equal(hydrated.kundeStatus, "med_til_kunden");
 });
 
+test("hydrate og ensure overskriver ikke projectId", () => {
+  const base = softrKsReports().find((r) => r.id === "ksr-softr-8")!;
+  assert.equal(base.projectId, "job-kaerhuset");
+  const hydrated = hydrateSoftrReport({ ...base, projectId: "job-kaerhuset", status: "issued" });
+  assert.equal(hydrated.projectId, "job-kaerhuset");
+  const state = {
+    ksReports: [{ ...base, projectId: "job-kaerhuset" }],
+    drivePhotos: [],
+  };
+  ensureSoftrKs(state);
+  assert.equal(state.ksReports.find((r) => r.id === "ksr-softr-8")?.projectId, "job-kaerhuset");
+});
+

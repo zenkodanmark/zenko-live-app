@@ -147,7 +147,7 @@ export function SagerPane({
     return row ? hydrateSoftrEnt(row) : null;
   })() : null;
   const ks = view?.kind === "ks" ? (() => {
-    const row = ksReports.find((s) => s.id === view.id);
+    const row = sagKs.find((s) => s.id === view.id) ?? ksReports.find((s) => s.id === view.id);
     return row ? hydrateSoftrReport(row) : null;
   })() : null;
 

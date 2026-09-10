@@ -1,5 +1,5 @@
-import { EMPLOYEES } from "./crew";
-import type { Employee } from "./types";
+import { EMPLOYEES } from "./crew.ts";
+import type { Employee } from "./types.ts";
 
 const KEY = "zenko-crew-v1";
 const PERSIST_KEY = "zenko-plads-v32";
@@ -9,16 +9,25 @@ function four(pin: unknown) {
   return s.length === 4 ? s : "";
 }
 
-function mergeCrew(rows: Employee[]): Employee[] {
-  const byId = new Map<string, Employee>();
-  for (const e of EMPLOYEES) byId.set(e.id, { ...e });
-  for (const e of rows) {
-    if (!e?.id) continue;
-    const prev = byId.get(e.id);
-    const pin = four(e.pin) || four(prev?.pin);
-    byId.set(e.id, { ...(prev ?? e), ...e, pin: pin || e.pin || prev?.pin || "" });
+export function isDummyEmployee(e: { id?: string; name?: string } | null | undefined) {
+  if (!e) return true;
+  const id = String(e.id || "");
+  const name = String(e.name || "").trim();
+  if (!id) return true;
+  if (id === "emp-ny" || id.startsWith("emp-ny-")) return true;
+  if (/^testsvend$/i.test(name)) return true;
+  return false;
+}
+
+export function dropDummyEmployees(rows: Employee[] | undefined | null): Employee[] {
+  const seen = new Set<string>();
+  const out: Employee[] = [];
+  for (const e of rows ?? []) {
+    if (!e?.id || isDummyEmployee(e) || seen.has(e.id)) continue;
+    seen.add(e.id);
+    out.push(e);
   }
-  return [...byId.values()];
+  return out;
 }
 
 function readJson(key: string): unknown {
@@ -37,15 +46,19 @@ function migrateFromPersist(): Employee[] {
   return Array.isArray(rows) ? rows : [];
 }
 
+/** Login + Folk: cached employees-table. Ingen Testsvend. Ingen seed ovenpå. */
 export function loadCrew(): Employee[] {
   if (typeof window === "undefined") return EMPLOYEES;
   const cached = readJson(KEY);
-  if (Array.isArray(cached) && cached.length) return mergeCrew(cached as Employee[]);
-  const migrated = migrateFromPersist();
+  const fromCache = dropDummyEmployees(Array.isArray(cached) ? (cached as Employee[]) : []);
+  if (fromCache.length) {
+    if (Array.isArray(cached) && cached.length !== fromCache.length) saveCrew(fromCache);
+    return fromCache;
+  }
+  const migrated = dropDummyEmployees(migrateFromPersist());
   if (migrated.length) {
-    const merged = mergeCrew(migrated);
-    saveCrew(merged);
-    return merged;
+    saveCrew(migrated);
+    return migrated;
   }
   return EMPLOYEES;
 }
@@ -53,7 +66,7 @@ export function loadCrew(): Employee[] {
 export function saveCrew(employees: Employee[]) {
   if (typeof window === "undefined") return;
   try {
-    const slim = employees.map((e) => ({
+    const slim = dropDummyEmployees(employees).map((e) => ({
       id: e.id,
       name: e.name,
       role: e.role,
@@ -81,28 +94,28 @@ export async function refreshCrewFromCloud(): Promise<Employee[] | null> {
     const { empFromRow } = await import("./sb-rows");
     const { data, error } = await supabase().from("employees").select("*");
     if (error || !data?.length) return null;
-    const rows = data.map((r) => empFromRow(r as Record<string, unknown>));
     const local = loadCrew();
     const localById = new Map(local.map((e) => [e.id, e]));
-    const merged = mergeCrew([
-      ...local,
-      ...rows.map((remote) => {
+    const rows = dropDummyEmployees(
+      data.map((r) => {
+        const remote = empFromRow(r as Record<string, unknown>);
         const mine = localById.get(remote.id);
         const remotePin = four(remote.pin);
         const localPin = four(mine?.pin);
-        const seedPin = four(EMPLOYEES.find((e) => e.id === remote.id)?.pin);
-        const pin = remotePin && remotePin !== seedPin ? remotePin : localPin || remotePin || seedPin;
+        const pin = remotePin || localPin || four(EMPLOYEES.find((e) => e.id === remote.id)?.pin);
         return { ...remote, pin };
       }),
-    ]);
-    saveCrew(merged);
-    return merged;
+    );
+    if (!rows.length) return null;
+    saveCrew(rows);
+    return rows;
   } catch {
     return null;
   }
 }
 
 export async function publishEmployee(emp: Employee) {
+  if (isDummyEmployee(emp)) return;
   try {
     const { supabase } = await import("./supabase");
     const { empToRow } = await import("./sb-rows");

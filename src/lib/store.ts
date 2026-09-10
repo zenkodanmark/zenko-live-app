@@ -33,7 +33,7 @@ import {
   seedTodayDays,
 } from "./seed";
 import { clearDeviceUser, isLoggedOut, readDeviceUser, rememberDeviceUser } from "./device-auth";
-import { loadCrew } from "./crew-live";
+import { dropDummyEmployees, loadCrew } from "./crew-live";
 import { emitYard } from "./yard-bus";
 import { holdRow, slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "./yard-slim";
 import { goesToMaster, unsavedOnNewMessage } from "./chat";
@@ -571,21 +571,17 @@ export const useYard = create<YardState>()(
   },
   login: (id) => {
     liveSessionId = id;
-    const crew = typeof window !== "undefined" ? loadCrew() : [];
-    const byId = new Map(get().employees.map((e) => [e.id, e]));
-    for (const e of crew) {
-      if (!e?.id) continue;
-      const prev = byId.get(e.id);
-      byId.set(e.id, prev ? { ...prev, ...e } : e);
-    }
-    const emp = byId.get(id) ?? EMPLOYEES.find((e) => e.id === id);
+    const crew = dropDummyEmployees(typeof window !== "undefined" ? loadCrew() : []);
+    const employees = crew.length ? crew : dropDummyEmployees(get().employees);
+    const emp = employees.find((e) => e.id === id) ?? EMPLOYEES.find((e) => e.id === id);
     if (emp) {
       rememberDeviceUser({ id: emp.id, role: emp.role });
-      if (!byId.has(emp.id)) byId.set(emp.id, emp);
     }
     set({
       employeeId: id,
-      employees: [...byId.values()],
+      employees: emp && !employees.some((e) => e.id === emp.id)
+        ? dropDummyEmployees([...employees, emp])
+        : employees,
     });
   },
   logout: () => {
@@ -2247,12 +2243,12 @@ export const useYard = create<YardState>()(
 } as YardState),
     {
       name: PERSIST_NAME,
-  version: 50,
+  version: 51,
   storage: createJSONStorage(() => yardStorage()),
   partialize: (s) => ({
     employeeId: s.employeeId,
     langOverride: s.langOverride,
-    employees: s.employees,
+    employees: dropDummyEmployees(s.employees),
     projects: s.projects,
     assignments: s.assignments,
     days: Object.fromEntries(Object.entries(s.days).map(([k, d]) => [k, {
@@ -2265,7 +2261,7 @@ export const useYard = create<YardState>()(
     tfs: liveRows(s.tfs),
     ents: liveRows(s.ents),
     packs: s.packs,
-    ksReports: liveRows(s.ksReports),
+    ksReports: s.ksReports,
     docs: s.docs,
     todos: s.todos,
     problems: s.problems ?? [],
@@ -2360,11 +2356,11 @@ export const useYard = create<YardState>()(
     if (!Array.isArray(next.projects) || !next.projects.length) next.projects = PROJECTS;
     if (!Array.isArray(next.assignments)) next.assignments = ASSIGNMENTS;
     if (!Array.isArray(next.employees) || !next.employees.length) next.employees = EMPLOYEES;
+    else next.employees = dropDummyEmployees(next.employees as Employee[]);
     if (!Array.isArray(next.suppliers)) next.suppliers = [];
     ensureBotWeek37(next);
     mergeAliasJobs(next);
     ensureMastersOnJobs(next);
-    if (Array.isArray(next.ksReports)) next.ksReports = liveRows(next.ksReports);
     if (Array.isArray(next.slips)) next.slips = liveRows(next.slips);
     if (!Array.isArray(next.offers)) next.offers = [];
     else next.offers = liveRows(next.offers);
@@ -2403,7 +2399,7 @@ export const useYard = create<YardState>()(
     if (!Array.isArray(state.employees) || !state.employees.length) state.employees = EMPLOYEES;
     else {
       const seedPin = new Map(EMPLOYEES.map((e) => [e.id, e.pin]));
-      state.employees = state.employees.map((e) => {
+      state.employees = dropDummyEmployees(state.employees).map((e) => {
         const pin = String(e.pin ?? "").replace(/\D/g, "");
         if (pin.length === 4) return e;
         const fallback = seedPin.get(e.id);
@@ -2412,13 +2408,14 @@ export const useYard = create<YardState>()(
     }
     const liveCrew = loadCrew();
     if (liveCrew.length) {
-      const byId = new Map(state.employees.map((e) => [e.id, e]));
-      for (const e of liveCrew) {
-        if (!e?.id) continue;
-        const prev = byId.get(e.id);
-        byId.set(e.id, prev ? { ...prev, ...e } : e);
-      }
-      state.employees = [...byId.values()];
+      const persistById = new Map(state.employees.map((e) => [e.id, e]));
+      state.employees = liveCrew.map((e) => {
+        const prev = persistById.get(e.id);
+        const pin = String(e.pin ?? "").replace(/\D/g, "");
+        if (pin.length === 4) return e;
+        const fallback = String(prev?.pin ?? "").replace(/\D/g, "");
+        return fallback.length === 4 ? { ...e, pin: fallback } : e;
+      });
     }
     void import("./crew-live").then((m) => m.saveCrew(state.employees));
     if (!state.days || typeof state.days !== "object") state.days = seedDays();
@@ -2429,7 +2426,6 @@ export const useYard = create<YardState>()(
       mergeAliasJobs(state);
       ensureMastersOnJobs(state);
     }
-    if (Array.isArray(state.ksReports)) state.ksReports = liveRows(state.ksReports);
     if (Array.isArray(state.slips)) state.slips = liveRows(state.slips);
     if (!Array.isArray(state.offers)) state.offers = [];
     else state.offers = liveRows(state.offers);

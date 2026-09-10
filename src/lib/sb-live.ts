@@ -80,7 +80,13 @@ export async function publishEnt(row: Entrepreneur) {
 }
 
 export async function pullKs() {
-  return pullTable("ks_reports", ksFromRow);
+  try {
+    const { data, error } = await supabase().from("ks_reports").select("*").limit(500);
+    if (error) return null;
+    return (data ?? []).map((r) => ksFromRow(r as Record<string, unknown>)).filter((row) => Boolean(row.id));
+  } catch {
+    return null;
+  }
 }
 
 export async function pullOrders() {
