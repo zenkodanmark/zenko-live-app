@@ -160,6 +160,7 @@ type YardState = {
     workNote?: string;
   }) => void;
   setAssignment: (employeeId: string, projectId: string, on: boolean) => void;
+  setEmployeeAssignments: (employeeId: string, projectIds: string[]) => void;
   addProject: (input: { id?: string; name: string; address: string; lat: number; lng: number; createdBy: string; brief?: string; customer?: string; trade?: string; period?: string; qualityManager?: string; udbudFolderId?: string; driveRootId?: string }) => string;
   archiveProject: (id: string, archived: boolean, reason?: ReopenReason) => void;
   patchProject: (id: string, patch: Partial<Project>) => void;
@@ -862,6 +863,17 @@ export const useYard = create<YardState>()(
     employeeId,
     projectId
   }] : s.assignments.filter((a) => !(a.employeeId === employeeId && a.projectId === projectId)) })),
+  setEmployeeAssignments: (employeeId, projectIds) => {
+    const ids = [...new Set(projectIds.filter(Boolean))];
+    set((s) => ({
+      assignments: [
+        ...s.assignments.filter((a) => a.employeeId !== employeeId),
+        ...ids.map((projectId) => ({ employeeId, projectId })),
+      ],
+    }));
+    holdRow(`assign:${employeeId}`);
+    void import("./sb-live").then((m) => m.publishEmployeeAssignments(employeeId, ids));
+  },
   addProject: (input) => {
     const existing = get().projects.find((p) => p.id === input.id || p.name.toLowerCase() === input.name.toLowerCase());
     if (existing) return existing.id;

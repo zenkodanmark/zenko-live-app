@@ -17,14 +17,19 @@ import {
   type SagSite,
   type SagTfView,
 } from "@/lib/sag-ledelse";
-import { BackArrow, SagPng, TabPng } from "@/components/sag-icons";
+import { BackArrow, CloseX, SagPng, TabPng } from "@/components/sag-icons";
 import { SagBack, SagMetaGrid, SagMissing, SagPhotos, SagShell, SagTypeBtn } from "@/components/sag-shell";
+import { ToastHost } from "@/components/toast-host";
 import { PrimaryButton } from "@/components/zenko";
+import { QuickCompose } from "@/components/quick-compose";
+import { TodoDoc } from "@/components/todo-board";
+import { ReportThumb } from "@/components/photo-strip";
+import { firstMasterId, isLedelseTodo } from "@/lib/plan-grid";
 import { useYard } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import { projectIdFromSlug } from "@/lib/ks-customer";
-import { todoPeopleLine } from "@/lib/todo-people";
-import type { LedelseReply } from "@/lib/types";
+import { todoAllPhotoIds } from "@/lib/photo-meta";
+import type { LedelseReply, Todo } from "@/lib/types";
 
 function dmy(iso: string) {
   const d = new Date(iso);
@@ -85,7 +90,7 @@ export function SagHome({ site }: { site: SagSite | null }) {
 
 function LedelseTodoBtn({ slug, projectId }: { slug: string; projectId: string }) {
   const allTodos = useYard((s) => s.todos);
-  const n = allTodos.filter((td) => td.projectId === projectId && !td.done).length;
+  const n = allTodos.filter((td) => td.projectId === projectId && isLedelseTodo(td)).length;
   const line = n === 0 ? "Ingen åbne" : `${n} ${n === 1 ? "åben" : "åbne"}`;
   return (
     <SagTypeBtn href={sagPath(slug, ["todo"])} icon="todo" title="To-do" count={n} line={line} testId="ledelse-btn-todo" />
@@ -706,63 +711,100 @@ function ReportComment({ kind, id, start }: { kind: "slip" | "offer" | "ent" | "
   return <LedelseComment replies={replies} draft={draft} busy={busy} error="" onDraft={setDraft} onSend={send} />;
 }
 
+function todoExcerpt(td: Todo) {
+  const title = (td.title || "").trim();
+  const body = (td.body || td.original || "").trim();
+  if (!body || body === title) return "";
+  return body;
+}
+
 function LedelseTodos({ projectId }: { projectId: string }) {
   const allTodos = useYard((s) => s.todos);
   const employees = useYard((s) => s.employees);
-  const patchTodo = useYard((s) => s.patchTodo);
-  const addTodo = useYard((s) => s.addTodo);
-  const todos = allTodos.filter((td) => td.projectId === projectId && !td.done);
-  const [draft, setDraft] = useState("");
-  const [edits, setEdits] = useState<Record<string, string>>({});
-
-  function save(id: string) {
-    const body = (edits[id] ?? todos.find((t) => t.id === id)?.body ?? "").trim();
-    patchTodo(id, { body, title: body.split("\n")[0]?.slice(0, 80) || todos.find((t) => t.id === id)?.title });
-  }
-
-  function add() {
-    const body = draft.trim();
-    if (!body) return;
-    addTodo({
-      projectId,
-      assigneeId: useYard.getState().employeeId || "emp-ole",
-      title: body.split("\n")[0]!.slice(0, 80),
-      body,
-      due: "",
-    });
-    setDraft("");
-  }
+  const todos = useMemo(
+    () =>
+      allTodos
+        .filter((td) => td.projectId === projectId && isLedelseTodo(td))
+        .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "") || a.id.localeCompare(b.id)),
+    [allTodos, projectId],
+  );
+  const [compose, setCompose] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const masterId = firstMasterId(employees);
+  const open = allTodos.find((td) => td.id === openId) ?? null;
 
   return (
-    <section data-testid="ledelse-todo">
-      <p className="text-sm text-muted">Åbne to-dos på sagen. Du kan tilføje og rette beskrivelsen.</p>
-      <ul className="mt-3 space-y-3">
-        {todos.map((td) => (
-          <li key={td.id} className="rounded-[20px] bg-paper px-3 py-3 shadow-card">
-            <p className="text-sm font-semibold text-navy">{td.title}</p>
-            <p className="text-xs text-muted">{todoPeopleLine(td, employees)}</p>
-            <textarea
-              className="mt-2 min-h-20 w-full rounded-xl bg-sand px-3 py-2 text-base outline-none"
-              value={edits[td.id] ?? td.body ?? td.title ?? ""}
-              onChange={(e) => setEdits((cur) => ({ ...cur, [td.id]: e.target.value }))}
-              data-testid={`ledelse-todo-body-${td.id}`}
+    <section data-testid="ledelse-todo-list" className="space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          data-testid="ledelse-todo-create"
+          className="inline-flex min-h-11 items-center rounded-full bg-navy px-5 text-sm font-semibold text-sand"
+          onClick={() => setCompose(true)}
+        >
+          Opret ny
+        </button>
+      </div>
+      {todos.length === 0 ? (
+        <p className="rounded-[24px] bg-paper px-5 py-8 text-sm text-muted shadow-card">Ingen to-dos hakket med til byggeledelse.</p>
+      ) : (
+        <ul className="divide-y divide-line overflow-hidden rounded-[24px] bg-paper shadow-card">
+          {todos.map((td) => {
+            const photos = todoAllPhotoIds(td);
+            const excerpt = todoExcerpt(td);
+            return (
+              <li key={td.id} className="flex items-start gap-5 px-5 py-5" data-testid={`ledelse-todo-row-${td.id}`}>
+                {photos.length ? (
+                  <ReportThumb ids={photos} />
+                ) : (
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-sand">
+                    <SagPng name="todo" px={48} />
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="font-display text-2xl leading-tight text-navy">{td.title}</p>
+                  {excerpt ? <p className="mt-1.5 max-w-2xl line-clamp-2 text-sm leading-relaxed text-muted">{excerpt}</p> : null}
+                  <button
+                    type="button"
+                    data-testid={`ledelse-todo-open-${td.id}`}
+                    className="mt-3 inline-flex min-h-11 items-center rounded-full bg-navy px-4 text-sm font-semibold text-sand"
+                    onClick={() => setOpenId(td.id)}
+                  >
+                    Åbn
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {compose ? (
+        <div className="fixed inset-0 z-[80] overflow-y-auto bg-sand/95 px-4 py-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))]">
+          <div className="mx-auto max-w-lg">
+            <QuickCompose
+              kind="todo"
+              projectId={projectId}
+              lang="da"
+              assigneeId={masterId}
+              lockAssignee
+              fromId="ledelse"
+              ledelseStatus="med_til_ledelse"
+              onClose={() => setCompose(false)}
+              onCreated={() => setCompose(false)}
             />
-            <PrimaryButton className="mt-2 min-h-11 w-auto px-4 text-sm" onClick={() => save(td.id)}>
-              Gem beskrivelse
-            </PrimaryButton>
-          </li>
-        ))}
-      </ul>
-      <textarea
-        className="mt-3 min-h-20 w-full rounded-xl bg-paper px-3 py-2 text-base outline-none shadow-card"
-        placeholder="Ny to-do — skriv beskrivelsen"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        data-testid="ledelse-todo-new"
-      />
-      <PrimaryButton className="mt-2 min-h-11 w-auto px-4" disabled={!draft.trim()} onClick={add}>
-        Tilføj to-do
-      </PrimaryButton>
+          </div>
+        </div>
+      ) : null}
+      {open ? (
+        <div className="fixed inset-0 z-[80] overflow-y-auto bg-navy/50" data-testid="ledelse-todo-slip">
+          <div className="sticky top-0 z-10 flex items-center justify-end bg-navy px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+            <CloseX onClick={() => setOpenId(null)} label="Luk" />
+          </div>
+          <div className="bg-sand py-6">
+            <TodoDoc td={open} lang="da" />
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -770,14 +812,21 @@ function LedelseTodos({ projectId }: { projectId: string }) {
 export function SagTodoList({ site }: { site: SagSite | null }) {
   if (!site) return <SagMissing />;
   return (
-    <SagShell job={site.job}>
-      <SagBack to={sagPath(site.job.slug)}>Tilbage til {site.job.name}</SagBack>
-      <div className="flex items-center gap-2">
-        <SagPng name="todo" px={64} />
-        <h1 className="font-display text-3xl text-navy">To-do</h1>
+    <main className="min-h-dvh bg-sand pb-24" data-testid="ledelse-todo-page">
+      <header className="bg-navy px-6 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))] text-sand">
+        <p className="text-xs font-semibold tracking-[0.18em] uppercase">Zenko Danmark</p>
+        <p className="mt-1 text-xs tracking-wide text-sand/70">Byggeledelse</p>
+      </header>
+      <div className="mx-auto max-w-4xl space-y-5 px-6 pt-5 pb-10">
+        <SagBack to={sagPath(site.job.slug)}>Tilbage til {site.job.name}</SagBack>
+        <div className="flex items-center gap-3">
+          <SagPng name="todo" px={64} />
+          <h1 className="font-display text-3xl text-navy">To-do</h1>
+        </div>
+        <LedelseTodos projectId={site.job.projectId} />
       </div>
-      <LedelseTodos projectId={site.job.projectId} />
-    </SagShell>
+      <ToastHost />
+    </main>
   );
 }
 

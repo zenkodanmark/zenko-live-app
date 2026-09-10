@@ -1,4 +1,6 @@
 import {
+  assignmentFromRow,
+  assignmentToRow,
   entFromRow,
   entToRow,
   orderFromRow,
@@ -15,7 +17,8 @@ import {
   tfToRow,
 } from "./sb-rows";
 import { supabase } from "./supabase";
-import type { Entrepreneur, MaterialOrder, Offer, PlanBlock, Project, Slip, Tf } from "./types";
+import { mergeEmployeeAssignments } from "./yard-slim";
+import type { Assignment, Entrepreneur, MaterialOrder, Offer, PlanBlock, Project, Slip, Tf } from "./types";
 
 async function pullTable<T>(table: string, fromRow: (r: Record<string, unknown>) => T): Promise<T[] | null> {
   try {
@@ -102,4 +105,30 @@ export async function publishPlan(row: PlanBlock) {
     place: full.place,
   };
   return upsert("plan_blocks", slim);
+}
+
+export async function pullAssignments(): Promise<Assignment[] | null> {
+  try {
+    const { data, error } = await supabase().from("assignments").select("*").limit(500);
+    if (error) return null;
+    return (data ?? []).map((r) => assignmentFromRow(r as Record<string, unknown>)).filter((a) => a.employeeId && a.projectId);
+  } catch {
+    return null;
+  }
+}
+
+export { mergeEmployeeAssignments };
+
+export async function publishEmployeeAssignments(employeeId: string, projectIds: string[]): Promise<boolean> {
+  const ids = [...new Set(projectIds.filter(Boolean))];
+  try {
+    const sb = supabase();
+    const { error: delErr } = await sb.from("assignments").delete().eq("employee_id", employeeId);
+    if (delErr) return false;
+    if (!ids.length) return true;
+    const { error } = await sb.from("assignments").upsert(ids.map((projectId) => assignmentToRow({ employeeId, projectId })));
+    return !error;
+  } catch {
+    return false;
+  }
 }

@@ -3,12 +3,12 @@ import { pullChats, publishChat } from "@/lib/chat-live";
 import { pullTodos, publishTodo } from "@/lib/todo-live";
 import { pullDays, publishDay } from "@/lib/day-live";
 import { refreshCrewFromCloud } from "@/lib/crew-live";
-import { pullEnts, pullOffers, pullOrders, pullPlans, pullProjects, pullSlips, pullTfs, publishOrder } from "@/lib/sb-live";
+import { pullEnts, pullOffers, pullOrders, pullPlans, pullProjects, pullSlips, pullTfs, pullAssignments, publishOrder, mergeEmployeeAssignments } from "@/lib/sb-live";
 import { onYardEvent } from "@/lib/yard-bus";
 import { mergeById, mergeChats, mergeDays, mergePlans, mergeReports, slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "@/lib/yard-slim";
 import { pullYard, saveYardChat, saveYardDay, saveYardKs, saveYardNeed, saveYardOrder, saveYardTodo } from "@/lib/yard-sync.functions";
 import { useYard } from "@/lib/store";
-import type { ChatMessage, DayLog, Entrepreneur, KsReport, MaterialNeed, MaterialOrder, PlanBlock, Project, Slip, Tf, Todo } from "@/lib/types";
+import type { Assignment, ChatMessage, DayLog, Entrepreneur, KsReport, MaterialNeed, MaterialOrder, PlanBlock, Project, Slip, Tf, Todo } from "@/lib/types";
 
 const DUMMY_CHAT = new Set(["ch-lang-ion", "ch-lang-osvaldo", "ch-mat-ion"]);
 const DUMMY_TODO = new Set(["td-lang-ion"]);
@@ -33,6 +33,7 @@ async function applyPull() {
   const clientEnts = await pullEnts();
   const clientOrders = await pullOrders();
   const clientPlans = await pullPlans();
+  const clientAssignments = await pullAssignments();
   const cloudCrew = await refreshCrewFromCloud();
   const s = useYard.getState();
   const cloudChats = mergeChats(remote.ok ? remote.chats : [], clientChats ?? []);
@@ -66,6 +67,7 @@ async function applyPull() {
     offers: clientOffers ? mergeReports(s.offers ?? [], clientOffers as Slip[]) : s.offers ?? [],
     ents: clientEnts ? mergeReports(s.ents, clientEnts as Entrepreneur[]) : s.ents,
     plans: clientPlans ? mergePlans(s.plans ?? [], clientPlans as PlanBlock[]) : s.plans ?? [],
+    assignments: clientAssignments ? mergeEmployeeAssignments(s.assignments, clientAssignments as Assignment[]) : s.assignments,
     ...(cloudCrew?.length ? { employees: mergeById(s.employees, cloudCrew) } : {}),
   });
 }

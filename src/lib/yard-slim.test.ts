@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { holdRow, mergeById, mergeChats, mergePlans, mergeReports, slimChat } from "./yard-slim.ts";
+import { holdRow, mergeById, mergeChats, mergeEmployeeAssignments, mergePlans, mergeReports, slimChat } from "./yard-slim.ts";
 import type { ChatMessage, PlanBlock, Todo } from "./types.ts";
 
 test("server overskriver lokal to-do med samme id", () => {
@@ -117,4 +117,31 @@ test("mergePlans beholder lokale dage når skyen er tom", () => {
   const merged = mergePlans(local, remote, 0);
   assert.deepEqual(merged[0]?.days, ["2026-09-09", "2026-09-10"]);
   assert.equal(merged[0]?.todoId, "td-ryd-stillads");
+});
+
+test("tom remote lader lokale tildelinger stå", () => {
+  const local = [{ employeeId: "emp-alex", projectId: "job-kaerhuset" }];
+  assert.deepEqual(mergeEmployeeAssignments(local, []), local);
+});
+
+test("remote erstatter kun den medarbejder der ikke er holdt", () => {
+  const local = [
+    { employeeId: "emp-alex", projectId: "job-hillerodsholm" },
+    { employeeId: "emp-ole", projectId: "job-kaerhuset" },
+  ];
+  const remote = [
+    { employeeId: "emp-alex", projectId: "job-kaerhuset" },
+    { employeeId: "emp-ole", projectId: "job-kaerhuset" },
+  ];
+  const merged = mergeEmployeeAssignments(local, remote, 0);
+  assert.equal(merged.some((a) => a.employeeId === "emp-alex" && a.projectId === "job-kaerhuset"), true);
+  assert.equal(merged.some((a) => a.employeeId === "emp-alex" && a.projectId === "job-hillerodsholm"), false);
+});
+
+test("holdt medarbejder beholdes lokalt efter Gem", () => {
+  holdRow("assign:emp-alex");
+  const local = [{ employeeId: "emp-alex", projectId: "job-kaerhuset" }];
+  const remote = [{ employeeId: "emp-alex", projectId: "job-hillerodsholm" }];
+  const merged = mergeEmployeeAssignments(local, remote);
+  assert.deepEqual(merged, local);
 });

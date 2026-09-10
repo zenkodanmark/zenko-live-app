@@ -55,7 +55,7 @@ export function mergeById<T extends { id: string }>(local: T[], remote: T[]): T[
 const held = new Map<string, number>();
 const HOLD_KEY = "zenko-row-hold";
 
-function heldAt(id: string): number {
+export function heldAt(id: string): number {
   let t = held.get(id) ?? 0;
   try {
     if (typeof sessionStorage !== "undefined") {
@@ -153,6 +153,21 @@ export function mergeReports<T extends { id: string; ledelseStatus?: string; upd
     map.set(row.id, { ...prev, ...row, ...(ledelseStatus ? { ledelseStatus } : {}), ...(updatedAt ? { updatedAt } : {}) });
   }
   return [...map.values()];
+}
+
+/** Cloud merge for Folk-sagsadgang — keep a just-saved person across refresh. */
+export function mergeEmployeeAssignments(
+  local: { employeeId: string; projectId: string }[],
+  remote: { employeeId: string; projectId: string }[],
+  ms = 12000,
+): { employeeId: string; projectId: string }[] {
+  if (!remote.length) return local;
+  const now = Date.now();
+  const heldEmps = new Set(
+    [...new Set([...local, ...remote].map((a) => a.employeeId))].filter((id) => heldAt(`assign:${id}`) + ms >= now),
+  );
+  const remoteEmps = new Set(remote.map((a) => a.employeeId).filter((id) => !heldEmps.has(id)));
+  return [...local.filter((a) => !remoteEmps.has(a.employeeId)), ...remote.filter((a) => remoteEmps.has(a.employeeId))];
 }
 
 function mergeMedia<T extends { id?: string; dataUrl?: string; driveFileId?: string }>(local?: T[], remote?: T[]): T[] | undefined {

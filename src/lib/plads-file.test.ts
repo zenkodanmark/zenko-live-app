@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fileHref, isGoogleUrl } from "./plads-file.ts";
+import { fileHref, isGoogleUrl, pladsPathFromId } from "./plads-file.ts";
 import { UD_CAD_EXTS, UD_FILE_ACCEPT, mimeForUdFile, udFallbackName, udFileKind, udFilePreviewable } from "./ud-folders.ts";
 
 test("fileHref never returns Google Drive", () => {
@@ -36,4 +36,16 @@ test("UD file kind: 3D gets model, not image", () => {
   assert.equal(udFilePreviewable("model"), false);
   assert.equal(mimeForUdFile("scan.glb"), "model/gltf-binary");
   assert.equal(udFallbackName({ type: "model/gltf-binary" }), "scaniverse.glb");
+});
+
+test("pladsPathFromId trækker sti ud af Storage-url", () => {
+  assert.equal(
+    pladsPathFromId("https://jauggqxhemjnbxoxkpeh.supabase.co/storage/v1/object/public/plads/job-x/todo/a.jpg"),
+    "job-x/todo/a.jpg",
+  );
+  assert.equal(pladsPathFromId("sb:job-x/todo/b.jpg"), "job-x/todo/b.jpg");
+  assert.equal(pladsPathFromId("plads/job-x/todo/c.jpg"), "job-x/todo/c.jpg");
+  assert.equal(pladsPathFromId("job-x/todo/d.jpg"), "job-x/todo/d.jpg");
+  assert.equal(pladsPathFromId("https://example.com/other.jpg"), "");
+  assert.equal(pladsPathFromId(""), "");
 });

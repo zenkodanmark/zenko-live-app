@@ -1,8 +1,9 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { FacePhoto } from "@/components/face-photo";
 import { ActionPng, CloseX } from "@/components/sag-icons";
 import { TodoActions, CrewTodoOpen } from "@/components/complete-todo";
 import { GpsLink, ReportThumb, TodoPhotos } from "@/components/photo-strip";
+import { DriveFileThumb } from "@/components/drive-photo";
 import { Card, Chip, GhostButton, PrimaryButton, SectionLabel } from "@/components/zenko";
 import { TodoLedelseHak, isTodoLedelseOn } from "@/components/todo-ledelse-hak";
 import { shownTodoText } from "@/lib/chat";
@@ -11,8 +12,9 @@ import { printDoc } from "@/lib/print";
 import { todoAllPhotoIds } from "@/lib/photo-meta";
 import { copenhagenDate, FIRM, FIRM_CVR, isMasterRole } from "@/lib/seed";
 import { useSessionEmployee, useYard } from "@/lib/store";
-import { todoJobLabel } from "@/lib/crew-todo";
-import { fillTodoTranslations } from "@/lib/todo-drive";
+import { fillTodoTranslations, uploadTodoPhotos } from "@/lib/todo-drive";
+import { isPersonalTodo, todoJobLabel } from "@/lib/crew-todo";
+import { removePladsFile } from "@/lib/plads-file";
 import { todoAssigneeIds, todoAssignedTo, todoDoneLine, todoPeopleLine } from "@/lib/todo-people";
 import type { Lang, Todo } from "@/lib/types";
 
@@ -466,7 +468,11 @@ export function TodoEditSheet({ td, lang, onClose }: { td: Todo; lang: Lang; onC
   const [due, setDue] = useState(live.due ?? "");
   const [sagId, setSagId] = useState(live.projectId);
   const [done, setDone] = useState(live.done);
+  const [photoIds, setPhotoIds] = useState<string[]>(() => [...(live.photoFileIds ?? [])]);
   const [busy, setBusy] = useState(false);
+  const camRef = useRef<HTMLInputElement>(null);
+  const galRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const preview: Todo = {
     ...live,
@@ -477,7 +483,44 @@ export function TodoEditSheet({ td, lang, onClose }: { td: Todo; lang: Lang; onC
     assigneeId: assigneeIds[0] || live.assigneeId,
     assigneeIds,
     done,
+    photoFileIds: photoIds,
   };
+
+  async function addFiles(list: FileList | null) {
+    if (!list?.length || busy) return;
+    setBusy(true);
+    try {
+      const drafts: { id: string; dataUrl: string; name: string }[] = [];
+      for (const f of [...list]) {
+        const dataUrl = await new Promise<string>((resolve) => {
+          const r = new FileReader();
+          r.onload = () => resolve(String(r.result || ""));
+          r.onerror = () => resolve("");
+          r.readAsDataURL(f);
+        });
+        if (dataUrl) drafts.push({ id: `ed-${crypto.randomUUID().slice(0, 8)}`, dataUrl, name: f.name || "fil" });
+      }
+      if (!drafts.length) return;
+      const jobId = sagId && !isPersonalTodo(sagId) ? sagId : "personlig";
+      const ids = await uploadTodoPhotos(jobId, live.id, drafts);
+      if (!ids.length) {
+        useYard.setState({ toast: t(lang, "driveFail") });
+        return;
+      }
+      const next = [...photoIds, ...ids];
+      setPhotoIds(next);
+      patchTodo(live.id, { photoFileIds: next });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function dropPhoto(id: string) {
+    const next = photoIds.filter((x) => x !== id);
+    setPhotoIds(next);
+    patchTodo(live.id, { photoFileIds: next });
+    void removePladsFile(id);
+  }
 
   function save() {
     if (busy) return;
@@ -501,6 +544,7 @@ export function TodoEditSheet({ td, lang, onClose }: { td: Todo; lang: Lang; onC
       projectId: sagId,
       assigneeId: ids[0]!,
       assigneeIds: ids,
+      photoFileIds: photoIds,
       ...statusPatch,
     });
     if (text !== (live.body || live.original || "")) void fillTodoTranslations(live.id, text, lang);
@@ -542,6 +586,48 @@ export function TodoEditSheet({ td, lang, onClose }: { td: Todo; lang: Lang; onC
               data-testid="todo-edit-body"
             />
           </label>
+          <div data-testid="todo-edit-photos">
+            {photoIds.length ? (
+              <ul className="flex flex-wrap gap-2">
+                {photoIds.map((id) => (
+                  <li key={id} className="relative" data-testid={`todo-edit-photo-${id}`}>
+                    {/\.(png|jpe?g|gif|webp|avif)(\?|$)/i.test(id) || id.includes("/todo/") || id.startsWith("http") ? (
+                      <DriveFileThumb fileId={id} className="size-16 rounded-lg object-cover" />
+                    ) : (
+                      <span className="flex size-16 items-center justify-center rounded-lg bg-paper px-1 text-center text-[10px] text-navy shadow-card">
+                        fil
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      aria-label={t(lang, "close")}
+                      data-testid={`todo-edit-photo-x-${id}`}
+                      onClick={() => dropPhoto(id)}
+                      className="absolute -right-1 -top-1 flex size-6 items-center justify-center rounded-full bg-navy text-sand"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-muted">{t(lang, "todoAddPhoto")}</p>
+            )}
+            <div className="mt-2 flex items-center justify-center gap-2 rounded-[24px] bg-paper px-2 py-2 shadow-card">
+              <button type="button" aria-label={t(lang, "camera")} className="inline-flex min-h-[3.25rem] flex-1 items-center justify-center" data-testid="todo-edit-cam" disabled={busy} onClick={() => camRef.current?.click()}>
+                <ActionPng name="camCompact" px={48} />
+              </button>
+              <button type="button" aria-label={t(lang, "gallery")} className="inline-flex min-h-[3.25rem] flex-1 items-center justify-center" data-testid="todo-edit-gal" disabled={busy} onClick={() => galRef.current?.click()}>
+                <ActionPng name="gallery" px={48} />
+              </button>
+              <button type="button" aria-label="Fil" className="inline-flex min-h-[3.25rem] flex-1 items-center justify-center" data-testid="todo-edit-file" disabled={busy} onClick={() => fileRef.current?.click()}>
+                <ActionPng name="fileDoc" px={48} />
+              </button>
+            </div>
+            <input ref={camRef} type="file" accept="image/*" capture="environment" className="hidden" multiple onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }} />
+            <input ref={galRef} type="file" accept="image/*" className="hidden" multiple onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }} />
+            <input ref={fileRef} type="file" className="hidden" multiple onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }} />
+          </div>
           <div>
             <p className="text-xs text-muted">{t(lang, "todoAssignees")}</p>
             <div className="mt-1 flex flex-wrap gap-1.5">

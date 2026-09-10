@@ -119,3 +119,31 @@ export async function listPladsPrefix(prefix: string): Promise<{ name: string; u
     return [];
   }
 }
+
+export function pladsPathFromId(id?: string | null): string {
+  const s = String(id || "").trim();
+  if (!s) return "";
+  const marker = `/object/public/${SB_BUCKET}/`;
+  const i = s.indexOf(marker);
+  if (i >= 0) return decodeURIComponent(s.slice(i + marker.length).split("?")[0]);
+  if (s.startsWith("sb:")) return s.slice(3).replace(/^\/+/, "");
+  if (s.startsWith(`${SB_BUCKET}/`)) return s.slice(SB_BUCKET.length + 1).replace(/^\/+/, "");
+  if (!s.startsWith("http") && s.includes("/")) return s.replace(/^\/+/, "");
+  return "";
+}
+
+export async function removePladsFile(fileId: string): Promise<boolean> {
+  const path = pladsPathFromId(fileId);
+  if (!path) return false;
+  try {
+    await supabase().storage.from(SB_BUCKET).remove([path]);
+    try {
+      await supabase().from("files").delete().eq("path", path);
+    } catch {
+      /* listing still works from storage */
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}

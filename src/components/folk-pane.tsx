@@ -185,6 +185,7 @@ function PersonHome({ emp, lang, onClose }: { emp: Employee; lang: Lang; onClose
             onClick={() => setView("hours")}
           />
         </div>
+        <FolkAssign key={emp.id} emp={emp} lang={lang} />
       </div>
       {view === "compose" ? (
         <div className="fixed inset-0 z-[80] overflow-y-auto bg-sand px-4 py-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))]">
@@ -250,7 +251,6 @@ function TimeSheet({ emp, lang, onClose }: { emp: Employee; lang: Lang; onClose:
           <PinEditor emp={emp} lang={lang} />
           <PhoneEditor emp={emp} lang={lang} />
         </Card>
-        <FolkAssign emp={emp} lang={lang} />
         <Card>
           <SectionLabel>{t(lang, "personHours")}</SectionLabel>
           <label className="mt-2 block text-xs text-muted">
@@ -394,24 +394,62 @@ function FolkProfile({ emp, lang }: { emp: Employee; lang: Lang }) {
 function FolkAssign({ emp, lang }: { emp: Employee; lang: Lang }) {
   const projects = useYard((s) => s.projects);
   const assignments = useYard((s) => s.assignments);
-  const setAssignment = useYard((s) => s.setAssignment);
+  const setEmployeeAssignments = useYard((s) => s.setEmployeeAssignments);
+  const saved = assignments.filter((a) => a.employeeId === emp.id).map((a) => a.projectId);
+  const [picked, setPicked] = useState<string[]>(saved);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setPicked(assignments.filter((a) => a.employeeId === emp.id).map((a) => a.projectId));
+    setNote("");
+  }, [emp.id]);
+
+  function toggle(id: string) {
+    setNote("");
+    setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  }
+
+  function save() {
+    if (busy) return;
+    setBusy(true);
+    setEmployeeAssignments(emp.id, picked);
+    setNote("Adgang gemt");
+    setBusy(false);
+  }
+
   return (
-    <Card>
-      <SectionLabel>{t(lang, "folkAssign")}</SectionLabel>
-      <div className="mt-1 space-y-1">
-        {projects
-          .filter((p) => p.status === "active")
-          .map((p) => {
-            const on = assignments.some((a) => a.employeeId === emp.id && a.projectId === p.id);
-            return (
-              <label key={p.id} className="flex min-h-11 items-center gap-2 text-sm">
-                <input type="checkbox" checked={on} onChange={(ev) => setAssignment(emp.id, p.id, ev.target.checked)} />
-                {p.name}
-              </label>
-            );
-          })}
-      </div>
-    </Card>
+    <div data-testid="folk-sager-card">
+      <Card>
+        <SectionLabel>{t(lang, "folkAssign")}</SectionLabel>
+        <div className="mt-1 space-y-1">
+          {projects
+            .filter((p) => p.status === "active")
+            .map((p) => {
+              const on = picked.includes(p.id);
+              return (
+                <label key={p.id} className="flex min-h-11 items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    data-testid={`folk-assign-${p.id}`}
+                    onChange={() => toggle(p.id)}
+                  />
+                  {p.name}
+                </label>
+              );
+            })}
+        </div>
+        <PrimaryButton className="mt-3" data-testid="folk-assign-save" disabled={busy} onClick={save}>
+          {t(lang, "save")}
+        </PrimaryButton>
+        {note ? (
+          <p className="mt-2 text-sm font-medium text-moss" data-testid="folk-assign-ok">
+            {note}
+          </p>
+        ) : null}
+      </Card>
+    </div>
   );
 }
 
