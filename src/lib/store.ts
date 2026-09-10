@@ -482,7 +482,8 @@ function makeTodo(input: Parameters<YardState["addTodo"]>[0], fromId: string): T
     orderId: input.orderId,
     fromChatId: input.fromChatId,
     ledelseStatus: input.ledelseStatus,
-    createdAt: (new Date()).toISOString()
+    createdAt: (new Date()).toISOString(),
+    updatedAt: (new Date()).toISOString(),
   };
 }
 export const useYard = create<YardState>()(
@@ -1272,7 +1273,7 @@ export const useYard = create<YardState>()(
     const before = get().todos.find((t) => t.id === id);
     if (!before) return;
     set((s) => ({
-      todos: s.todos.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+      todos: s.todos.map((t) => (t.id === id ? { ...t, ...patch, updatedAt: patch.updatedAt ?? new Date().toISOString() } : t)),
     }));
     const after = get().todos.find((t) => t.id === id);
     if (after) {

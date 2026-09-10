@@ -5,7 +5,7 @@ import { pullDays, publishDay } from "@/lib/day-live";
 import { refreshCrewFromCloud } from "@/lib/crew-live";
 import { pullEnts, pullOffers, pullOrders, pullPlans, pullProjects, pullSlips, pullTfs, publishOrder } from "@/lib/sb-live";
 import { onYardEvent } from "@/lib/yard-bus";
-import { mergeById, mergeChats, mergeDays, mergePlans, mergeReports, mergeSkippingHeld, slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "@/lib/yard-slim";
+import { mergeById, mergeChats, mergeDays, mergePlans, mergeReports, slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "@/lib/yard-slim";
 import { pullYard, saveYardChat, saveYardDay, saveYardKs, saveYardNeed, saveYardOrder, saveYardTodo } from "@/lib/yard-sync.functions";
 import { useYard } from "@/lib/store";
 import type { ChatMessage, DayLog, Entrepreneur, KsReport, MaterialNeed, MaterialOrder, PlanBlock, Project, Slip, Tf, Todo } from "@/lib/types";
@@ -54,7 +54,7 @@ async function applyPull() {
     return;
   }
   useYard.setState({
-    todos: mergeSkippingHeld(s.todos, cloudTodos),
+    todos: mergeReports(s.todos, cloudTodos),
     chats: mergeChats(s.chats, cloudChats),
     ksReports: remote.ok ? mergeById(s.ksReports, remote.ksReports) : s.ksReports,
     days: mergeDays(s.days, [...(remote.ok ? remote.days : []), ...(clientDays ?? [])]),

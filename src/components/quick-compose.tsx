@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
-import { Camera, ImagePlus } from "lucide-react";
-import { Card, GhostButton, PrimaryButton } from "@/components/zenko";
-import { CloseX } from "@/components/sag-icons";
+import { Card, PrimaryButton } from "@/components/zenko";
+import { ActionPng, CloseX } from "@/components/sag-icons";
 import { peekReportNumber } from "@/lib/drive-commit";
 import { t } from "@/lib/i18n";
 import { siteFallback } from "@/lib/geo";
@@ -10,7 +9,7 @@ import { copenhagenDate } from "@/lib/seed";
 import { lookupProject, useSessionEmployee, useYard } from "@/lib/store";
 import { fillTodoTranslations, uploadDraftsToFolder, uploadTodoPhotos } from "@/lib/todo-drive";
 import { isPersonalTodo } from "@/lib/crew-todo";
-import type { Lang } from "@/lib/types";
+import type { Lang, LedelseStatus } from "@/lib/types";
 
 export type ComposeKind = "todo" | "ks" | "tf" | "as" | "tb" | "er";
 
@@ -37,6 +36,9 @@ export function QuickCompose({
   onCreated,
   allowNoJob,
   assigneeId,
+  fromId,
+  ledelseStatus,
+  lockAssignee,
 }: {
   kind: ComposeKind;
   projectId: string;
@@ -45,6 +47,9 @@ export function QuickCompose({
   onCreated?: (id: string) => void;
   allowNoJob?: boolean;
   assigneeId?: string;
+  fromId?: string;
+  ledelseStatus?: LedelseStatus;
+  lockAssignee?: boolean;
 }) {
   const me = useSessionEmployee();
   const employees = useYard((s) => s.employees);
@@ -57,6 +62,7 @@ export function QuickCompose({
   const addEnt = useYard((s) => s.addEnt);
   const camRef = useRef<HTMLInputElement>(null);
   const galRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [assigneeIds, setAssigneeIds] = useState<string[]>(assigneeId ? [assigneeId] : me?.id ? [me.id] : []);
@@ -66,8 +72,26 @@ export function QuickCompose({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  async function addFiles(list: FileList | null) {
-    if (!list?.length || !me) return;
+  async function addFiles(list: FileList | null, asFile = false) {
+    if (!list?.length) return;
+    if (asFile) {
+      const next: Draft[] = [];
+      for (const f of [...list]) {
+        const dataUrl = await readDraft(f);
+        if (dataUrl) next.push({ id: `qc-${crypto.randomUUID().slice(0, 8)}`, dataUrl, name: f.name || "fil" });
+      }
+      setDrafts((cur) => [...cur, ...next].slice(0, 8));
+      return;
+    }
+    if (!me) {
+      const next: Draft[] = [];
+      for (const f of [...list]) {
+        const dataUrl = await readDraft(f);
+        if (dataUrl) next.push({ id: `qc-${crypto.randomUUID().slice(0, 8)}`, dataUrl, name: f.name || "foto" });
+      }
+      setDrafts((cur) => [...cur, ...next].slice(0, 8));
+      return;
+    }
     const job = sagId && !isPersonalTodo(sagId) ? lookupProject(sagId) : null;
     const gps = job ? siteFallback(job) : null;
     const stamped = await stampPhotoFiles([...list], { who: me.name, job: job?.name ?? t(lang, "todoNoJob"), gps });
@@ -116,6 +140,8 @@ export function QuickCompose({
           gpsLabel: created.gpsLabel,
           original: text,
           sourceLang: lang,
+          fromId: fromId ?? me?.id,
+          ledelseStatus,
         }).id;
         void fillTodoTranslations(id, text, lang);
       } else {
@@ -182,6 +208,7 @@ export function QuickCompose({
   }
 
   return (
+    <div data-testid="todo-compose">
     <Card className="rounded-[20px]">
       <div className="mb-2 flex items-center gap-2">
         <p className="font-display text-title text-ink">
@@ -202,7 +229,7 @@ export function QuickCompose({
             ))}
         </select>
       </label>
-      {kind === "todo" ? (
+      {kind === "todo" && !lockAssignee ? (
         <div className="mt-2">
           <p className="text-xs text-muted">{t(lang, "todoAssignees")}</p>
           <div className="mt-1 flex flex-wrap gap-1.5">
@@ -224,8 +251,8 @@ export function QuickCompose({
           </div>
         </div>
       ) : null}
-      <input className="mt-2 min-h-11 w-full rounded-lg bg-sand px-3 text-sm" placeholder={t(lang, "composeTitle")} value={title} onChange={(e) => setTitle(e.target.value)} />
-      <textarea className="mt-2 min-h-24 w-full rounded-lg bg-sand px-3 py-2 text-sm" placeholder={t(lang, "composeBody")} value={body} onChange={(e) => setBody(e.target.value)} />
+      <input className="mt-2 min-h-11 w-full rounded-lg bg-sand px-3 text-sm" placeholder={t(lang, "composeTitle")} value={title} onChange={(e) => setTitle(e.target.value)} data-testid="compose-title" />
+      <textarea className="mt-2 min-h-24 w-full rounded-lg bg-sand px-3 py-2 text-sm" placeholder={t(lang, "composeBody")} value={body} onChange={(e) => setBody(e.target.value)} data-testid="compose-body" />
       {kind === "todo" ? (
         <label className="mt-2 block text-xs text-muted">
           {t(lang, "due")}
@@ -236,23 +263,31 @@ export function QuickCompose({
         <ul className="mt-2 flex gap-1 overflow-x-auto">
           {drafts.map((d) => (
             <li key={d.id}>
-              <img src={d.dataUrl} alt="" className="size-16 rounded-lg object-cover" />
+              {d.dataUrl.startsWith("data:image") ? (
+                <img src={d.dataUrl} alt="" className="size-16 rounded-lg object-cover" />
+              ) : (
+                <span className="flex size-16 items-center justify-center rounded-lg bg-sand px-1 text-center text-[10px] text-navy">
+                  {d.name}
+                </span>
+              )}
             </li>
           ))}
         </ul>
       ) : null}
-      <div className="mt-2 flex flex-wrap gap-2">
-        <GhostButton className="bg-sand" onClick={() => camRef.current?.click()}>
-          <Camera className="mr-1 size-4" />
-          {t(lang, "camera")}
-        </GhostButton>
-        <GhostButton className="bg-sand" onClick={() => galRef.current?.click()}>
-          <ImagePlus className="mr-1 size-4" />
-          {t(lang, "gallery")}
-        </GhostButton>
+      <div className="mt-3 flex items-center justify-center gap-2 rounded-[24px] bg-sand px-2 py-2">
+        <button type="button" aria-label={t(lang, "camera")} className="inline-flex min-h-[3.25rem] flex-1 items-center justify-center" data-testid="compose-cam" onClick={() => camRef.current?.click()}>
+          <ActionPng name="camCompact" px={56} />
+        </button>
+        <button type="button" aria-label={t(lang, "gallery")} className="inline-flex min-h-[3.25rem] flex-1 items-center justify-center" data-testid="compose-gal" onClick={() => galRef.current?.click()}>
+          <ActionPng name="gallery" px={56} />
+        </button>
+        <button type="button" aria-label="Fil" className="inline-flex min-h-[3.25rem] flex-1 items-center justify-center" data-testid="compose-file" onClick={() => fileRef.current?.click()}>
+          <ActionPng name="fileDoc" px={56} />
+        </button>
       </div>
       <input ref={camRef} type="file" accept="image/*" capture="environment" className="hidden" multiple onChange={(e) => void addFiles(e.target.files)} />
       <input ref={galRef} type="file" accept="image/*" className="hidden" multiple onChange={(e) => void addFiles(e.target.files)} />
+      <input ref={fileRef} type="file" className="hidden" multiple onChange={(e) => void addFiles(e.target.files, true)} />
       {err ? <p className="mt-2 text-sm text-brick">{err}</p> : null}
       <p className="mt-2 text-xs text-muted">{t(lang, "composeOr")}</p>
       <div className="sticky bottom-0 z-10 mt-3 bg-paper pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
@@ -261,5 +296,15 @@ export function QuickCompose({
         </PrimaryButton>
       </div>
     </Card>
+    </div>
   );
+}
+
+function readDraft(file: File) {
+  return new Promise<string>((resolve) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result || ""));
+    r.onerror = () => resolve("");
+    r.readAsDataURL(file);
+  });
 }

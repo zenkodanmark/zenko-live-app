@@ -294,6 +294,12 @@
   box-shadow: inset 2px 0 0 var(--color-navy);
 }
 
+.plan-day {
+  min-width: 2.75rem;
+  width: 2.75rem;
+  border-left: 1px solid var(--color-line);
+}
+
 @media print {
   [data-testid="plan-page"] {
     height: auto !important;

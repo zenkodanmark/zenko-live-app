@@ -170,6 +170,7 @@ export function todoToRow(t: Todo) {
     order_id: t.orderId ?? null,
     from_chat_id: t.fromChatId ?? null,
     ledelse_status: t.ledelseStatus ?? null,
+    updated_at: t.updatedAt ?? new Date().toISOString(),
   };
 }
 export function todoFromRow(r: Record<string, unknown>): Todo {
@@ -205,6 +206,7 @@ export function todoFromRow(r: Record<string, unknown>): Todo {
     orderId: str(r.order_id) || undefined,
     fromChatId: str(r.from_chat_id) || undefined,
     ...ledelseOf(r.ledelse_status),
+    updatedAt: iso(r.updated_at) || undefined,
   };
 }
 

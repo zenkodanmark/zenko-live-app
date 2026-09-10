@@ -16,14 +16,14 @@ export function TodoLedelseHak({ todo, lang }: { todo: Todo; lang: Lang }) {
 
   function toggle(e: MouseEvent) {
     e.stopPropagation();
-    patchTodo(todo.id, { ledelseStatus: on ? "skjult" : "med_til_ledelse" });
+    patchTodo(todo.id, { ledelseStatus: on ? "skjult" : "med_til_ledelse", updatedAt: new Date().toISOString() });
   }
 
   return (
     <button
       type="button"
       onClick={toggle}
-      className={`mt-1 min-h-9 rounded-full px-3 text-xs font-medium ${on ? "bg-moss text-sand" : "bg-brick/15 text-brick"}`}
+      className={`mt-1 min-h-9 rounded-full px-3 text-xs font-medium ${on ? "bg-moss text-sand" : "bg-white text-navy ring-1 ring-line"}`}
       title={t(lang, on ? "ledelseHakOn" : "ledelseHakOff")}
       data-testid={`todo-ledelse-hak-${todo.id}`}
       data-ledelse={on ? "on" : "off"}

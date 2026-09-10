@@ -3,7 +3,6 @@ import { FacePhoto } from "@/components/face-photo";
 import { ActionPng, CloseX } from "@/components/sag-icons";
 import { TodoActions, CrewTodoOpen } from "@/components/complete-todo";
 import { GpsLink, ReportThumb, TodoPhotos } from "@/components/photo-strip";
-import { UserText } from "@/components/user-text";
 import { Card, Chip, GhostButton, PrimaryButton, SectionLabel } from "@/components/zenko";
 import { TodoLedelseHak, isTodoLedelseOn } from "@/components/todo-ledelse-hak";
 import { shownTodoText } from "@/lib/chat";
@@ -111,7 +110,7 @@ function TodoLine({ td, lang, onOpen }: { td: Todo; lang: Lang; onOpen?: () => v
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState(false);
   const who = todoPeopleLine(td, employees) || employees.find((e) => e.id === td.assigneeId)?.name || "";
-  const heading = shownTodoText(td, lang, me?.role);
+  const heading = (td.title || "").trim() || shownTodoText(td, lang, me?.role);
   const ids = todoAllPhotoIds(td);
   const onLedelse = isTodoLedelseOn(td);
   function openView() {
@@ -120,7 +119,7 @@ function TodoLine({ td, lang, onOpen }: { td: Todo; lang: Lang; onOpen?: () => v
   }
   return (
     <div
-      className={`rounded-xl px-3 py-2 ${onLedelse ? "bg-sand" : "bg-sand/80 ring-1 ring-brick/35"}`}
+      className={`rounded-xl px-3 py-2 ${onLedelse ? "bg-sand" : "bg-sand/80"}`}
       data-testid={`todo-line-${td.id}`}
       data-ledelse={onLedelse ? "on" : "off"}
     >
@@ -130,7 +129,7 @@ function TodoLine({ td, lang, onOpen }: { td: Todo; lang: Lang; onOpen?: () => v
           <FacePhoto employee={employees.find((e) => e.id === td.assigneeId)} px={32} />
           {ids.length ? <ReportThumb ids={ids} /> : null}
           <span className="min-w-0 flex-1">
-            <p className={`font-display text-title font-semibold ${onLedelse ? "text-ink" : "text-brick/80"}`}>{heading}</p>
+            <p className={`font-display text-title font-semibold ${onLedelse ? "text-ink" : "text-muted"}`}>{heading}</p>
             <p className={`text-list leading-[1.4] ${onLedelse ? "text-ink" : "text-muted"}`}>
               {todoJobLabel(td.projectId, lang)} · {who}
               {td.due ? ` · ${td.due}` : ""}
@@ -193,23 +192,26 @@ export function OpenTodoRow({
   const live = useYard((s) => s.todos.find((x) => x.id === td.id)) ?? td;
   const text = (live.body || live.original || "").trim();
   return (
-    <div className="flex items-start gap-1 rounded-xl bg-sand px-1 py-1">
-      <PencilBtn lang={lang} todoId={live.id} onClick={() => setEdit(true)} />
-      <button type="button" className="min-w-0 flex-1 rounded-xl px-2 py-3 text-left" onClick={onOpen} data-testid={`todo-open-${live.id}`}>
-        <span className="block font-display text-title font-semibold text-ink">{live.title}</span>
-        {text && text !== live.title ? (
-          <span className="mt-0.5 block text-list leading-[1.4] text-ink">{text}</span>
-        ) : null}
-        {live.fromChatId ? (
-          <span className="mt-1 inline-block rounded-full bg-brick px-2 py-0.5 text-action font-bold uppercase tracking-wide text-sand">
-            {t(lang, "boardFromChat")}
+    <div className="rounded-xl bg-sand px-2 py-2" data-testid={`todo-line-${live.id}`} data-ledelse={isTodoLedelseOn(live) ? "on" : "off"}>
+      <div className="flex items-start gap-1">
+        <PencilBtn lang={lang} todoId={live.id} onClick={() => setEdit(true)} />
+        <button type="button" className="min-w-0 flex-1 rounded-xl px-2 py-2 text-left" onClick={onOpen} data-testid={`todo-open-${live.id}`}>
+          <span className="block font-display text-title font-semibold text-ink">{live.title}</span>
+          {text && text !== live.title ? (
+            <span className="mt-0.5 block text-list leading-[1.4] text-ink">{text}</span>
+          ) : null}
+          {live.fromChatId ? (
+            <span className="mt-1 inline-block rounded-full bg-brick px-2 py-0.5 text-action font-bold uppercase tracking-wide text-sand">
+              {t(lang, "boardFromChat")}
+            </span>
+          ) : null}
+          <span className="mt-0.5 block text-list leading-[1.4] text-ink">
+            {live.due} · {live.photoFileIds?.length || live.donePhotoFileIds?.length ? `${(live.photoFileIds?.length ?? 0) + (live.donePhotoFileIds?.length ?? 0)} foto` : t(lang, "meOpenDay")}
           </span>
-        ) : null}
-        <span className="mt-0.5 block text-list leading-[1.4] text-ink">
-          {live.due} · {live.photoFileIds?.length || live.donePhotoFileIds?.length ? `${(live.photoFileIds?.length ?? 0) + (live.donePhotoFileIds?.length ?? 0)} foto` : t(lang, "meOpenDay")}
-        </span>
-        {hint}
-      </button>
+          {hint}
+        </button>
+      </div>
+      <TodoLedelseHak todo={live} lang={lang} />
       {edit ? <TodoEditSheet td={live} lang={lang} onClose={() => setEdit(false)} /> : null}
     </div>
   );
@@ -336,7 +338,7 @@ export function TodoSheet({ td, lang, onClose }: { td: Todo; lang: Lang; onClose
         </GhostButton>
         <CloseX onClick={onClose} label={t(lang, "close")} />
       </div>
-      <div className="bg-white py-6">
+      <div className="bg-sand py-6">
         <TodoDoc td={live} lang={lang} />
       </div>
       <div className="no-print mx-auto max-w-[210mm] space-y-3 px-5 pb-8 pt-4">
@@ -388,6 +390,11 @@ export function TodoDoc({ td, lang }: { td: Todo; lang: Lang }) {
   const who = todoPeopleLine(td, employees) || employees.find((e) => e.id === td.assigneeId)?.name || "—";
   const jobName = todoJobLabel(td.projectId, lang);
   const status = td.done ? t(lang, "todoStatusDone") : t(lang, "todoStatusOpen");
+  const title = (td.title || "").trim() || shownTodoText(td, lang, me?.role);
+  const shown = shownTodoText(td, lang, me?.role).trim();
+  const body = (td.body || td.original || "").trim();
+  const desc = [shown, body].find((s) => s && s !== title) ?? "";
+  const created = td.createdAt ? td.createdAt.slice(0, 16).replace("T", " ") : "—";
   const gps =
     td.gpsLabel || (td.lat != null && td.lng != null)
       ? { lat: td.lat, lng: td.lng, label: td.gpsLabel }
@@ -395,69 +402,56 @@ export function TodoDoc({ td, lang }: { td: Todo; lang: Lang }) {
         ? { lat: td.doneLat, lng: td.doneLng, label: td.doneGpsLabel }
         : null;
   return (
-    <article className="doc-a4 mx-auto bg-white p-6 text-black" data-testid="todo-doc">
-      <header className="flex items-start justify-between gap-4 border-b-2 border-black pb-4">
+    <article className="doc-a4 mx-auto bg-paper p-6 text-ink" data-testid="todo-doc">
+      <header className="flex items-start justify-between gap-4 border-b-2 border-brick pb-4">
         <div>
-          <h1 className="text-3xl font-bold">To-do</h1>
-          <p className="mt-1 text-lg text-gray-700">{shownTodoText(td, lang, me?.role)}</p>
+          <p className="text-xs font-semibold tracking-[0.16em] text-muted uppercase">To-do</p>
+          <h1 className="mt-1 font-display text-3xl font-semibold text-navy" data-testid="todo-doc-title">
+            {title}
+          </h1>
         </div>
         <div className="text-right text-sm">
           <img src="/zenko-logo.svg" alt="ZENKO DANMARK" className="mb-2 ml-auto h-16 w-16 object-contain" />
           <div className="font-bold">{FIRM}</div>
-          <div className="text-gray-700">CVR {FIRM_CVR}</div>
+          <div className="text-muted">CVR {FIRM_CVR}</div>
         </div>
       </header>
-      <div className="mt-4 h-0.5 bg-black" />
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-        <div>
-          <dt className="text-xs uppercase text-gray-500">{t(lang, "chooseProject")}</dt>
-          <dd className="font-medium">{jobName}</dd>
-        </div>
-        <div>
-          <dt className="text-xs uppercase text-gray-500">{t(lang, "assignee")}</dt>
-          <dd className="font-medium">{who}</dd>
-        </div>
-        <div>
-          <dt className="text-xs uppercase text-gray-500">{t(lang, "due")}</dt>
-          <dd className="font-medium">{td.due || "—"}</dd>
-        </div>
-        <div>
-          <dt className="text-xs uppercase text-gray-500">{t(lang, "todoDoneMark")}</dt>
-          <dd className="font-medium">{status}</dd>
-        </div>
-        <div>
-          <dt className="text-xs uppercase text-gray-500">{t(lang, "createdBy")}</dt>
-          <dd>
-            {from} · {td.createdAt.slice(0, 16).replace("T", " ")}
-          </dd>
-        </div>
-        {td.done ? (
-          <div>
-            <dt className="text-xs uppercase text-gray-500">{t(lang, "todoStatusDone")}</dt>
-            <dd>
-              {todoDoneLine(td, employees) || who} · {(td.doneAt ?? "").slice(0, 16).replace("T", " ")}
-            </dd>
-          </div>
-        ) : null}
-      </dl>
-      <div className="mt-6">
-        <h2 className="mb-3 text-xl font-bold">{t(lang, "composeBody")}:</h2>
-        <div className="rounded-xl border-2 border-gray-300 bg-white px-4 py-4">
-          <UserText original={td.original ?? td.body} translations={td.translations} lang={lang} role={me?.role} className="whitespace-pre-wrap leading-relaxed" />
-        </div>
-      </div>
-      {gps ? (
-        <p className="mt-4 text-sm">
-          GPS: <GpsLink lat={gps.lat} lng={gps.lng} label={gps.label || t(lang, "gpsMaps")} />
+      {desc ? (
+        <p className="mt-5 whitespace-pre-wrap text-base leading-relaxed text-ink" data-testid="todo-doc-body">
+          {desc}
         </p>
       ) : null}
+      <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
+        <SeddelFelt label="Sag">{jobName}</SeddelFelt>
+        <SeddelFelt label="Ansvarlig">{who}</SeddelFelt>
+        <SeddelFelt label="Oprettet">
+          {from} · {created}
+        </SeddelFelt>
+        <SeddelFelt label="Frist">{td.due || "—"}</SeddelFelt>
+        <SeddelFelt label="Status">{status}</SeddelFelt>
+        <SeddelFelt label="GPS">
+          {gps ? <GpsLink lat={gps.lat} lng={gps.lng} label={gps.label || t(lang, "gpsMaps")} /> : "—"}
+        </SeddelFelt>
+      </dl>
       {td.reply ? (
-        <p className="mt-3 text-sm text-gray-700">
+        <p className="mt-4 text-sm text-muted">
           {t(lang, "todoReplyBtn")}: {td.reply}
         </p>
       ) : null}
-      <TodoPhotos td={td} large />
+      <div className="mt-6">
+        <p className="mb-2 text-xs font-semibold tracking-[0.14em] text-muted uppercase">Fotos</p>
+        <TodoPhotos td={td} large />
+      </div>
     </article>
+  );
+}
+
+function SeddelFelt({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="rounded-xl bg-[#f3efe8] px-3 py-2.5">
+      <dt className="text-xs uppercase tracking-wide text-muted">{label}</dt>
+      <dd className="mt-0.5 font-medium text-navy">{children}</dd>
+    </div>
   );
 }
 

@@ -92,7 +92,7 @@ function TodoHeading({
   return (
     <li>
       <div
-        className={`flex items-start gap-1 rounded-[18px] px-2 py-2 shadow-card ${onLedelse ? "bg-paper" : "bg-paper ring-1 ring-brick/35"}`}
+        className={`flex items-start gap-1 rounded-[18px] px-2 py-2 shadow-card ${onLedelse ? "bg-paper" : "bg-paper"}`}
         data-testid={`todo-line-${todo.id}`}
         data-ledelse={onLedelse ? "on" : "off"}
       >
@@ -106,7 +106,7 @@ function TodoHeading({
           <span className="flex items-start gap-3">
             <FacePhoto employee={employees.find((e) => e.id === todo.assigneeId)} px={32} />
             <span className="min-w-0 flex-1">
-              <p className={`font-display text-title font-semibold ${onLedelse ? "text-ink" : "text-brick/80"}`}>{heading}</p>
+              <p className={`font-display text-title font-semibold ${onLedelse ? "text-ink" : "text-muted"}`}>{heading}</p>
               <p className={`mt-0.5 text-list leading-[1.4] ${onLedelse ? "text-ink" : "text-muted"}`}>
                 {sag ? [who || "—", status].filter(Boolean).join(" · ") : [sagLine, status].filter(Boolean).join(" · ")}
               </p>

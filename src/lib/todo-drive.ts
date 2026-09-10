@@ -13,11 +13,16 @@ export async function uploadDraftsToFolder(opts: {
   for (const [i, d] of opts.drafts.entries()) {
     const split = splitDataUrl(d.dataUrl);
     if (!split.base64) continue;
-    const mime = split.mime || "image/jpeg";
+    const mime = split.mime || "application/octet-stream";
     const video = mime.startsWith("video/");
-    const name = video
-      ? (/\.(mp4|mov|webm|m4v)$/i.test(d.name) ? d.name : `video-${i + 1}.mp4`)
-      : (/\.(jpe?g|png|webp)$/i.test(d.name) ? d.name : `foto-${i + 1}.jpg`);
+    const image = mime.startsWith("image/");
+    const name = /\.[a-z0-9]{2,8}$/i.test(d.name)
+      ? d.name
+      : video
+        ? `video-${i + 1}.mp4`
+        : image
+          ? `foto-${i + 1}.jpg`
+          : `fil-${i + 1}`;
     const kind = (opts.folderName || "todo").split("/")[0] || "todo";
     const path = pladsPath(opts.projectId || "plads", kind, name);
     const up = await uploadPladsBytes({

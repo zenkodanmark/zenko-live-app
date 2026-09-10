@@ -425,14 +425,21 @@ export function CrewTodoOpen({ td, lang, onClose }: { td: Todo; lang: Lang; onCl
         <BackArrow onClick={onClose} label={t(lang, "back")} />
       </div>
       <div className="mx-auto max-w-lg space-y-5 px-4 pb-10">
-        <UserText
-          original={live.original ?? live.body ?? live.title}
-          translations={live.translations}
-          lang={lang}
-          role={me?.role}
-          className="font-sans text-3xl font-semibold leading-snug text-navy"
-          linkClass="mt-2 text-sm underline underline-offset-2 text-muted"
-        />
+        <div>
+          <h1 className="font-display text-3xl font-semibold leading-snug text-navy" data-testid="crew-todo-title">
+            {live.title}
+          </h1>
+          {(live.body || live.original || "").trim() && (live.body || live.original || "").trim() !== live.title.trim() ? (
+            <UserText
+              original={live.original ?? live.body}
+              translations={live.translations}
+              lang={lang}
+              role={me?.role}
+              className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-ink"
+              linkClass="mt-2 text-sm underline underline-offset-2 text-muted"
+            />
+          ) : null}
+        </div>
         {photos.length ? (
           <ul className="flex flex-wrap gap-2">
             {photos.map((id) => (

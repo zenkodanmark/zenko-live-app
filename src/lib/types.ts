@@ -474,6 +474,7 @@ export type Todo = {
   orderId?: string;
   fromChatId?: string;
   ledelseStatus?: LedelseStatus;
+  updatedAt?: string;
 };
 
 export type Supplier = { id: string; name: string; email: string };
