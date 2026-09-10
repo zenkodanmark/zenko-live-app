@@ -1,5 +1,6 @@
 import type { KsPhoto, KsReport } from "./types";
 import manifest from "./softr-ks-manifest.json" with { type: "json" };
+import { recalledKundePunkt } from "./ks-punkt.ts";
 
 type SoftrPhoto = { file: string; name: string; bytes: number; driveFileId?: string; driveUrl?: string };
 type SoftrRow = {
@@ -138,6 +139,7 @@ export function ensureSoftrKs(state: { ksReports: KsReport[]; drivePhotos?: KsPh
       continue;
     }
     if (prev.trashedAt) continue;
+    const kundePunkt = prev.kundePunkt;
     prev.photoIds = row.photoIds;
     prev.employeeName = row.employeeName;
     prev.crew = row.crew;
@@ -150,6 +152,8 @@ export function ensureSoftrKs(state: { ksReports: KsReport[]; drivePhotos?: KsPh
     prev.deviations = row.deviations;
     prev.approved = row.approved;
     if (prev.kundeStatus == null) prev.kundeStatus = row.kundeStatus;
+    if (kundePunkt) prev.kundePunkt = kundePunkt;
+    else if (prev.kundePunkt == null) prev.kundePunkt = recalledKundePunkt(prev.id) ?? row.kundePunkt;
   }
   const photos = softrKsPhotos();
   if (!Array.isArray(state.drivePhotos)) state.drivePhotos = [];
@@ -162,5 +166,5 @@ export function ensureSoftrKs(state: { ksReports: KsReport[]; drivePhotos?: KsPh
 export function hydrateSoftrReport(report: KsReport): KsReport {
   const fresh = softrKsReports().find((r) => r.id === report.id || r.number === report.number);
   if (!fresh) return report;
-  return { ...report, ...fresh, trashedAt: report.trashedAt, kundeStatus: report.kundeStatus ?? fresh.kundeStatus };
+  return { ...report, ...fresh, trashedAt: report.trashedAt, kundeStatus: report.kundeStatus ?? fresh.kundeStatus, kundePunkt: report.kundePunkt ?? recalledKundePunkt(report.id) ?? fresh.kundePunkt, photoIds: report.photoIds?.length ? report.photoIds : fresh.photoIds };
 }

@@ -15,6 +15,7 @@ import { hydrateSoftrTf } from "@/lib/softr-tf";
 import { ReportShareBar } from "@/components/report-share-bar";
 import { TfShareBar } from "@/components/tf-share-bar";
 import { KundeHak } from "@/components/kunde-hak";
+import { KsPunktPick } from "@/components/ks-punkt-pick";
 import { LedelseHak } from "@/components/ledelse-hak";
 
 export type ReportKind = "slip" | "offer" | "tf" | "ent" | "ks" | "pack";
@@ -98,6 +99,7 @@ export function PrintChrome({
           <span className="text-xs text-sand/70">Ikke sendt. I sender selv.</span>
         )}
         {ksRow ? <KundeHak kind="ks" report={ksRow} lang={lang} /> : null}
+        {ksRow ? <KsPunktPick report={ksRow} lang={lang} /> : null}
         {slipRow && kind === "slip" ? <LedelseHak kind="as" report={slipRow} lang={lang} /> : null}
         {slipRow && kind === "offer" ? <LedelseHak kind="tb" report={slipRow} lang={lang} /> : null}
         {tfRow ? <LedelseHak kind="tf" report={tfRow} lang={lang} /> : null}

@@ -31,7 +31,7 @@ const erOn: Entrepreneur = {
 };
 const erOff: Entrepreneur = { ...erOn, id: "ent-2", number: "Z-ER-2", kundeStatus: "skjult" };
 
-test("kunde-side viser kun ER/TF/KS med Kunde = ja", () => {
+test("kunde-side viser ikke ER/TF — kun KS", () => {
   const site = buildKundeSite({
     project: job,
     reports: [],
@@ -39,12 +39,9 @@ test("kunde-side viser kun ER/TF/KS med Kunde = ja", () => {
     tfs: [tfOn, tfOff],
     ents: [erOn, erOff],
   });
-  assert.equal(site.reports.length, 2);
-  assert.ok(site.reports.some((r) => r.id === "tf-1" && r.kind === "tf"));
-  assert.ok(site.reports.some((r) => r.id === "ent-1" && r.kind === "er"));
-  assert.ok(!site.reports.some((r) => r.id === "tf-2" || r.id === "ent-2"));
-  assert.ok(site.parts.some((p) => p.code === "tf"));
-  assert.ok(site.parts.some((p) => p.code === "er"));
+  assert.equal(site.reports.length, 0);
+  assert.ok(!site.reports.some((r) => r.kind === "tf" || r.kind === "er"));
+  assert.ok(!site.parts.some((p) => p.code === "tf" || p.code === "er"));
 });
 
 test("isPublished kræver med_til_kunden og ikke papirkurv", () => {

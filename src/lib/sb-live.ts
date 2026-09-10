@@ -15,6 +15,7 @@ import {
   planToRow,
   tfFromRow,
   tfToRow,
+  ksFromRow,
 } from "./sb-rows";
 import { supabase } from "./supabase";
 import { mergeEmployeeAssignments } from "./yard-slim";
@@ -76,6 +77,10 @@ export async function pullEnts() {
 }
 export async function publishEnt(row: Entrepreneur) {
   return upsert("ents", entToRow(row));
+}
+
+export async function pullKs() {
+  return pullTable("ks_reports", ksFromRow);
 }
 
 export async function pullOrders() {

@@ -52,13 +52,15 @@ export function KundeBack({ to, children }: { to: string; children?: ReactNode }
   );
 }
 
-export function KundeRow({ n, href, children }: { n: string; href: string; children: ReactNode }) {
+export function KundeRow({ href, count, children }: { href: string; count?: number; children: ReactNode }) {
   return (
     <a href={href} className="group flex min-h-14 items-baseline gap-5 border-t border-kunde-line py-5 no-underline sm:gap-8">
-      <span className="w-8 shrink-0 font-kunde text-sm font-medium tracking-[0.18em] text-kunde-accent">{n}</span>
       <span className="min-w-0 flex-1 text-[1.35rem] leading-snug font-light tracking-[-0.02em] text-kunde-ink sm:text-[1.65rem]">
         {children}
       </span>
+      {count != null ? (
+        <span className="shrink-0 font-kunde text-[1.35rem] font-light tabular-nums text-kunde-ink sm:text-[1.65rem]">{count}</span>
+      ) : null}
       <span className="shrink-0 text-kunde-muted transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden>
         →
       </span>

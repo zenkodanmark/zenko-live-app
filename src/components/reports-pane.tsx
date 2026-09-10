@@ -4,6 +4,7 @@ import { EntDoc, KsDoc, PackDoc, PrintChrome, SlipDoc, SlipInternalFlags, TfDoc 
 import { AsShareChip, ErShareChip, KsShareChip } from "@/components/report-share-bar";
 import { TfShareChip } from "@/components/tf-share-bar";
 import { KundeHak } from "@/components/kunde-hak";
+import { KsPunktPick } from "@/components/ks-punkt-pick";
 import { LedelseHak } from "@/components/ledelse-hak";
 import { DrivePhoto } from "@/components/drive-photo";
 import { ReportThumb } from "@/components/photo-strip";
@@ -358,6 +359,7 @@ export function ReportsPane({ lang }: { lang: Lang }) {
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <KsShareChip report={live} lang={lang} />
                   <KundeHak kind="ks" report={live} lang={lang} />
+                  <KsPunktPick report={live} lang={lang} />
                   {showTrash ? (
                     <GhostButton className="shrink-0 rounded-full bg-sand px-3 text-action" onClick={() => restoreReport("ks", s.id)}>
                       {t(lang, "restoreTrash")}

@@ -137,6 +137,7 @@ create table ks_reports (
   task text,
   from_chat_id text,
   kunde_status text,
+  kunde_punkt text,
   trashed_at timestamptz,
   qc_scope text,
   qc_method text,

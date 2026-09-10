@@ -12,6 +12,7 @@ import { Chip, GhostButton } from "@/components/zenko";
 import { AsShareChip, ErShareChip, KsShareChip } from "@/components/report-share-bar";
 import { TfShareChip } from "@/components/tf-share-bar";
 import { KundeHak } from "@/components/kunde-hak";
+import { KsPunktPick } from "@/components/ks-punkt-pick";
 import { LedelseHak } from "@/components/ledelse-hak";
 import { KundeJobBar } from "@/components/kunde-job-bar";
 import { QuickCompose, type ComposeKind } from "@/components/quick-compose";
@@ -667,6 +668,7 @@ export function SagerPane({
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <KsShareChip report={live} lang={lang} />
                           <KundeHak kind="ks" report={live} lang={lang} />
+                          <KsPunktPick report={live} lang={lang} />
                           {showTrash ? (
                             <GhostButton className="shrink-0 rounded-full bg-paper px-3 text-action" onClick={() => restoreReport("ks", row.id)}>
                               {t(lang, "restoreTrash")}

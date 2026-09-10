@@ -57,30 +57,26 @@ test("Kærhuset-rapport puds/overligger rammer 1.1.8", () => {
   assert.equal(yder?.code, "1.1.6");
 });
 
-test("Kærhuset kundeside: kun udbud+hak, slug kaerhuset", () => {
+test("Kærhuset kundeside: hakket uden punkt = Øvrigt, ikke auto-udbud", () => {
   const job = PROJECTS.find((p) => p.id === "job-kaerhuset")!;
   assert.equal(slugForProject(job), "kaerhuset");
   const reports = softrKsReports();
   const three = reports.find((r) => r.number === "3" && r.projectId === "job-kaerhuset");
   assert.ok(three);
   assert.equal(three.kundeStatus, "med_til_kunden");
-  assert.equal(partForReport(three)?.code, "1.1.8");
+  assert.equal(partForReport(three)?.code, "ovrige");
   const site = buildKundeSite({ project: job, reports, photos: softrKsPhotos() });
   assert.equal(site.job.slug, "kaerhuset");
-  assert.deepEqual(
-    site.parts.map((p) => p.code),
-    ["1.1.8"],
-  );
-  assert.ok(site.reports.length >= 1);
-  assert.ok(site.reports.every((r) => r.part.code === "1.1.8"));
+  assert.ok(site.parts.every((p) => p.code === "ovrige"));
+  assert.ok(!site.parts.some((p) => p.code.startsWith("1.1")));
 });
 
-test("Hillerød kundeside er uændret: kun 10.02.03", () => {
+test("Hillerød kundeside: hakket uden punkt = Øvrigt", () => {
   const job = PROJECTS.find((p) => p.id === "job-hillerodsholm")!;
   const site = buildKundeSite({ project: job, reports: softrKsReports(), photos: softrKsPhotos() });
   assert.deepEqual(
     site.parts.map((p) => p.code),
-    ["10.02.03"],
+    ["ovrige"],
   );
 });
 

@@ -1,4 +1,5 @@
 import { entToRow, ksToRow, offerToRow, slipToRow, tfToRow } from "./sb-rows";
+import { photoIdsWithPunkt, kundePunktFromPhotoIds } from "./ks-punkt";
 import { supabase } from "./supabase";
 import type { Entrepreneur, KsReport, KundeStatus, LedelseStatus, Offer, Slip, Tf } from "./types";
 
@@ -90,6 +91,26 @@ export async function publishKundeHak(
     if (data.kunde_status === status) return true;
     if (kind === "ent" && kundeFromEntReplies(data.ledelse_replies) === status) return true;
     return false;
+  } catch {
+    return false;
+  }
+}
+
+export async function publishKsPunkt(row: KsReport, punkt: string): Promise<boolean> {
+  const sb = supabase();
+  const photo_ids = photoIdsWithPunkt(row.photoIds, punkt);
+  const withCol = { kunde_punkt: punkt || null, photo_ids, updated_at: new Date().toISOString() };
+  const noCol = { photo_ids, updated_at: withCol.updated_at };
+  try {
+    let upd = await sb.from("ks_reports").update(withCol).eq("id", row.id).select("*").maybeSingle();
+    if (upd.error) {
+      upd = await sb.from("ks_reports").update(noCol).eq("id", row.id).select("*").maybeSingle();
+    }
+    if (upd.error || !upd.data) return false;
+    const data = upd.data as unknown as Record<string, unknown>;
+    const col = typeof data.kunde_punkt === "string" ? data.kunde_punkt : "";
+    const got = col || kundePunktFromPhotoIds(data.photo_ids as string[]) || "";
+    return got === (punkt || "");
   } catch {
     return false;
   }

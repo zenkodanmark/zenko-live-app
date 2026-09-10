@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ensureSoftrKs, softrKsPhotos, softrKsReports } from "./softr-ks.ts";
+import { ensureSoftrKs, hydrateSoftrReport, softrKsPhotos, softrKsReports } from "./softr-ks.ts";
 
 test("Softr KS dækker Hillerødsholm, Kærhuset og Islevvænge", () => {
   const rows = softrKsReports();
@@ -31,3 +31,19 @@ test("ensureSoftrKs overskriver tomme photoIds", () => {
   assert.ok(state.drivePhotos.some((p: { id: string }) => p.id.startsWith("softr-ks-2-")));
   assert.ok(state.ksReports.some((r) => r.number === "3" && r.projectId === "job-kaerhuset"));
 });
+
+test("ensureSoftrKs og hydrate bevarer kundePunkt", () => {
+  const base = softrKsReports().find((r) => r.number === "3")!;
+  const state = {
+    ksReports: [{ ...base, kundePunkt: "Omfugning", photoIds: [] as string[] }],
+    drivePhotos: [],
+  };
+  ensureSoftrKs(state);
+  const row = state.ksReports.find((r) => r.id === base.id);
+  assert.equal(row?.kundePunkt, "Omfugning");
+  assert.ok((row?.photoIds?.length ?? 0) >= 1);
+  const hydrated = hydrateSoftrReport({ ...base, kundePunkt: "Filsning altaner", kundeStatus: "med_til_kunden" });
+  assert.equal(hydrated.kundePunkt, "Filsning altaner");
+  assert.equal(hydrated.kundeStatus, "med_til_kunden");
+});
+

@@ -270,6 +270,7 @@ type YardState = {
   patchReport: (kind: "slip" | "offer" | "tf" | "ent" | "pack" | "ks", id: string, patch: Record<string, unknown>) => void;
   setReportLedelse: (kind: "tf" | "slip" | "offer" | "ent", id: string) => Promise<boolean>;
   setReportKunde: (kind: "tf" | "ent" | "ks", id: string) => Promise<boolean>;
+  setKsPunkt: (id: string, punkt: string) => Promise<boolean>;
   resetAlex: () => void;
   pushEvent: (text: string) => void;
   addChat: (input: Omit<ChatMessage, "id" | "at">) => ChatMessage;
@@ -1763,6 +1764,23 @@ export const useYard = create<YardState>()(
     );
     if (!ok) {
       patchReportList(kind, id, before);
+      set((s) => ({ toast: "Kunne ikke gemme" }));
+      return false;
+    }
+    return true;
+  },
+  setKsPunkt: async (id, punkt) => {
+    const before = reportOf(get(), "ks", id) as KsReport | undefined;
+    if (!before) return false;
+    const next = punkt.trim();
+    const updatedAt = new Date().toISOString();
+    patchReportList("ks", id, { kundePunkt: next || undefined, updatedAt });
+    holdRow(id);
+    void import("./ks-punkt").then((m) => m.rememberKundePunkt(id, next));
+    const after = reportOf(get(), "ks", id) as KsReport | undefined;
+    const ok = await import("./hak-live").then((m) => m.publishKsPunkt(after ?? { ...before, kundePunkt: next }, next));
+    if (!ok) {
+      patchReportList("ks", id, before);
       set((s) => ({ toast: "Kunne ikke gemme" }));
       return false;
     }

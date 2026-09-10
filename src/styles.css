@@ -185,14 +185,12 @@
     page-break-after: always;
   }
   .ks-punkt {
-    break-before: page;
-    page-break-before: always;
+    break-before: auto;
+    page-break-before: auto;
   }
   .ks-rapport {
     break-before: page;
     page-break-before: always;
-    break-inside: avoid;
-    page-break-inside: avoid;
   }
   .ks-rapport img,
   .ks-photo,

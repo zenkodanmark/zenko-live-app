@@ -9,34 +9,21 @@ function dmy(iso: string) {
   return d.toLocaleDateString("da-DK", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-function padN(i: number) {
-  return String(i).padStart(2, "0");
-}
-
 export function KundeHome({ site }: { site: KundeSite | null }) {
   if (!site) return <KundeMissing />;
-  const { job, parts } = site;
+  const { job, parts, reports } = site;
   return (
     <KundeShell job={job} hero>
       <KundeMetaGrid rows={kundeJobFields(job)} />
       <nav className="mt-16">
-        <KundeRow n="01" href={kundePath(job.slug, ["haandbog"])}>
-          Kvalitetssikringshåndbog
-        </KundeRow>
-        {parts.map((p, i) => (
-          <KundeRow key={p.code} n={padN(i + 2)} href={kundePath(job.slug, [p.code])}>
-            {p.code === "ovrige" ? (
-              <span>{p.title}</span>
-            ) : (
-              <>
-                <span className="text-kunde-accent">{p.code}</span>
-                <span className="mt-1 block">{p.title}</span>
-              </>
-            )}
+        <KundeRow href={kundePath(job.slug, ["haandbog"])}>Kvalitetssikringshåndbog</KundeRow>
+        {parts.map((p) => (
+          <KundeRow key={p.code} href={kundePath(job.slug, [p.code])} count={reports.filter((r) => r.part.code === p.code).length}>
+            {p.title}
           </KundeRow>
         ))}
       </nav>
-      <KundeFooter job={job} actionHref={kundePath(job.slug, ["komplet"])} action="Generer komplet KS-rapport som PDF" />
+      <KundeFooter job={job} actionHref={kundePath(job.slug, ["komplet"])} action="Gem som PDF" />
     </KundeShell>
   );
 }
@@ -71,7 +58,7 @@ export function KundeHandbook({ site }: { site: KundeSite | null }) {
           <p>{HANDBOOK.docs.body}</p>
         </HandbookBlock>
       </section>
-      <KundeFooter job={job} actionHref={kundePath(job.slug, ["komplet"])} action="Generer komplet KS-rapport som PDF" />
+      <KundeFooter job={job} actionHref={kundePath(job.slug, ["komplet"])} action="Gem som PDF" />
     </KundeShell>
   );
 }
@@ -92,11 +79,12 @@ export function KundePunkt({ site, code }: { site: KundeSite | null; code: strin
   const reports = site.reports.filter((r) => r.part.code === code);
   if (!part || !reports.length) return <KundeMissing />;
   const { job } = site;
+  const showCode = part.code !== "ovrige" && /^\d/.test(part.code);
   return (
     <KundeShell job={job}>
       <KundeBack to={kundePath(job.slug)}>Tilbage til {job.name}</KundeBack>
-      {part.code === "ovrige" ? null : <p className="text-sm font-medium tracking-[0.18em] text-kunde-accent">{part.code}</p>}
-      <h1 className={`${part.code === "ovrige" ? "mt-2" : "mt-3"} text-[clamp(2rem,5vw,3.2rem)] leading-tight font-light`}>{part.title}</h1>
+      {showCode ? <p className="text-sm font-medium tracking-[0.18em] text-kunde-accent">{part.code}</p> : null}
+      <h1 className={`${showCode ? "mt-3" : "mt-2"} text-[clamp(2rem,5vw,3.2rem)] leading-tight font-light`}>{part.title}</h1>
       <p className="mt-4 text-sm text-kunde-muted">
         {reports.length} {reports.length === 1 ? "rapport" : "rapporter"}
         {part.controlPoint ? ` · ${part.controlPoint}` : ""}
@@ -326,8 +314,8 @@ export function KundeKomplet({ site }: { site: KundeSite | null }) {
         {parts.map((part) => (
           <section key={part.code} className="ks-punkt">
             <div className="mt-16 border-t border-kunde-line pt-10">
-              {part.code === "ovrige" ? null : <p className="text-sm font-medium tracking-[0.18em] text-kunde-accent">{part.code}</p>}
-              <h2 className={`${part.code === "ovrige" ? "" : "mt-3"} text-3xl font-light`}>{part.title}</h2>
+              {/^\d/.test(part.code) && part.code !== "ovrige" ? <p className="text-sm font-medium tracking-[0.18em] text-kunde-accent">{part.code}</p> : null}
+              <h2 className={`${/^\d/.test(part.code) && part.code !== "ovrige" ? "mt-3" : ""} text-3xl font-light`}>{part.title}</h2>
             </div>
             {reports
               .filter((r) => r.part.code === part.code)

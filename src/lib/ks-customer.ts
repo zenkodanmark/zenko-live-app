@@ -1,8 +1,9 @@
 import { FIRM, FIRM_CVR, FIRM_LINE, FIRM_MAIL, FIRM_PHONE, PROJECTS, SEED_KS_REPORTS, findControlPoint } from "./seed.ts";
-import { matchUdbudPart, planForProject, scanForProject, type UdbudPart } from "./udbud-plan.ts";
+import { planForProject, scanForProject, type UdbudPart } from "./udbud-plan.ts";
 import { seedDrivePhotos } from "./ks-drive.ts";
 import { softrKsPhotos, softrKsReports } from "./softr-ks.ts";
 import { photoSrc } from "./tf-share.ts";
+import { shortPunktTitle } from "./ks-punkt.ts";
 import type { Entrepreneur, FieldItem, KsPhoto, KsReport, KsType, Project, Tf } from "./types.ts";
 import { isKundeSlug } from "./route-guards.ts";
 
@@ -99,19 +100,6 @@ const JOB_SLUGS: Record<string, string> = {
   "job-solbakkegaard": "solbakkegaard",
 };
 
-const PART_BY_POINT: Record<string, KundePart> = {
-  "5.5": { code: "10.02.01", title: "Puds og reparation af vægge ved altaner", controlPoint: "5.5" },
-  "5.6": { code: "10.02.03", title: "Iboring af renoveringsbindere", controlPoint: "5.6" },
-  "5.7": { code: "10.02.04", title: "Omfugning af murværk", controlPoint: "5.7" },
-};
-
-const OWN_POINT_TITLE: Record<string, string> = {
-  "5.5": "Filsning",
-  "5.7": "Fugning af skorsten",
-};
-
-export const OVRIGE_PART: KundePart = { code: "ovrige", title: "Øvrige KS", controlPoint: "" };
-
 const JOB_META: Record<string, Partial<KundeJobMeta>> = {
   "job-hillerodsholm": {
     department: "NAB afd. 4121",
@@ -129,6 +117,8 @@ const JOB_META: Record<string, Partial<KundeJobMeta>> = {
     scope: "Ruskær 35, ombygning",
   },
 };
+
+export const OVRIGE_PART: KundePart = { code: "ovrige", title: "Øvrigt", controlPoint: "" };
 
 export function slugFromName(name: string) {
   return name
@@ -169,56 +159,31 @@ export function pointCodeOf(report: Pick<KsReport, "point" | "task">) {
   return fromPoint?.[1] ?? "";
 }
 
-function hayFor(report: Pick<KsReport, "point" | "task" | "location" | "projectId">) {
-  const cp = findControlPoint(report.point, report.projectId);
-  return [report.point, report.task, report.location, cp?.title, cp?.hint, cp?.qcScope].filter(Boolean).join(" ");
-}
-
 function fromPlan(code: string, plan: UdbudPart[]): KundePart | null {
   const hit = plan.find((p) => p.code === code);
   if (!hit) return null;
-  return { code: hit.code, title: hit.title, controlPoint: hit.controlPoint };
+  return { code: hit.code, title: shortPunktTitle(hit.title) || hit.title, controlPoint: hit.controlPoint };
 }
 
-function partFromOwnField(report: Pick<KsReport, "point" | "task" | "location" | "projectId">, plan: UdbudPart[]): KundePart | null {
-  const task = String(report.task || "");
-  const coded = task.match(/(\d+\.\d+\.\d+)\s*(.*)/);
-  if (coded) {
-    const code = coded[1]!;
-    const planned = fromPlan(code, plan);
-    if (planned) return planned;
-    const rest = (coded[2] || "").trim();
-    return { code, title: rest || `Bygningsdel ${code}`, controlPoint: pointCodeOf(report) };
-  }
-  const pt = String(report.point || "").match(/(\d+\.\d+(?:\.\d+)?)/)?.[1] ?? "";
-  if (!pt) return null;
-  const planned = fromPlan(pt, plan);
-  if (planned) return planned;
-  const mapped = PART_BY_POINT[pt];
-  if (mapped && (!plan.length || plan.some((p) => p.code === mapped.code))) return mapped;
-  const cp = findControlPoint(report.point, report.projectId);
-  const title = cp?.title || OWN_POINT_TITLE[pt] || task || report.point;
-  return { code: pt, title, controlPoint: pt };
+export function partFromKundePunkt(punkt: string, projectId: string): KundePart {
+  const v = punkt.trim();
+  if (!v) return OVRIGE_PART;
+  const plan = planForProject(projectId);
+  const byCode = fromPlan(v, plan);
+  if (byCode) return byCode;
+  const lower = v.toLowerCase();
+  const byTitle = plan.find((p) => {
+    const short = shortPunktTitle(p.title).toLowerCase();
+    return short === lower || p.title.toLowerCase() === lower || p.code.toLowerCase() === lower;
+  });
+  if (byTitle) return fromPlan(byTitle.code, plan) ?? { code: byTitle.code, title: shortPunktTitle(byTitle.title) || byTitle.title, controlPoint: byTitle.controlPoint };
+  return { code: slugFromName(v) || OVRIGE_PART.code, title: shortPunktTitle(v) || v, controlPoint: "" };
 }
 
-function explicitPartCode(report: Pick<KsReport, "point" | "task">) {
-  const blob = `${report.task || ""} ${report.point || ""}`;
-  return blob.match(/(\d+\.\d+\.\d+|\d{3}\.\d{2,3})/)?.[1] ?? "";
-}
-
-export function partForReport(report: Pick<KsReport, "point" | "task" | "location" | "projectId">): KundePart {
-  const plan = planForProject(report.projectId);
-  const explicit = explicitPartCode(report);
-  if (explicit) {
-    const planned = fromPlan(explicit, plan);
-    if (planned) return planned;
-    return partFromOwnField(report, plan) ?? OVRIGE_PART;
-  }
-  const fromUdbud = matchUdbudPart(hayFor(report), plan);
-  if (fromUdbud) {
-    return { code: fromUdbud.code, title: fromUdbud.title, controlPoint: fromUdbud.controlPoint };
-  }
-  return partFromOwnField(report, plan) ?? OVRIGE_PART;
+export function partForReport(report: Pick<KsReport, "point" | "task" | "location" | "projectId" | "kundePunkt">): KundePart {
+  const raw = (report.kundePunkt ?? "").trim();
+  if (!raw) return OVRIGE_PART;
+  return partFromKundePunkt(raw, report.projectId);
 }
 
 export function isPublished(report: { kundeStatus?: string; trashedAt?: string }) {
@@ -251,6 +216,8 @@ export function kundeMeta(project: Project): KundeJobMeta {
 
 function filledFields(job: KundeJobMeta) {
   const rows: [string, string][] = [
+    ["Firma", job.firm],
+    ["Sag", job.name],
     ["Bygherre", job.client],
     ["Entreprise", job.trade],
     ["Omfang", job.scope],
@@ -374,6 +341,21 @@ export function toKundeEr(ent: Entrepreneur, fields: FieldItem[]): KundeReportVi
   };
 }
 
+function sortParts(parts: KundePart[], projectId: string) {
+  const plan = planForProject(projectId);
+  const udbud = new Set(plan.map((p) => p.code));
+  return [...parts].sort((a, b) => {
+    if (a.code === OVRIGE_PART.code) return 1;
+    if (b.code === OVRIGE_PART.code) return -1;
+    const aU = udbud.has(a.code);
+    const bU = udbud.has(b.code);
+    if (aU && bU) return a.code.localeCompare(b.code);
+    if (aU) return -1;
+    if (bU) return 1;
+    return a.title.localeCompare(b.title, "da");
+  });
+}
+
 export function buildKundeSite(opts: {
   project: Project;
   reports: KsReport[];
@@ -391,24 +373,9 @@ export function buildKundeSite(opts: {
     if (allow) return allow.has(r.id) || isPublished(r);
     return isPublished(r);
   });
-  const fields = opts.fieldItems ?? [];
-  const tfChosen = (opts.tfs ?? []).filter((r) => {
-    if (r.trashedAt) return false;
-    if (r.projectId !== opts.project.id) return false;
-    if (allow) return allow.has(r.id) || isPublished(r);
-    return isPublished(r);
-  });
-  const erChosen = (opts.ents ?? []).filter((r) => {
-    if (r.trashedAt) return false;
-    if (r.projectId !== opts.project.id) return false;
-    if (allow) return allow.has(r.id) || isPublished(r);
-    return isPublished(r);
-  });
-  const views = [
-    ...chosen.map((r) => toKundeReport(r, opts.project, opts.photos)),
-    ...tfChosen.map((r) => toKundeTf(r, fields)),
-    ...erChosen.map((r) => toKundeEr(r, fields)),
-  ].sort((a, b) => a.part.code.localeCompare(b.part.code) || Number(a.number) - Number(b.number) || a.number.localeCompare(b.number));
+  const views = chosen
+    .map((r) => toKundeReport(r, opts.project, opts.photos))
+    .sort((a, b) => a.part.code.localeCompare(b.part.code) || Number(a.number) - Number(b.number) || a.number.localeCompare(b.number));
   const parts: KundePart[] = [];
   const seen = new Set<string>();
   for (const r of views) {
@@ -416,12 +383,7 @@ export function buildKundeSite(opts: {
     seen.add(r.part.code);
     parts.push(r.part);
   }
-  parts.sort((a, b) => {
-    if (a.code === OVRIGE_PART.code || a.code === "tf" || a.code === "er") return 1;
-    if (b.code === OVRIGE_PART.code || b.code === "tf" || b.code === "er") return -1;
-    return a.code.localeCompare(b.code);
-  });
-  return { job, parts, reports: views, published: views.length };
+  return { job, parts: sortParts(parts, opts.project.id), reports: views, published: views.length };
 }
 
 export function bundledKundeInputs() {

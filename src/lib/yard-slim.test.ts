@@ -85,6 +85,13 @@ test("mergeReports tager den nyeste hak når tiderne er sat", () => {
   assert.equal(merged[0]?.ledelseStatus, "med_til_ledelse");
 });
 
+test("mergeReports bevarer kundePunkt", () => {
+  const local = [{ id: "ks-1", kundePunkt: "Omfugning", updatedAt: "2026-09-10T12:00:00.000Z" }];
+  const remote = [{ id: "ks-1", updatedAt: "2026-09-10T11:00:00.000Z" }];
+  const merged = mergeReports(local, remote);
+  assert.equal(merged[0]?.kundePunkt, "Omfugning");
+});
+
 test("mergePlans beholder lokale dage når skyen er tom", () => {
   const local: PlanBlock[] = [
     {

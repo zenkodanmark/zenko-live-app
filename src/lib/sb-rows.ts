@@ -20,6 +20,7 @@ import type {
   Tf,
   Todo,
 } from "./types";
+import { kundePunktFromPhotoIds, photoIdsWithPunkt, photoIdsWithoutPunkt, rememberKundePunkt } from "./ks-punkt.ts";
 
 function str(v: unknown, fallback = "") {
   return v == null ? fallback : String(v);
@@ -342,7 +343,7 @@ export function ksToRow(k: KsReport) {
     process: k.process ?? null,
     trade: k.trade ?? null,
     company: k.company ?? null,
-    photo_ids: k.photoIds ?? [],
+    photo_ids: photoIdsWithPunkt(k.photoIds, k.kundePunkt),
     location: k.location ?? null,
     task: k.task ?? null,
     from_chat_id: k.fromChatId ?? null,
@@ -354,7 +355,10 @@ export function ksToRow(k: KsReport) {
   };
 }
 export function ksFromRow(r: Record<string, unknown>): KsReport {
-  return {
+  const rawIds = arr<string>(r.photo_ids);
+  const fromCol = str(r.kunde_punkt);
+  const kundePunkt = fromCol || kundePunktFromPhotoIds(rawIds);
+  const row: KsReport = {
     id: str(r.id),
     number: str(r.number),
     projectId: str(r.project_id),
@@ -369,17 +373,20 @@ export function ksFromRow(r: Record<string, unknown>): KsReport {
     process: str(r.process) || undefined,
     trade: str(r.trade) || undefined,
     company: str(r.company) || undefined,
-    photoIds: arr<string>(r.photo_ids),
+    photoIds: photoIdsWithoutPunkt(rawIds),
     location: str(r.location) || undefined,
     task: str(r.task) || undefined,
     fromChatId: str(r.from_chat_id) || undefined,
     kundeStatus: (r.kunde_status as KsReport["kundeStatus"]) || undefined,
+    kundePunkt,
     trashedAt: iso(r.trashed_at) || undefined,
     qcScope: str(r.qc_scope) || undefined,
     qcMethod: str(r.qc_method) || undefined,
     source: str(r.source) || undefined,
     ...(Array.isArray(r.ledelse_replies) ? { ledelseReplies: arr(r.ledelse_replies) } : {}),
   };
+  if (row.id) rememberKundePunkt(row.id, kundePunkt);
+  return row;
 }
 
 export function dayToRow(d: DayLog, id?: string) {
