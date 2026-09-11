@@ -24,7 +24,7 @@ export function CrewTodos({ lang, all, projectId, sag }: { lang: Lang; all?: boo
   const [create, setCreate] = useState(false);
   if (!me) return null;
   const jobs = activeAssigned(me.id, me.role, projects, assignments);
-  const pool = sag && projectId ? crewSagTodos(todos, projectId) : crewHomeTodos(todos, me, jobs.map((j) => j.id));
+  const pool = sag && projectId ? crewSagTodos(todos, projectId, me) : crewHomeTodos(todos, me, jobs.map((j) => j.id));
   const open = pool.filter((x) => !x.done);
   const done = pool.filter((x) => x.done);
   const today = copenhagenDate();
