@@ -23,7 +23,10 @@ export function crewHomeTodos(todos: Todo[], me: Employee, jobIds: Iterable<stri
   return todos.filter((x) => todoAssignedTo(x, me.id) && (isPersonalTodo(x.projectId) || jobs.has(x.projectId)));
 }
 
-export function crewSagTodos(todos: Todo[], projectId: string) {
+/** Svend/lærling: kun tildelte på sagen. Mester: alle på sagen. */
+export function crewSagTodos(todos: Todo[], projectId: string, me?: Employee | null) {
   if (isPersonalTodo(projectId)) return [];
-  return todos.filter((x) => x.projectId === projectId);
+  const onJob = todos.filter((x) => x.projectId === projectId);
+  if (!me || isMasterRole(me.role)) return onJob;
+  return onJob.filter((x) => todoAssignedTo(x, me.id));
 }

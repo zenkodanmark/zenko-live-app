@@ -57,3 +57,18 @@ test("på sagen vises sagens to-do, ikke personlige", () => {
   const sag = crewSagTodos(rows, "job-hillerodsholm");
   assert.deepEqual(sag.map((x) => x.id), ["b"]);
 });
+
+test("svend på sag ser kun tildelte, også via assigneeIds", () => {
+  const ion: Employee = { id: "emp-ion", name: "Ion Zafier", role: "svend", language: "ro", pin: "3333", initials: "IZ" };
+  const rows = [
+    td({ id: "1", projectId: "job-islevvaenge", assigneeId: "emp-ion" }),
+    td({ id: "2", projectId: "job-islevvaenge", assigneeId: "emp-alex", assigneeIds: ["emp-ion", "emp-alex"] }),
+    td({ id: "3", projectId: "job-islevvaenge", assigneeId: "emp-osvaldo" }),
+    td({ id: "4", projectId: "job-islevvaenge", assigneeIds: ["emp-marius"] }),
+    td({ id: "5", projectId: "job-hillerodsholm", assigneeId: "emp-ion" }),
+  ];
+  const sag = crewSagTodos(rows, "job-islevvaenge", ion);
+  assert.deepEqual(sag.map((x) => x.id).sort(), ["1", "2"]);
+  const master = crewSagTodos(rows, "job-islevvaenge", ole);
+  assert.equal(master.length, 4);
+});
