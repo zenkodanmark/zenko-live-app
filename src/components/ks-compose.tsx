@@ -4,6 +4,7 @@ import { CloseX } from "@/components/sag-icons";
 import { Card, GhostButton, PrimaryButton, SectionLabel } from "@/components/zenko";
 import { t } from "@/lib/i18n";
 import { photoFromDriveFile } from "@/lib/ks-drive";
+import { insertKsReport, makeKsDraft } from "@/lib/ks-send";
 import { stampFile } from "@/lib/photos";
 import { pladsPath, uploadPladsBytes } from "@/lib/plads-file";
 import { controlPlanFor, findControlPoint } from "@/lib/seed";
@@ -25,7 +26,6 @@ export function KsCompose({
 }) {
   const plan = controlPlanFor(projectId);
   const job = lookupProject(projectId);
-  const addKsReport = useYard((s) => s.addKsReport);
   const upsertDrivePhotos = useYard((s) => s.upsertDrivePhotos);
   const camRef = useRef<HTMLInputElement>(null);
   const galRef = useRef<HTMLInputElement>(null);
@@ -83,7 +83,7 @@ export function KsCompose({
         const name = `KS-Grok-${point}-${slug}-${stamp}-${i + 1}.jpg`;
         const base64 = d.dataUrl.split(",")[1] ?? "";
         if (!base64) {
-          setErr(t(lang, "saveFail"));
+          setErr("Ikke sendt");
           return;
         }
         const res = await uploadPladsBytes({
@@ -95,7 +95,7 @@ export function KsCompose({
           name,
         });
         if (!res.ok || !res.fileId) {
-          setErr(res.error || t(lang, "saveFail"));
+          setErr("Ikke sendt");
           return;
         }
         photoIds.push(res.fileId);
@@ -114,10 +114,21 @@ export function KsCompose({
           },
         ]);
       }
-      const row = addKsReport(projectId, point, { photoIds, deviations: dev.trim() || "Ingen afvigelser." });
-      onCreated(row.id);
-    } catch (e) {
-      setErr(e instanceof Error && !/invariant/i.test(e.message) ? e.message : t(lang, "saveFail"));
+      const snap = useYard.getState();
+      const draft = makeKsDraft(snap, projectId, point, { photoIds, deviations: dev.trim() || "Ingen afvigelser." });
+      const saved = await insertKsReport(draft);
+      if (!saved.ok || !saved.id) {
+        setErr("Ikke sendt");
+        return;
+      }
+      const parsed = Number(String(saved.row.number).replace(/\D/g, "").slice(-3)) || snap.serial.ks;
+      useYard.setState((s) => ({
+        ksReports: s.ksReports.some((x) => x.id === saved.id) ? s.ksReports : [saved.row, ...s.ksReports],
+        serial: { ...s.serial, ks: Math.max(s.serial.ks, parsed) + 1 },
+      }));
+      onCreated(saved.id);
+    } catch {
+      setErr("Ikke sendt");
     } finally {
       setBusy(false);
     }
@@ -172,7 +183,7 @@ export function KsCompose({
           />
           {err ? <p className="mb-2 text-sm text-brick">{err}</p> : null}
           <PrimaryButton disabled={busy} onClick={() => void save()}>
-            {busy ? t(lang, "udbudSearching") : t(lang, "ksComposeSave")}
+            {busy ? "Sender…" : t(lang, "ksComposeSave")}
           </PrimaryButton>
         </Card>
       </div>
