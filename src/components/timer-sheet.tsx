@@ -132,18 +132,18 @@ export function TimerSheet({ lang, onClose }: { lang: Lang; onClose: () => void 
       <div className="mx-auto max-w-lg px-4 py-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
         {canPick ? (
           <div className="mb-4">
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">{t(lang, "timerWho")}</p>
-            <ul className="flex gap-2 overflow-x-auto pb-1" data-testid="timer-who">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">{t(lang, "timerWho")}</p>
+            <ul className="grid grid-cols-3 gap-2" data-testid="timer-who">
               {people.map((p) => (
-                <li key={p.id} className="shrink-0">
+                <li key={p.id}>
                   <button
                     type="button"
                     data-testid={`timer-who-${p.id}`}
                     onClick={() => setWhoId(p.id)}
-                    className={`flex min-h-14 min-w-[4.5rem] flex-col items-center gap-1 rounded-xl px-2 py-1.5 ${whoId === p.id ? "bg-navy text-sand" : "bg-paper text-ink shadow-card"}`}
+                    className={`flex min-h-16 w-full flex-col items-center gap-1 rounded-xl px-1 py-2 ${whoId === p.id ? "bg-navy text-sand" : "bg-paper text-ink shadow-card"}`}
                   >
-                    <FacePhoto employee={p} px={36} />
-                    <span className="max-w-[4.5rem] truncate text-xs font-semibold">{p.name.split(" ")[0]}</span>
+                    <FacePhoto employee={p} px={44} />
+                    <span className="w-full truncate px-0.5 text-center text-xs font-semibold">{p.name.split(" ")[0]}</span>
                   </button>
                 </li>
               ))}
@@ -306,10 +306,26 @@ export function TimerSheet({ lang, onClose }: { lang: Lang; onClose: () => void 
   );
 }
 
+export function TimerHelmetIcon({ px = 44 }: { px?: number }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={px} height={px} viewBox="0 0 44 44" fill="none" aria-hidden className="shrink-0">
+      <rect width="44" height="44" rx="10" fill="#c45c3e" />
+      <path fill="#faf8f4" d="M22 8c-6.6 0-12 4.2-12 11.2V23h24v-3.8C34 12.2 28.6 8 22 8Zm0 2.2c5.2 0 9.6 3.1 9.8 8.2H12.2C12.4 13.3 16.8 10.2 22 10.2Z" />
+      <path fill="#faf8f4" d="M8 23.5h28c.8 0 1.4.6 1.4 1.3v1.4c0 .4-.2.8-.6 1l-3.2 1.6H10.4L7.2 27.2c-.4-.2-.6-.6-.6-1v-1.4c0-.7.6-1.3 1.4-1.3Z" />
+      <path stroke="#faf8f4" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" d="M16.5 33.2 20.2 36.6 28.5 28.8" />
+    </svg>
+  );
+}
+
 export function TimerOpenBtn({ lang, onClick }: { lang: Lang; onClick: () => void }) {
   return (
-    <button type="button" data-testid="timer-open" onClick={onClick} className="flex w-14 shrink-0 flex-col items-center gap-1">
-      <img src="/icons/action/timer-helmet.svg" alt="" width={44} height={44} className="size-11" draggable={false} />
+    <button
+      type="button"
+      data-testid="timer-open"
+      onClick={onClick}
+      className="flex min-h-14 min-w-14 shrink-0 flex-col items-center justify-center gap-1 rounded-xl bg-sand px-1 py-1"
+    >
+      <TimerHelmetIcon px={44} />
       <span className="text-[11px] font-semibold leading-none text-navy">{t(lang, "timerTab")}</span>
     </button>
   );

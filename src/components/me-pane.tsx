@@ -256,16 +256,16 @@ function ProfileCard({ lang, onTimer }: { lang: Lang; onTimer: () => void }) {
   return (
     <Card className="rounded-[20px]">
       <SectionLabel>{t(lang, "profilePhoto")}</SectionLabel>
-      <div className="mt-2 flex items-center gap-4">
+      <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
         <button
           type="button"
           data-testid="profile-photo"
           disabled={busy}
-          className="flex items-center gap-3 text-left"
+          className="col-span-2 flex min-w-0 items-center gap-3 text-left"
           onClick={() => fileRef.current?.click()}
         >
-          <FacePhoto employee={emp} px={96} />
-          <span className="text-list leading-[1.4] text-ink">{emp.name}</span>
+          <FacePhoto employee={emp} px={80} />
+          <span className="min-w-0 truncate text-list leading-[1.4] text-ink">{emp.name}</span>
         </button>
         <TimerOpenBtn lang={lang} onClick={onTimer} />
       </div>
