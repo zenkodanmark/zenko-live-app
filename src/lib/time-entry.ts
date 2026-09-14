@@ -134,6 +134,7 @@ export async function saveTimeEntry(input: {
   hours: number;
   type: TimeKind;
   note: string;
+  createdBy?: string;
   photos: { name: string; contentBase64: string; mimeType: string }[];
 }): Promise<{ ok: true; row: TimeEntry } | { ok: false; error: string }> {
   const id = `te-${crypto.randomUUID().slice(0, 10)}`;
@@ -158,7 +159,7 @@ export async function saveTimeEntry(input: {
     note: input.note || null,
     lat: lat ?? null,
     lng: lng ?? null,
-    created_by: input.employeeId,
+    created_by: input.createdBy || input.employeeId,
   };
   const ins = await supabase().from("time_entries").insert(payload).select("*").maybeSingle();
   if (ins.error || !ins.data) return { ok: false, error: ins.error?.message || "Ikke sendt" };

@@ -903,6 +903,7 @@ const da = {
   hoursPhotos: "KS-billeder (valgfrit)",
   folkAssign: "Sager",
   timerTab: "Timer",
+  timerWho: "Ansat",
   timerHours: "Timer",
   timerNormal: "Normal",
   timerNote: "Note (valgfrit)",
@@ -1769,6 +1770,7 @@ const es: Partial<typeof da> = {
   dayNoteSaved: "Nota guardada.",
   onSiteGone: "Salido",
   timerTab: "Horas",
+  timerWho: "Empleado",
 };
 
 const pl: Partial<typeof da> = {
@@ -2616,6 +2618,7 @@ const pl: Partial<typeof da> = {
   dayNoteSaved: "Notatka zapisana.",
   onSiteGone: "Wyszedł",
   timerTab: "Godziny",
+  timerWho: "Pracownik",
 };
 
 const ro: Partial<typeof da> = {
@@ -3463,6 +3466,7 @@ const ro: Partial<typeof da> = {
   dayNoteSaved: "Notă salvată.",
   onSiteGone: "Plecat",
   timerTab: "Ore",
+  timerWho: "Angajat",
 };
 
 const uk: Partial<typeof da> = {
@@ -4310,6 +4314,7 @@ const uk: Partial<typeof da> = {
   dayNoteSaved: "Нотатку збережено.",
   onSiteGone: "Пішов",
   timerTab: "Години",
+  timerWho: "Працівник",
 };
 
 const de: Partial<typeof da> = {
@@ -5157,6 +5162,7 @@ const de: Partial<typeof da> = {
   dayNoteSaved: "Notiz gespeichert.",
   onSiteGone: "Gegangen",
   timerTab: "Stunden",
+  timerWho: "Mitarbeiter",
 };
 
 const en: Partial<typeof da> = {
@@ -6004,6 +6010,7 @@ const en: Partial<typeof da> = {
   dayNoteSaved: "Note saved.",
   onSiteGone: "Left",
   timerTab: "Hours",
+  timerWho: "Employee",
 };
 
 export type CopyKey = keyof typeof da;

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { FacePhoto } from "@/components/face-photo";
 import { KsCompose } from "@/components/ks-compose";
 import { ActionPng, BackArrow } from "@/components/sag-icons";
 import { PrimaryButton } from "@/components/zenko";
+import { isMasterRole } from "@/lib/crew";
 import { t, localeFor } from "@/lib/i18n";
 import { fileHref } from "@/lib/plads-file";
 import { copenhagenDate } from "@/lib/seed";
@@ -15,7 +17,16 @@ export function TimerSheet({ lang, onClose }: { lang: Lang; onClose: () => void 
   const emp = useSessionEmployee();
   const projects = useYard((s) => s.projects) ?? [];
   const assignments = useYard((s) => s.assignments) ?? [];
+  const employees = useYard((s) => s.employees) ?? [];
   const today = copenhagenDate();
+  const canPick = Boolean(emp && isMasterRole(emp.role));
+  const people = useMemo(() => {
+    const list = [...employees].sort((a, b) => a.name.localeCompare(b.name, "da"));
+    if (!emp) return list;
+    return [emp, ...list.filter((e) => e.id !== emp.id)];
+  }, [employees, emp]);
+  const [whoId, setWhoId] = useState(emp?.id ?? "");
+  const who = people.find((e) => e.id === whoId) ?? emp;
   const [cursor, setCursor] = useState(() => {
     const [y, m] = today.split("-").map(Number);
     return { year: y!, month: (m ?? 1) - 1 };
@@ -33,7 +44,9 @@ export function TimerSheet({ lang, onClose }: { lang: Lang; onClose: () => void 
   const camRef = useRef<HTMLInputElement>(null);
   const galRef = useRef<HTMLInputElement>(null);
 
-  const jobs = emp ? activeAssigned(emp.id, emp.role, projects, assignments) : [];
+  const target = who ?? emp;
+  const assigned = target ? activeAssigned(target.id, target.role, projects, assignments) : [];
+  const jobs = canPick && assigned.length === 0 ? projects.filter((p) => p.status === "active") : assigned;
   const cells = useMemo(() => monthCells(cursor.year, cursor.month), [cursor]);
   const dotted = useMemo(() => new Set(rows.map((r) => r.date)), [rows]);
   const dayRows = rows.filter((r) => r.date === day);
@@ -41,11 +54,22 @@ export function TimerSheet({ lang, onClose }: { lang: Lang; onClose: () => void 
 
   useEffect(() => {
     if (!emp) return;
-    void listMyTimeEntries(emp.id).then(setRows);
-  }, [emp]);
+    if (!canPick) {
+      setWhoId(emp.id);
+      return;
+    }
+    setWhoId((id) => id || emp.id);
+  }, [emp, canPick]);
 
-  if (!emp) return null;
+  useEffect(() => {
+    if (!whoId) return;
+    void listMyTimeEntries(whoId).then(setRows);
+    setProjectId("");
+  }, [whoId]);
+
+  if (!emp || !target) return null;
   const meId = emp.id;
+  const forId = target.id;
 
   async function addFiles(list: FileList | null) {
     if (!list?.length) return;
@@ -76,12 +100,13 @@ export function TimerSheet({ lang, onClose }: { lang: Lang; onClose: () => void 
       mimeType: "image/jpeg",
     }));
     const res = await saveTimeEntry({
-      employeeId: meId,
+      employeeId: forId,
       projectId,
       date: day,
       hours: h,
       type: kind,
       note: note.trim(),
+      createdBy: meId,
       photos,
     });
     setBusy(false);
@@ -102,8 +127,29 @@ export function TimerSheet({ lang, onClose }: { lang: Lang; onClose: () => void 
       <div className="sticky top-0 z-10 flex items-center gap-2 bg-navy px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-sand">
         <BackArrow onClick={onClose} label={t(lang, "back")} />
         <p className="font-display text-title text-sand">{t(lang, "timerTab")}</p>
+        {canPick && who && who.id !== emp.id ? <p className="truncate text-sm text-sand/80">{who.name}</p> : null}
       </div>
       <div className="mx-auto max-w-lg px-4 py-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+        {canPick ? (
+          <div className="mb-4">
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">{t(lang, "timerWho")}</p>
+            <ul className="flex gap-2 overflow-x-auto pb-1" data-testid="timer-who">
+              {people.map((p) => (
+                <li key={p.id} className="shrink-0">
+                  <button
+                    type="button"
+                    data-testid={`timer-who-${p.id}`}
+                    onClick={() => setWhoId(p.id)}
+                    className={`flex min-h-14 min-w-[4.5rem] flex-col items-center gap-1 rounded-xl px-2 py-1.5 ${whoId === p.id ? "bg-navy text-sand" : "bg-paper text-ink shadow-card"}`}
+                  >
+                    <FacePhoto employee={p} px={36} />
+                    <span className="max-w-[4.5rem] truncate text-xs font-semibold">{p.name.split(" ")[0]}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <div className="mb-3 flex items-center justify-between">
           <button type="button" className="min-h-11 min-w-11 px-2 text-2xl text-navy" aria-label={t(lang, "timerPrev")} onClick={() => setCursor((c) => shiftMonth(c.year, c.month, -1))}>
             ‹
