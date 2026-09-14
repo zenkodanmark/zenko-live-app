@@ -6,6 +6,7 @@ import { BackArrow } from "@/components/sag-icons";
 import { Card, Chip, GhostButton, PrimaryButton, SectionLabel } from "@/components/zenko";
 import { LogoutButton } from "@/components/logout-button";
 import { PinEditor } from "@/components/pin-editor";
+import { TimerOpenBtn, TimerSheet } from "@/components/timer-sheet";
 import { pladsPath, uploadPladsBytes } from "@/lib/plads-file";
 import { PushSetup } from "@/components/push-setup";
 import { t, localeFor } from "@/lib/i18n";
@@ -27,6 +28,7 @@ export function MePane({ lang }: { lang: Lang }) {
   const [q, setQ] = useState("");
   const [weekStart, setWeekStart] = useState("");
   const [planPick, setPlanPick] = useState<{ block: PlanBlock; date: string } | null>(null);
+  const [timer, setTimer] = useState(false);
   if (!emp) return null;
 
   const rows = useMemo(() => {
@@ -53,7 +55,7 @@ export function MePane({ lang }: { lang: Lang }) {
   return (
     <div className="space-y-4">
       <h1 className="font-display text-4xl text-navy">{t(lang, "meTitle")}</h1>
-      <ProfileCard lang={lang} />
+      <ProfileCard lang={lang} onTimer={() => setTimer(true)} />
       <Card className="rounded-[20px]">
         <SectionLabel>{t(lang, "changePin")}</SectionLabel>
         <PinEditor emp={emp} lang={lang} />
@@ -168,6 +170,7 @@ export function MePane({ lang }: { lang: Lang }) {
       <PushSetup lang={lang} />
 
       <LogoutButton lang={lang} full />
+      {timer ? <TimerSheet lang={lang} onClose={() => setTimer(false)} /> : null}
       {planPick ? (
         <div className="fixed inset-0 z-[60] overflow-y-auto bg-navy/50">
           <div className="mx-auto mt-16 max-w-lg rounded-[20px] bg-paper px-4 py-5 shadow-card">
@@ -209,13 +212,14 @@ function HourRow({ d, lang }: { d: DayLog; lang: Lang }) {
   );
 }
 
-function ProfileCard({ lang }: { lang: Lang }) {
+function ProfileCard({ lang, onTimer }: { lang: Lang; onTimer: () => void }) {
   const emp = useSessionEmployee();
   const patchEmployee = useYard((s) => s.patchEmployee);
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   if (!emp) return null;
+  const who = emp;
 
   async function onFile(file: File) {
     setBusy(true);
@@ -228,16 +232,16 @@ function ProfileCard({ lang }: { lang: Lang }) {
     });
     const base64 = dataUrl.split(",")[1] ?? "";
     try {
-      const name = `profil-${emp.name.replace(/\s+/g, "-")}.jpg`;
+      const name = `profil-${who.name.replace(/\s+/g, "-")}.jpg`;
       const res = await uploadPladsBytes({
-        path: pladsPath("profiler", emp.id, name),
+        path: pladsPath("profiler", who.id, name),
         contentBase64: base64,
         mimeType: file.type || "image/jpeg",
         kind: "profile",
         name,
       });
       if (res.fileId) {
-        patchEmployee(emp.id, { profileFileId: res.fileId });
+        patchEmployee(who.id, { profileFileId: res.fileId });
         setNote(t(lang, "profileOk"));
       } else {
         setNote(t(lang, "profileFail"));
@@ -252,16 +256,19 @@ function ProfileCard({ lang }: { lang: Lang }) {
   return (
     <Card className="rounded-[20px]">
       <SectionLabel>{t(lang, "profilePhoto")}</SectionLabel>
-      <button
-        type="button"
-        data-testid="profile-photo"
-        disabled={busy}
-        className="mt-2 flex items-center gap-3 text-left"
-        onClick={() => fileRef.current?.click()}
-      >
-        <FacePhoto employee={emp} px={96} />
-        <span className="text-list leading-[1.4] text-ink">{emp.name}</span>
-      </button>
+      <div className="mt-2 flex items-center gap-4">
+        <button
+          type="button"
+          data-testid="profile-photo"
+          disabled={busy}
+          className="flex items-center gap-3 text-left"
+          onClick={() => fileRef.current?.click()}
+        >
+          <FacePhoto employee={emp} px={96} />
+          <span className="text-list leading-[1.4] text-ink">{emp.name}</span>
+        </button>
+        <TimerOpenBtn lang={lang} onClick={onTimer} />
+      </div>
       <p className="mt-2 text-list leading-[1.4] text-ink">{t(lang, "profileHint")}</p>
       {note ? <p className="mt-1 text-list leading-[1.4] text-muted">{note}</p> : null}
       <input

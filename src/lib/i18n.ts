@@ -902,6 +902,16 @@ const da = {
   hoursNeed: "Vælg sag, møde og gå.",
   hoursPhotos: "KS-billeder (valgfrit)",
   folkAssign: "Sager",
+  timerTab: "Timer",
+  timerHours: "Timer",
+  timerNormal: "Normal",
+  timerNote: "Note (valgfrit)",
+  timerNeedJobHours: "Vælg sag og timer.",
+  timerNotSent: "Ikke sendt",
+  timerMakeKs: "Lav KS",
+  timerPrev: "Forrige måned",
+  timerNext: "Næste måned",
+  ksWorkDate: "Dato",
 };
 
 const es: Partial<typeof da> = {
@@ -1758,6 +1768,7 @@ const es: Partial<typeof da> = {
   dayNotePh: "Nota del día…",
   dayNoteSaved: "Nota guardada.",
   onSiteGone: "Salido",
+  timerTab: "Horas",
 };
 
 const pl: Partial<typeof da> = {
@@ -2604,6 +2615,7 @@ const pl: Partial<typeof da> = {
   dayNotePh: "Notatka dnia…",
   dayNoteSaved: "Notatka zapisana.",
   onSiteGone: "Wyszedł",
+  timerTab: "Godziny",
 };
 
 const ro: Partial<typeof da> = {
@@ -3450,6 +3462,7 @@ const ro: Partial<typeof da> = {
   dayNotePh: "Nota zilei…",
   dayNoteSaved: "Notă salvată.",
   onSiteGone: "Plecat",
+  timerTab: "Ore",
 };
 
 const uk: Partial<typeof da> = {
@@ -4296,6 +4309,7 @@ const uk: Partial<typeof da> = {
   dayNotePh: "Нотатка дня…",
   dayNoteSaved: "Нотатку збережено.",
   onSiteGone: "Пішов",
+  timerTab: "Години",
 };
 
 const de: Partial<typeof da> = {
@@ -5142,6 +5156,7 @@ const de: Partial<typeof da> = {
   dayNotePh: "Tagesnotiz…",
   dayNoteSaved: "Notiz gespeichert.",
   onSiteGone: "Gegangen",
+  timerTab: "Stunden",
 };
 
 const en: Partial<typeof da> = {
@@ -5988,6 +6003,7 @@ const en: Partial<typeof da> = {
   dayNotePh: "Today's note…",
   dayNoteSaved: "Note saved.",
   onSiteGone: "Left",
+  timerTab: "Hours",
 };
 
 export type CopyKey = keyof typeof da;

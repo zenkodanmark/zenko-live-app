@@ -21,12 +21,12 @@ export function makeKsDraft(
   s: YardSnap,
   projectId: string,
   point: string,
-  extra?: { photoIds?: string[]; deviations?: string; location?: string; task?: string },
+  extra?: { photoIds?: string[]; deviations?: string; location?: string; task?: string; workDate?: string },
 ): KsReport {
   const n = s.serial.ks;
   const number = `Z-KS-${new Date().getFullYear()}-${pad(n)}`;
   const emp = s.employees.find((e) => e.id === s.employeeId);
-  const date = copenhagenDate();
+  const date = extra?.workDate || copenhagenDate();
   const crew = [
     ...new Set(
       Object.values(s.days)
@@ -40,7 +40,7 @@ export function makeKsDraft(
     number,
     projectId,
     point,
-    createdAt: new Date().toISOString(),
+    createdAt: extra?.workDate ? `${extra.workDate}T12:00:00.000+02:00` : new Date().toISOString(),
     status: "issued",
     deviations: extra?.deviations?.trim() || "Ingen afvigelser.",
     approved: true,

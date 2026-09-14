@@ -7,8 +7,9 @@ import { photoFromDriveFile } from "@/lib/ks-drive";
 import { insertKsReport, makeKsDraft } from "@/lib/ks-send";
 import { stampFile } from "@/lib/photos";
 import { pladsPath, uploadPladsBytes } from "@/lib/plads-file";
-import { controlPlanFor, findControlPoint } from "@/lib/seed";
+import { controlPlanFor, copenhagenDate, findControlPoint } from "@/lib/seed";
 import { lookupProject, useYard } from "@/lib/store";
+import { timerDayLabel } from "@/lib/time-entry";
 import type { Lang } from "@/lib/types";
 
 type Draft = { name: string; dataUrl: string };
@@ -16,11 +17,13 @@ type Draft = { name: string; dataUrl: string };
 export function KsCompose({
   projectId,
   lang,
+  workDate,
   onClose,
   onCreated,
 }: {
   projectId: string;
   lang: Lang;
+  workDate?: string;
   onClose: () => void;
   onCreated: (id: string) => void;
 }) {
@@ -35,6 +38,7 @@ export function KsCompose({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const spec = findControlPoint(point, projectId);
+  const schemaDate = workDate || copenhagenDate();
 
   async function fileToDraft(file: File): Promise<Draft | null> {
     try {
@@ -115,7 +119,7 @@ export function KsCompose({
         ]);
       }
       const snap = useYard.getState();
-      const draft = makeKsDraft(snap, projectId, point, { photoIds, deviations: dev.trim() || "Ingen afvigelser." });
+      const draft = makeKsDraft(snap, projectId, point, { photoIds, deviations: dev.trim() || "Ingen afvigelser.", workDate: schemaDate });
       const saved = await insertKsReport(draft);
       if (!saved.ok || !saved.id) {
         setErr("Ikke sendt");
@@ -128,8 +132,7 @@ export function KsCompose({
       }));
       onCreated(saved.id);
     } catch {
-      setErr("Ikke sendt");
-    } finally {
+      setErr("Ikke sendt");    } finally {
       setBusy(false);
     }
   }
@@ -143,6 +146,9 @@ export function KsCompose({
       <div className="mx-auto max-w-lg px-4 py-4">
         <Card className="rounded-[20px]">
           <SectionLabel>{t(lang, "ksComposeTitle")}</SectionLabel>
+          <p className="mb-1 text-sm font-semibold text-navy" data-testid="ks-work-date">
+            {t(lang, "ksWorkDate")}: {timerDayLabel(schemaDate, lang)}
+          </p>
           <p className="mb-3 text-sm text-muted">{t(lang, "ksComposeHint")}</p>
           <label className="mb-1 block text-xs text-muted">Kontrolpunkt</label>
           <select className="mb-3 min-h-11 w-full rounded-lg bg-sand px-3 text-sm" value={point} onChange={(e) => setPoint(e.target.value)}>

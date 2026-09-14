@@ -7,6 +7,7 @@ import { ChatPane, UnreadChatBanner } from "@/components/chat-messenger";
 import { ClientOnly } from "@/components/client-only";
 import { LogoutButton } from "@/components/logout-button";
 import { OpenMaSheet } from "@/components/material-pane";
+import { MePane } from "@/components/me-pane";
 import { NoticeBell } from "@/components/notice-bell";
 import { PushBanner } from "@/components/push-setup";
 import { PlanPane } from "@/components/plan-pane";
@@ -28,7 +29,7 @@ const FolkPane = lazy(() => import("@/components/folk-pane").then((m) => ({ defa
 const ReportsPane = lazy(() => import("@/components/reports-pane").then((m) => ({ default: m.ReportsPane })));
 const LiveDriveBootstrap = lazy(() => import("@/components/live-bootstrap").then((m) => ({ default: m.LiveDriveBootstrap })));
 
-type Tab = "board" | "sager" | "folk" | "reports" | "chat" | "plan";
+type Tab = "board" | "sager" | "folk" | "reports" | "chat" | "plan" | "me";
 
 export function MesterDesk() {
   const nav = useNavigate();
@@ -95,6 +96,7 @@ export function MesterDesk() {
     { id: "folk" as const, label: t(lang, "tabPeople"), icon: "folk" as const },
     { id: "chat" as const, label: t(lang, "tabChat"), icon: "chat" as const, badge: unread },
     { id: "plan" as const, label: t(lang, "tabPlan"), icon: "plan" as const },
+    { id: "me" as const, label: t(lang, "tabMe"), icon: "mig" as const },
   ];
 
   return (
@@ -140,6 +142,7 @@ export function MesterDesk() {
         </Suspense>
         {tab === "chat" ? <ChatPane lang={lang} projectId={pick} /> : null}
         {tab === "plan" ? <PlanPane lang={lang} /> : null}
+        {tab === "me" ? <MePane lang={lang} /> : null}
       </div>
       <BottomNav items={tabs} value={tab} onChange={(id) => setTab(id as Tab)} iconPx={56} roomy />
       <OpenMaSheet lang={lang} />

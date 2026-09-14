@@ -202,7 +202,7 @@ type YardState = {
   answerTf: (id: string, answer: string) => void;
   addEnt: (input: { projectId: string; title: string; location: string; body: string; noteHe: string; photoIds?: string[]; fromChatId?: string; number?: string }) => Entrepreneur;
   addPack: (input: { projectId: string; title: string; slipIds: string[] }) => void;
-  addKsReport: (projectId: string, point: string, extra?: { photoIds?: string[]; deviations?: string; location?: string; task?: string; fromChatId?: string; number?: string; driveFileId?: string }) => KsReport;
+  addKsReport: (projectId: string, point: string, extra?: { photoIds?: string[]; deviations?: string; location?: string; task?: string; fromChatId?: string; number?: string; driveFileId?: string; workDate?: string }) => KsReport;
   addTodo: (input: {
     projectId: string;
     assigneeId: string;
@@ -1188,7 +1188,7 @@ export const useYard = create<YardState>()(
       number,
       projectId,
       point,
-      createdAt: (new Date()).toISOString(),
+      createdAt: extra?.workDate ? `${extra.workDate}T12:00:00.000+02:00` : (new Date()).toISOString(),
       status: "issued" as const,
       deviations: extra?.deviations?.trim() || "Ingen afvigelser.",
       approved: true,
