@@ -1,6 +1,8 @@
 import { ksFromRow, ksToRow } from "./sb-rows";
 import { FIRM, copenhagenDate } from "./seed";
 import { supabase } from "./supabase";
+import { emitYard } from "./yard-bus";
+import { holdRow, slimKs } from "./yard-slim";
 import { saveYardKs } from "./yard-sync.functions";
 import type { KsReport } from "./types";
 
@@ -58,19 +60,22 @@ export function makeKsDraft(
 export async function insertKsReport(row: KsReport): Promise<{ ok: true; id: string; row: KsReport } | { ok: false }> {
   try {
     const payload = ksToRow(row);
+    let saved: KsReport | null = null;
     const ins = await supabase().from("ks_reports").insert(payload).select("*").maybeSingle();
     if (!ins.error && ins.data) {
-      const saved = ksFromRow(ins.data as Record<string, unknown>);
-      if (saved.id) return { ok: true, id: saved.id, row: { ...row, ...saved, id: saved.id } };
+      saved = { ...row, ...ksFromRow(ins.data as Record<string, unknown>) };
     }
-    const up = await supabase().from("ks_reports").upsert(payload).select("*").maybeSingle();
-    if (!up.error && up.data) {
-      const saved = ksFromRow(up.data as Record<string, unknown>);
-      if (saved.id) return { ok: true, id: saved.id, row: { ...row, ...saved, id: saved.id } };
+    if (!saved?.id) {
+      const up = await supabase().from("ks_reports").upsert(payload).select("*").maybeSingle();
+      if (!up.error && up.data) saved = { ...row, ...ksFromRow(up.data as Record<string, unknown>) };
     }
-    const admin = await saveYardKs({ data: { report: row, isNew: true, actorId: row.employeeId ?? "ks" } });
-    if (admin?.ok) return { ok: true, id: row.id, row };
-    return { ok: false };
+    const actor = row.employeeId ?? "ks";
+    const admin = await saveYardKs({ data: { report: saved ?? row, isNew: true, actorId: actor } }).catch(() => ({ ok: false as const }));
+    if (!saved?.id && admin?.ok) saved = row;
+    if (!saved?.id) return { ok: false };
+    holdRow(saved.id);
+    emitYard({ kind: "ks", id: saved.id, payload: slimKs(saved), isNew: true, actorId: actor });
+    return { ok: true, id: saved.id, row: saved };
   } catch {
     return { ok: false };
   }
