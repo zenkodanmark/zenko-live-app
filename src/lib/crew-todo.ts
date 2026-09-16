@@ -1,5 +1,5 @@
 import { t } from "./i18n.ts";
-import { isMasterRole, projectById } from "./seed.ts";
+import { EMPLOYEES, isMasterRole, projectById } from "./seed.ts";
 import { todoAssignedTo, todoAssigneeIds } from "./todo-people.ts";
 import type { Employee, Lang, Role, Todo, TodoLangCopy, TodoTranslations } from "./types.ts";
 
@@ -54,6 +54,11 @@ export function todoViewLang(lang: Lang, role?: Role): Lang {
   return lang;
 }
 
+function languageOf(id: string, employees: Pick<Employee, "id" | "language">[]): Lang | undefined {
+  const who = employees.find((e) => e.id === id) ?? EMPLOYEES.find((e) => e.id === id);
+  return who?.language;
+}
+
 export function todoTargetLangs(
   todo: Pick<Todo, "assigneeId" | "assigneeIds" | "sourceLang">,
   employees: Pick<Employee, "id" | "language">[],
@@ -62,8 +67,8 @@ export function todoTargetLangs(
   langs.add(todo.sourceLang ?? "da");
   langs.add("da");
   for (const id of todoAssigneeIds(todo)) {
-    const who = employees.find((e) => e.id === id);
-    if (who?.language) langs.add(who.language);
+    const lang = languageOf(id, employees);
+    if (lang) langs.add(lang);
   }
   return [...langs];
 }
@@ -83,6 +88,7 @@ export function seedTodoTranslations(opts: {
     out[lang] = { title, body };
   }
   if (!out.da) out.da = { title, body };
+  if (!out[opts.from]) out[opts.from] = { title, body };
   return out;
 }
 
@@ -117,7 +123,13 @@ export function todoShowsOriginal(todo: Todo, lang: Lang, role?: Role) {
   const source = todo.sourceLang ?? "da";
   if (want === source) return false;
   const copy = asTodoLangCopy(todo.translations?.[want]);
-  return Boolean(copy.title || copy.body);
+  if (!copy.title && !copy.body) return false;
+  const origTitle = (todo.title || "").trim();
+  const origBody = (todo.body || todo.original || "").trim();
+  const titleSame = !copy.title || isSameTitle(copy.title, origTitle);
+  const bodySame = !copy.body || isSameTitle(copy.body, origBody) || isSameTitle(copy.body, origTitle);
+  if (titleSame && bodySame) return false;
+  return true;
 }
 
 export function todoOriginalText(todo: Todo) {

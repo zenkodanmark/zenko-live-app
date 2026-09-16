@@ -167,7 +167,7 @@ test("tom translations skjuler ikke original body", () => {
   assert.match(crewTodoBody(onlyDaTitle, "ro", "svend"), /Send foto/);
 });
 
-test("én oversættelse pr. sprog, da altid med, uden assignee stadig da", () => {
+test("assignee-sprog findes også når listen er tom, da altid med", () => {
   const ion: Employee = { id: "emp-ion", name: "Ion", role: "svend", language: "ro", pin: "3333", initials: "IZ" };
   const alex: Employee = { id: "emp-alex", name: "Alex", role: "laerling", language: "da", pin: "1111", initials: "AL" };
   const langs = todoTargetLangs({ assigneeId: "emp-ion", assigneeIds: ["emp-ion", "emp-alex"], sourceLang: "da" }, [ion, alex]);
@@ -177,4 +177,29 @@ test("én oversættelse pr. sprog, da altid med, uden assignee stadig da", () =>
   const seed = seedTodoTranslations({ title: "Ryd", body: "Send foto.", from: "da", langs: none });
   assert.equal((seed.da as { body?: string }).body, "Send foto.");
   assert.equal((seed.da as { title?: string }).title, "Ryd");
+  const viaSeed = todoTargetLangs({ assigneeId: "emp-ion", assigneeIds: ["emp-ion"], sourceLang: "da" }, []);
+  assert.equal(viaSeed.includes("ro"), true);
+  assert.equal(viaSeed.includes("da"), true);
+});
+
+test("Original-linje kun når vist sprog faktisk er oversat", () => {
+  const row = td({
+    title: "Ryd op bag skuret",
+    body: "Ryd op bag skuret. Send foto.",
+    original: "Ryd op bag skuret. Send foto.",
+    sourceLang: "da",
+    translations: {
+      da: { title: "Ryd op bag skuret", body: "Ryd op bag skuret. Send foto." },
+      ro: { title: "Ryd op bag skuret", body: "Ryd op bag skuret. Send foto." },
+    },
+  });
+  assert.equal(todoShowsOriginal(row, "ro", "svend"), false);
+  const done = {
+    ...row,
+    translations: {
+      ...row.translations,
+      ro: { title: "Curăță în spatele șopronului", body: "Curăță în spatele șopronului. Trimite foto." },
+    },
+  };
+  assert.equal(todoShowsOriginal(done, "ro", "svend"), true);
 });

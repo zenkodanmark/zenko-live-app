@@ -272,7 +272,6 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
       void translateAll(body, lang).then((translations) => {
         patchChat(row.id, { translations });
         driveLog(translations);
-        if (asTodo && todoId) useYard.getState().patchTodo(todoId, { translations, sourceLang: lang, original: line });
       });
     }
     const dump = useYard

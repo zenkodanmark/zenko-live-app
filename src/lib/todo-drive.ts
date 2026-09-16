@@ -1,9 +1,11 @@
 import { translateTodoCopy } from "@/lib/ai.functions";
-import { isJobPlaceTitle, seedTodoTranslations, todoTargetLangs } from "@/lib/crew-todo";
+import { asTodoLangCopy, isJobPlaceTitle, seedTodoTranslations, todoTargetLangs } from "@/lib/crew-todo";
 import { pladsPath, uploadPladsBytes } from "@/lib/plads-file";
 import { useYard } from "@/lib/store";
+import { publishTodo } from "@/lib/todo-live";
+import { copyDiffersFromOriginal, mergeTodoTranslations, serverFnsLive, translateTodoCopyLocal } from "@/lib/todo-translate";
 import { splitDataUrl } from "@/lib/voice-agent";
-import type { Lang } from "./types";
+import type { Lang, TodoTranslations } from "./types";
 
 export async function uploadDraftsToFolder(opts: {
   projectId: string;
@@ -43,6 +45,33 @@ export async function uploadTodoPhotos(projectId: string, todoId: string, drafts
   return uploadDraftsToFolder({ projectId: projectId || "personlig", folderName: `todo/${todoId}`, drafts });
 }
 
+function withTimeout<T>(p: Promise<T>, ms: number) {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error("timeout")), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
+async function grokTodoCopy(opts: { title: string; body: string; from: Lang; langs: Lang[]; keepTitle: boolean }): Promise<TodoTranslations | null> {
+  if (!serverFnsLive()) return null;
+  try {
+    const res = await withTimeout(translateTodoCopy({ data: opts }), 8000);
+    if (!res.translations) return null;
+    return res.translations as TodoTranslations;
+  } catch {
+    return null;
+  }
+}
+
 export async function fillTodoTranslations(id: string, _text?: string, _from?: Lang) {
   try {
     const s = useYard.getState();
@@ -55,15 +84,26 @@ export async function fillTodoTranslations(id: string, _text?: string, _from?: L
     const langs = todoTargetLangs({ ...todo, sourceLang: from }, s.employees);
     const keepTitle = isJobPlaceTitle(title, todo.projectId);
     const fallback = seedTodoTranslations({ title, body, from, langs, keepTitle });
+    const original = { title, body };
     let next = fallback;
-    try {
-      const res = await translateTodoCopy({ data: { title, body, from, langs, keepTitle } });
-      if (res.translations) next = { ...fallback, ...res.translations };
-    } catch {
-      /* original */
+    const grok = await grokTodoCopy({ title, body, from, langs, keepTitle });
+    if (grok) next = mergeTodoTranslations(next, grok, original);
+    const needsLocal = langs.some((lang) => {
+      if (lang === from) return false;
+      return !copyDiffersFromOriginal(asTodoLangCopy(next[lang]), original);
+    });
+    if (needsLocal) {
+      try {
+        const local = await translateTodoCopyLocal({ title, body, from, langs, keepTitle });
+        next = mergeTodoTranslations(next, local, original);
+      } catch {
+        /* original */
+      }
     }
     if (!useYard.getState().todos.some((x) => x.id === id)) return;
     useYard.getState().patchTodo(id, { translations: next, sourceLang: from, original: body || title });
+    const live = useYard.getState().todos.find((x) => x.id === id);
+    if (live) void publishTodo(live);
   } catch {
     /* to-do must still exist */
   }

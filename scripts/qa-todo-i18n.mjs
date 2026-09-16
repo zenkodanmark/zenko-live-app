@@ -21,6 +21,30 @@ async function shot(name) {
 }
 
 async function login(empId, pin) {
+  const role = empId === "emp-ole" || empId === "emp-federico" ? "mester" : empId === "emp-alex" ? "laerling" : "svend";
+  await page.goto("http://127.0.0.1:8080/", { waitUntil: "domcontentloaded" });
+  await page.evaluate(
+    ({ id, role }) => {
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+        localStorage.setItem("zenko-who", JSON.stringify({ id, role }));
+      } catch {
+        /* */
+      }
+    },
+    { id: empId, role },
+  );
+  await page.goto(role === "mester" ? "http://127.0.0.1:8080/mester" : "http://127.0.0.1:8080/svend", {
+    waitUntil: "domcontentloaded",
+  });
+  const desk = role === "mester" ? "todo-open-board" : "crew-home-todos";
+  try {
+    await page.getByTestId(desk).waitFor({ timeout: 12000 });
+    return;
+  } catch {
+    /* pin pad fallback */
+  }
   await page.goto("http://127.0.0.1:8080/", { waitUntil: "domcontentloaded" });
   await page.getByTestId(`login-${empId}`).waitFor({ timeout: 20000 });
   await page.getByTestId(`login-${empId}`).click();
@@ -115,14 +139,6 @@ try {
   await shot("todo-i18n-ole");
   await page.getByTestId("close-x").first().click({ force: true }).catch(() => {});
 
-  await page.evaluate(() => {
-    try {
-      localStorage.clear();
-      sessionStorage.clear();
-    } catch {
-      /* */
-    }
-  });
   await login("emp-ion", "3333");
   await page.waitForTimeout(2500);
   const ionBody = await page.locator("body").innerText();
