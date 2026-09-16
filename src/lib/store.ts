@@ -243,6 +243,7 @@ type YardState = {
   removePlan: (id: string) => void;
   toggleTodo: (id: string) => void;
   completeTodo: (id: string, byId?: string, extra?: { photoFileIds?: string[]; lat?: number | null; lng?: number | null; gpsLabel?: string }) => void;
+  reopenTodo: (id: string) => void;
   patchTodo: (id: string, patch: Partial<Todo>) => void;
   setTodoLedelse: (id: string) => Promise<boolean>;
   removeTodo: (id: string) => void;
@@ -1291,6 +1292,7 @@ export const useYard = create<YardState>()(
         done: true,
         doneAt: at,
         doneById: whoId || t.doneById,
+        updatedAt: at,
         donePhotoFileIds: extra?.photoFileIds?.length ? [...(t.donePhotoFileIds ?? []), ...extra.photoFileIds] : t.donePhotoFileIds,
         doneLat: extra?.lat ?? t.doneLat,
         doneLng: extra?.lng ?? t.doneLng,
@@ -1303,7 +1305,34 @@ export const useYard = create<YardState>()(
     if (before && after) {
       const n = noticeForTodoDone(before, after, get().employees);
       if (n) get().pushNotice(n);
+      holdRow(after.id);
       emitYard({ kind: "todo", id: after.id, payload: slimTodo(after), isNew: false, actorId: after.doneById ?? get().employeeId ?? "" });
+      void import("./todo-live").then((m) => m.publishTodo(after));
+    }
+  },
+  reopenTodo: (id) => {
+    const before = get().todos.find((t) => t.id === id);
+    if (!before?.done) return;
+    const at = new Date().toISOString();
+    set((s) => ({
+      todos: s.todos.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              done: false,
+              doneAt: undefined,
+              doneById: undefined,
+              updatedAt: at,
+              history: [...(t.history ?? []), { at, text: "Fortryd udført" }],
+            }
+          : t,
+      ),
+    }));
+    const after = get().todos.find((t) => t.id === id);
+    if (after) {
+      holdRow(after.id);
+      emitYard({ kind: "todo", id: after.id, payload: slimTodo(after), isNew: false, actorId: get().employeeId ?? after.fromId });
+      void import("./todo-live").then((m) => m.publishTodo(after));
     }
   },
   patchTodo: (id, patch) => {

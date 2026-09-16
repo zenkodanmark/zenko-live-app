@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { FacePhoto } from "@/components/face-photo";
-import { ActionPng, CloseX } from "@/components/sag-icons";
-import { TodoActions, CrewTodoOpen } from "@/components/complete-todo";
+import { ActionPng, CloseX, SagPng } from "@/components/sag-icons";
+import { CrewTodoOpen } from "@/components/complete-todo";
 import { GpsLink, ReportThumb, TodoPhotos } from "@/components/photo-strip";
 import { DriveFileThumb } from "@/components/drive-photo";
 import { Card, Chip, GhostButton, PrimaryButton, SectionLabel } from "@/components/zenko";
@@ -13,7 +13,7 @@ import { todoAllPhotoIds } from "@/lib/photo-meta";
 import { copenhagenDate, FIRM, FIRM_CVR, isMasterRole } from "@/lib/seed";
 import { useSessionEmployee, useYard } from "@/lib/store";
 import { fillTodoTranslations, uploadTodoPhotos } from "@/lib/todo-drive";
-import { isPersonalTodo, todoJobLabel } from "@/lib/crew-todo";
+import { canMarkTodoDone, crewTodoBody, crewTodoTitle, doneTodosNewest, isPersonalTodo, openTodos, todoJobLabel } from "@/lib/crew-todo";
 import { removePladsFile } from "@/lib/plads-file";
 import { todoAssigneeIds, todoAssignedTo, todoDoneLine, todoPeopleLine } from "@/lib/todo-people";
 import type { Lang, Todo } from "@/lib/types";
@@ -22,7 +22,7 @@ export function OpenTodosCard({ lang }: { lang: Lang }) {
   const todos = useYard((s) => s.todos);
   const [openList, setOpenList] = useState(false);
   const [doneOpen, setDoneOpen] = useState(false);
-  const open = todos.filter((x) => !x.done);
+  const open = openTodos(todos);
 
   return (
     <>
@@ -34,7 +34,7 @@ export function OpenTodosCard({ lang }: { lang: Lang }) {
           </span>
           {open.length ? <Chip tone="brick">{open.length}</Chip> : <Chip tone="ok">0</Chip>}
         </button>
-        <GhostButton className="mt-2 bg-sand" onClick={() => setDoneOpen(true)}>
+        <GhostButton className="mt-2 bg-sand" data-testid="todo-card-done-link" onClick={() => setDoneOpen(true)}>
           {t(lang, "todoDoneLink")}
         </GhostButton>
       </Card>
@@ -49,8 +49,8 @@ export function OpenTodosSheet({ lang, onClose, projectId, assigneeId }: { lang:
   const employees = useYard((s) => s.employees);
   const [q, setQ] = useState("");
   const [pick, setPick] = useState<string | null>(null);
-  const open = todos
-    .filter((x) => !x.done)
+  const [doneOpen, setDoneOpen] = useState(false);
+  const open = openTodos(todos)
     .filter((x) => (projectId ? x.projectId === projectId : true))
     .filter((x) => (assigneeId ? todoAssignedTo(x, assigneeId) : true))
     .filter((x) => {
@@ -99,8 +99,12 @@ export function OpenTodosSheet({ lang, onClose, projectId, assigneeId }: { lang:
             );
           })}
         </ul>
+        <GhostButton className="bg-paper" data-testid="todo-open-done-link" onClick={() => setDoneOpen(true)}>
+          {t(lang, "todoDoneLink")}
+        </GhostButton>
       </div>
       {active ? <TodoSheet td={active} lang={lang} onClose={() => setPick(null)} /> : null}
+      {doneOpen ? <DoneTodosSheet lang={lang} projectId={projectId} assigneeId={assigneeId} onClose={() => setDoneOpen(false)} /> : null}
     </div>
   );
 }
@@ -229,8 +233,8 @@ export function DoneTodosSheet({ lang, onClose, projectId, assigneeId }: { lang:
   const [job, setJob] = useState(projectId ?? "");
   const [date, setDate] = useState("");
   const [pick, setPick] = useState<string | null>(null);
-  const rows = todos
-    .filter((x) => x.done)
+  const reopenTodo = useYard((s) => s.reopenTodo);
+  const rows = doneTodosNewest(todos)
     .filter((x) => (job ? x.projectId === job : true))
     .filter((x) => (person ? todoAssignedTo(x, person) : true))
     .filter((x) => (date ? (x.doneAt ?? x.createdAt).slice(0, 10) === date : true))
@@ -239,8 +243,7 @@ export function DoneTodosSheet({ lang, onClose, projectId, assigneeId }: { lang:
       const who = todoPeopleLine(x, employees);
       const doneBy = todoDoneLine(x, employees);
       return `${x.title} ${x.body} ${who} ${doneBy} ${todoJobLabel(x.projectId, lang)}`.toLowerCase().includes(q.trim().toLowerCase());
-    })
-    .sort((a, b) => (b.doneAt ?? "").localeCompare(a.doneAt ?? ""));
+    });
   const active = rows.find((r) => r.id === pick) ?? null;
 
   return (
@@ -295,21 +298,34 @@ export function DoneTodosSheet({ lang, onClose, projectId, assigneeId }: { lang:
         </label>
         {rows.length === 0 ? <p className="text-list leading-[1.4] text-ink">{t(lang, "todoDoneEmpty")}</p> : null}
         <ul className="space-y-1.5">
-          {rows.map((td) => (
-            <li key={td.id}>
-              <button type="button" className="flex w-full items-center gap-2 rounded-xl bg-paper px-3 py-2 text-left shadow-card" onClick={() => setPick(td.id)}>
-                {todoAllPhotoIds(td).length ? <ReportThumb ids={todoAllPhotoIds(td)} /> : null}
-                <span className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{shownTodoText(td, lang, me?.role)}</p>
-                  <p className="text-xs text-muted">
-                    {todoJobLabel(td.projectId, lang)} · {todoPeopleLine(td, employees) || "—"}
-                    {td.doneById ? ` · ${todoDoneLine(td, employees)}` : ""}
-                    {td.photoFileIds?.length || td.donePhotoFileIds?.length ? ` · ${(td.photoFileIds?.length ?? 0) + (td.donePhotoFileIds?.length ?? 0)} foto` : ""}
-                  </p>
-                </span>
-              </button>
-            </li>
-          ))}
+          {rows.map((td) => {
+            const snippet = (td.body || td.original || "").trim();
+            const bodyBit = snippet && snippet !== td.title ? snippet.slice(0, 90) : "";
+            const when = (td.doneAt ?? td.createdAt).slice(0, 10);
+            const whoDone = td.doneById ? employees.find((e) => e.id === td.doneById)?.name : todoPeopleLine(td, employees);
+            return (
+              <li key={td.id} className="rounded-xl bg-paper px-3 py-2 shadow-card">
+                <button type="button" className="flex w-full items-center gap-2 text-left" onClick={() => setPick(td.id)} data-testid={`todo-done-open-${td.id}`}>
+                  {todoAllPhotoIds(td).length ? <ReportThumb ids={todoAllPhotoIds(td)} /> : null}
+                  <span className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">{td.title || shownTodoText(td, lang, me?.role)}</p>
+                    {bodyBit ? <p className="text-xs text-ink">{bodyBit}</p> : null}
+                    <p className="text-xs text-muted">
+                      {when}
+                      {whoDone ? ` · ${whoDone}` : ""}
+                    </p>
+                  </span>
+                </button>
+                <GhostButton
+                  className="mt-2 min-h-10 bg-sand text-xs"
+                  data-testid={`todo-undo-${td.id}`}
+                  onClick={() => reopenTodo(td.id)}
+                >
+                  {t(lang, "todoUndoDone")}
+                </GhostButton>
+              </li>
+            );
+          })}
         </ul>
       </div>
       {active ? <TodoSheet td={active} lang={lang} onClose={() => setPick(null)} /> : null}
@@ -319,68 +335,172 @@ export function DoneTodosSheet({ lang, onClose, projectId, assigneeId }: { lang:
 
 export function TodoSheet({ td, lang, onClose }: { td: Todo; lang: Lang; onClose: () => void }) {
   const live = useYard((s) => s.todos.find((x) => x.id === td.id)) ?? td;
-  const employees = useYard((s) => s.employees);
-  const projects = useYard((s) => s.projects);
   const me = useSessionEmployee();
-  const convertTodo = useYard((s) => s.convertTodo);
-  const removeTodo = useYard((s) => s.removeTodo);
   const master = me ? isMasterRole(me.role) : false;
-  const [jobId, setJobId] = useState(live.projectId);
   const [edit, setEdit] = useState(false);
   if (!master) return <CrewTodoOpen td={live} lang={lang} onClose={onClose} />;
+  return (
+    <>
+      <MasterTodoOpen td={live} lang={lang} onClose={onClose} onEdit={() => setEdit(true)} />
+      {edit ? <TodoEditSheet td={live} lang={lang} onClose={() => setEdit(false)} /> : null}
+    </>
+  );
+}
+
+function MasterTodoOpen({ td, lang, onClose, onEdit }: { td: Todo; lang: Lang; onClose: () => void; onEdit: () => void }) {
+  const live = useYard((s) => s.todos.find((x) => x.id === td.id)) ?? td;
+  const me = useSessionEmployee();
+  const completeTodo = useYard((s) => s.completeTodo);
+  const reopenTodo = useYard((s) => s.reopenTodo);
+  const patchTodo = useYard((s) => s.patchTodo);
+  const replyTodo = useYard((s) => s.replyTodo);
+  const camRef = useRef<HTMLInputElement>(null);
+  const galRef = useRef<HTMLInputElement>(null);
+  const vidRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [reply, setReply] = useState(live.reply ?? "");
+  const [full, setFull] = useState<string | null>(null);
+  const photos = todoAllPhotoIds(live);
+  const desc = crewTodoBody(live, lang);
+
+  async function uploadFiles(list: File[]) {
+    if (!me || !list.length) return;
+    setBusy(true);
+    try {
+      const drafts: { id: string; dataUrl: string; name: string }[] = [];
+      for (const file of list) {
+        const dataUrl = await new Promise<string>((resolve) => {
+          const r = new FileReader();
+          r.onload = () => resolve(String(r.result || ""));
+          r.onerror = () => resolve("");
+          r.readAsDataURL(file);
+        });
+        if (dataUrl) drafts.push({ id: `tdp-${crypto.randomUUID().slice(0, 6)}`, dataUrl, name: file.name || "fil" });
+      }
+      if (!drafts.length) return;
+      const jobId = isPersonalTodo(live.projectId) ? "personlig" : live.projectId;
+      const ids = await uploadTodoPhotos(jobId, live.id, drafts);
+      if (!ids.length) {
+        useYard.setState({ toast: t(lang, "driveFail") });
+        return;
+      }
+      const cur = useYard.getState().todos.find((x) => x.id === live.id);
+      patchTodo(live.id, { photoFileIds: [...(cur?.photoFileIds ?? []), ...ids] });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function finish() {
+    if (!me || live.done || !canMarkTodoDone(live, me)) return;
+    completeTodo(live.id, me.id);
+    onClose();
+  }
+
+  function undo() {
+    reopenTodo(live.id);
+    onClose();
+  }
+
+  function sendReply() {
+    if (!me || !reply.trim()) return;
+    replyTodo(live.id, me.id, reply);
+  }
 
   return (
-    <div className="fixed inset-0 z-[60] overflow-y-auto bg-navy/50">
-      <div className="no-print sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-navy px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-sand">
-        <PrimaryButton tone="sand" className="w-auto px-4" data-testid="todo-pdf" onClick={() => printDoc()}>
+    <div className="fixed inset-0 z-[60] overflow-y-auto bg-sand" data-testid="master-todo-open">
+      <div className="sticky top-0 z-10 flex items-center gap-2 bg-sand px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+        <PrimaryButton tone="navy" className="w-auto px-4" data-testid="todo-pdf" onClick={() => printDoc()}>
           PDF
         </PrimaryButton>
-        <GhostButton className="text-sand" onClick={() => setEdit(true)}>
+        <GhostButton className="bg-paper" onClick={onEdit}>
           {t(lang, "editShort")}
         </GhostButton>
         <CloseX onClick={onClose} label={t(lang, "close")} />
       </div>
-      <div className="bg-sand py-6">
+      <div className="mx-auto max-w-lg space-y-5 px-4 pb-10">
+        <div>
+          <h1 className="font-display text-3xl font-semibold leading-snug text-navy" data-testid="master-todo-title">
+            {crewTodoTitle(live, lang)}
+          </h1>
+          {desc ? (
+            <p data-testid="master-todo-body" className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-ink">
+              {desc}
+            </p>
+          ) : null}
+        </div>
+        {photos.length ? (
+          <ul className="flex flex-wrap gap-2">
+            {photos.map((id) => (
+              <li key={id}>
+                <button type="button" className="block" onClick={() => setFull(id)} aria-label={t(lang, "fieldPhoto")}>
+                  <DriveFileThumb fileId={id} className="size-16 rounded-xl object-cover" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {!live.done ? (
+          <button
+            type="button"
+            data-testid="master-todo-done"
+            disabled={busy}
+            onClick={() => void finish()}
+            className="relative z-20 flex min-h-16 w-full items-center justify-center gap-3 rounded-2xl px-4 shadow-card"
+            style={{ background: "#c45c3e" }}
+            aria-label={t(lang, "todoDoneMark")}
+          >
+            <span className="relative inline-flex">
+              <SagPng name="todo" px={48} />
+              <span className="absolute -bottom-0.5 -right-0.5 flex size-5 items-center justify-center rounded-full bg-sand text-sm font-bold leading-none text-[#c45c3e]">
+                ✓
+              </span>
+            </span>
+            <span className="font-display text-2xl text-sand">{t(lang, "todoDoneMark")}</span>
+          </button>
+        ) : (
+          <GhostButton className="relative z-20 bg-paper" data-testid="master-todo-undo" onClick={undo}>
+            {t(lang, "todoUndoDone")}
+          </GhostButton>
+        )}
+        <div className="relative z-0 flex items-center justify-center gap-2 rounded-[24px] bg-paper px-2 py-2 shadow-card">
+          <button type="button" aria-label={t(lang, "fieldPhoto")} className="inline-flex min-h-[3.25rem] flex-1 items-center justify-center" disabled={busy} onClick={() => camRef.current?.click()}>
+            <ActionPng name="camCompact" px={48} />
+          </button>
+          <button type="button" aria-label={t(lang, "gallery")} className="inline-flex min-h-[3.25rem] flex-1 items-center justify-center" disabled={busy} onClick={() => galRef.current?.click()}>
+            <ActionPng name="gallery" px={48} />
+          </button>
+          <button type="button" aria-label={t(lang, "fieldVideo")} className="inline-flex min-h-[3.25rem] flex-1 items-center justify-center" disabled={busy} onClick={() => vidRef.current?.click()}>
+            <ActionPng name="video" px={48} />
+          </button>
+          <button type="button" aria-label={t(lang, "fieldFile")} className="inline-flex min-h-[3.25rem] flex-1 items-center justify-center" disabled={busy} onClick={() => fileRef.current?.click()}>
+            <ActionPng name="fileDoc" px={48} />
+          </button>
+        </div>
+        <div className="flex items-stretch gap-2">
+          <textarea
+            className="min-h-[4.5rem] min-w-0 flex-1 rounded-[20px] bg-paper px-3 py-3 font-sans text-lg shadow-card outline-none"
+            placeholder={t(lang, "todoSvarPh")}
+            value={reply}
+            onChange={(e) => setReply(e.target.value)}
+            onBlur={sendReply}
+            data-testid="master-todo-reply"
+          />
+        </div>
+        <input ref={camRef} type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => { void uploadFiles([...(e.target.files ?? [])]); e.target.value = ""; }} />
+        <input ref={galRef} type="file" accept="image/*,image/jpeg,image/png,image/webp,image/heic" multiple className="hidden" onChange={(e) => { void uploadFiles([...(e.target.files ?? [])]); e.target.value = ""; }} />
+        <input ref={vidRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={(e) => { void uploadFiles([...(e.target.files ?? [])]); e.target.value = ""; }} />
+        <input ref={fileRef} type="file" className="hidden" onChange={(e) => { void uploadFiles([...(e.target.files ?? [])]); e.target.value = ""; }} />
+      </div>
+      <div className="print-only">
         <TodoDoc td={live} lang={lang} />
       </div>
-      <div className="no-print mx-auto max-w-[210mm] space-y-3 px-5 pb-8 pt-4">
-        <label className="block text-xs text-muted">
-          {t(lang, "chooseProject")}
-          <select className="mt-1 min-h-11 w-full rounded-lg bg-sand px-3 text-sm" value={jobId} onChange={(e) => setJobId(e.target.value)}>
-            {projects.filter((p) => p.status === "active").map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{t(lang, "todoMakeReport")}</p>
-        <div className="flex flex-wrap gap-1.5">
-          {(["slip", "ks", "ent", "tf"] as const).map((k) => (
-            <GhostButton
-              key={k}
-              className="bg-sand"
-              onClick={() => {
-                convertTodo(live.id, k, jobId);
-                onClose();
-              }}
-            >
-              {k === "slip" ? "AS" : k === "ent" ? "ER" : k.toUpperCase()}
-            </GhostButton>
-          ))}
-        </div>
-        <TodoActions todo={live} lang={lang} />
-        <GhostButton
-          className="bg-sand text-brick"
-          onClick={() => {
-            removeTodo(live.id);
-            onClose();
-          }}
-        >
-          {t(lang, "todoDelete")}
-        </GhostButton>
-      </div>
-      {edit ? <TodoEditSheet td={live} lang={lang} onClose={() => setEdit(false)} /> : null}
+      {full ? (
+        <button type="button" className="fixed inset-0 z-[70] flex items-center justify-center bg-navy/80 p-4" onClick={() => setFull(null)}>
+          <DriveFileThumb fileId={full} className="max-h-[90dvh] max-w-full rounded-[20px] object-contain" />
+        </button>
+      ) : null}
     </div>
   );
 }

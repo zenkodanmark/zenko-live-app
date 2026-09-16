@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canMarkTodoDone, crewHomeTodos, crewSagTodos, crewTodoBody, crewTodoTitle, isJobPlaceTitle, isPersonalTodo, todoJobLabel } from "./crew-todo.ts";
+import { canMarkTodoDone, crewHomeTodos, crewSagTodos, crewTodoBody, crewTodoTitle, doneTodosNewest, isJobPlaceTitle, isPersonalTodo, openTodos, todoJobLabel } from "./crew-todo.ts";
 import type { Employee, Todo } from "./types.ts";
 
 const osvaldo: Employee = { id: "emp-osvaldo", name: "Osvaldo", role: "svend", language: "es", pin: "5555", initials: "OS" };
@@ -96,6 +96,18 @@ test("ansat ser body, ikke titel om igen", () => {
     translations: { ro: { body: "Gresie 2,5 x 2,5 m" } as unknown as string },
   });
   assert.equal(crewTodoBody(nested, "ro"), "Gresie 2,5 x 2,5 m");
+});
+
+test("mester aktiv liste er kun done=false, udførte nyeste først", () => {
+  const rows = [
+    td({ id: "td-bryggers", title: "Bryggers", body: "Fliser 2,5 x 2,5 m", done: false }),
+    td({ id: "a", title: "Fuger", done: true, doneAt: "2026-09-10T08:00:00.000Z", doneById: "emp-ole" }),
+    td({ id: "b", title: "Bryggers", done: true, doneAt: "2026-09-16T09:00:00.000Z", doneById: "emp-ole" }),
+  ];
+  assert.deepEqual(openTodos(rows).map((x) => x.id), ["td-bryggers"]);
+  assert.deepEqual(doneTodosNewest(rows).map((x) => x.id), ["b", "a"]);
+  const undone = { ...rows[2]!, done: false, doneAt: undefined, doneById: undefined };
+  assert.deepEqual(openTodos([rows[0]!, undone]).map((x) => x.id).sort(), ["b", "td-bryggers"]);
 });
 
 test("titel oversættes ikke når det er sagsnavn", () => {

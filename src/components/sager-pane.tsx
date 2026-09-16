@@ -708,7 +708,7 @@ export function SagerPane({
                   </li>
                 ))}
               </ul>
-              <GhostButton className="mt-3 bg-paper" onClick={() => setView({ kind: "todo", id: "__done__" })}>
+              <GhostButton className="mt-3 bg-paper" data-testid="sag-todo-done-link" onClick={() => setView({ kind: "todo", id: "__done__" })}>
                 {t(lang, "todoDoneLink")}
               </GhostButton>
             </div>

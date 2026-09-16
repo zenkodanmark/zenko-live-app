@@ -68,6 +68,14 @@ export function crewTodoBody(todo: Todo, lang?: Lang) {
   return "";
 }
 
+export function openTodos(todos: Todo[]) {
+  return todos.filter((x) => !x.done);
+}
+
+export function doneTodosNewest(todos: Todo[]) {
+  return todos.filter((x) => x.done).sort((a, b) => (b.doneAt ?? b.createdAt ?? "").localeCompare(a.doneAt ?? a.createdAt ?? ""));
+}
+
 export function crewHomeTodos(todos: Todo[], me: Employee, jobIds: Iterable<string>) {
   const jobs = new Set(jobIds);
   return todos.filter((x) => todoAssignedTo(x, me.id) && (isPersonalTodo(x.projectId) || jobs.has(x.projectId)));
