@@ -20,16 +20,16 @@ export function sagHead(title: string, description: string) {
   };
 }
 
-export function SagShell({ job, hero = false, children }: { job?: SagJobMeta | null; hero?: boolean; children: ReactNode }) {
+export function SagShell({ job, hero = false, wide = false, children }: { job?: SagJobMeta | null; hero?: boolean; wide?: boolean; children: ReactNode }) {
   return (
     <main className="min-h-dvh bg-sand pb-24" data-testid="ledelse-desk">
-      <header className="bg-navy px-4 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))] text-sand">
+      <header className="no-print bg-navy px-4 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))] text-sand">
         <p className="text-xs font-semibold tracking-[0.18em] uppercase">Zenko Danmark</p>
         <p className="mt-1 text-xs tracking-wide text-sand/70">Byggeledelse</p>
         {hero && job ? <h1 className="mt-2 font-display text-4xl leading-none">{job.name}</h1> : null}
         {hero && job?.address ? <p className="mt-1 text-sm text-sand/80">{job.address}</p> : null}
       </header>
-      <div className={`mx-auto max-w-lg space-y-3 px-4 ${hero ? "py-4" : "pt-3 pb-8"}`}>{children}</div>
+      <div className={`mx-auto space-y-3 px-4 ${wide ? "max-w-[210mm]" : "max-w-lg"} ${hero ? "py-4" : "pt-3 pb-8"}`}>{children}</div>
       <ToastHost />
     </main>
   );

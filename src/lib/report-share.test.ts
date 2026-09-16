@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildAsSharePayload, buildKsSharePayload, bundledShareRecord, isShareKind, isShareSlug, publicAppOrigin, publicReportUrl, reportMailCopy, reportSharePath, shareSlug } from "./report-share.ts";
+import { asDocHeading, buildAsSharePayload, buildKsSharePayload, bundledShareRecord, isShareKind, isShareSlug, matchesShareKey, publicAppOrigin, publicReportUrl, reportMailCopy, reportSharePath, shareLookupKeys, shareSlug } from "./report-share.ts";
 import type { FieldItem, KsPhoto, KsReport, Project, Slip } from "./types.ts";
 
 test("slug og path er kundelink — aldrig mester-hash", () => {
@@ -107,4 +107,22 @@ test("bundled gæsterapporter — KS 52, AS 399, TF 12, ER 5", () => {
   assert.ok(er, "ER 5 skal findes uden database");
   assert.equal(er.kind, "er");
   assert.equal(shareSlug(er.number), "5");
+});
+
+test("Z-AS-2026-007 kopiér-link slår op på number og id", () => {
+  assert.equal(shareSlug("Z-AS-2026-007"), "Z-AS-2026-007");
+  assert.equal(reportSharePath("as", "Z-AS-2026-007"), "/r/as/Z-AS-2026-007");
+  assert.equal(publicReportUrl("as", "Z-AS-2026-007", "http://localhost:8080"), "https://zenkodanmark.github.io/r/as/Z-AS-2026-007");
+  assert.ok(isShareSlug("Z-AS-2026-007"));
+  const row = { id: "slip-hillerodsholm-tb-kaelder-2026", number: "Z-AS-2026-007" };
+  assert.equal(matchesShareKey(row, "Z-AS-2026-007"), true);
+  assert.equal(matchesShareKey(row, "slip-hillerodsholm-tb-kaelder-2026"), true);
+  assert.ok(shareLookupKeys("as", "Z-AS-2026-007").includes("Z-AS-2026-007"));
+  assert.ok(shareLookupKeys("tf", "396").includes("TF-396"));
+  assert.ok(shareLookupKeys("tf", "396").includes("396"));
+  assert.equal(asDocHeading("as", "Z-AS-2026-007"), "Aftaleseddel nr: Z-AS-2026-007");
+  assert.equal(bundledShareRecord("as", "Z-AS-2026-007"), null);
+  const as399 = bundledShareRecord("as", "399");
+  assert.ok(as399, "bundled AS 399 urørt");
+  assert.equal(shareSlug(as399.number), "399");
 });

@@ -12,6 +12,7 @@ import {
   bundledSagInputs,
   filterAs,
   filterTfs,
+  isLedelseOn,
   paginate,
   parseAsMaterials,
   priceLabel,
@@ -36,6 +37,7 @@ test("slug og sti er /sag/hilleroedsholm", () => {
   assert.equal(sagPath("hilleroedsholm", ["todo"]), "/sag/hilleroedsholm/todo");
   assert.equal(sagPath("hilleroedsholm", ["tf", "Z-TF-2026-006"]), "/sag/hilleroedsholm/tf/Z-TF-2026-006");
   assert.equal(sagPath("hilleroedsholm", ["as", "292"]), "/sag/hilleroedsholm/as/292");
+  assert.equal(sagPath("hilleroedsholm", ["as", "Z-AS-2026-007"]), "/sag/hilleroedsholm/as/Z-AS-2026-007");
 });
 
 test("AS-292 er 38.825,- ekskl. moms", () => {
@@ -246,4 +248,13 @@ test("TF-hak styrer Udførsel — 007 vises kun når flaget er ja, 006 forbliver
   assert.ok(off.tfs.some((t) => t.number === "Z-TF-2026-006"));
   assert.ok(!off.tfs.some((t) => t.number === "Z-TF-2026-007"));
   assert.equal(tfCounts(off.tfs).total, off.tfs.length);
+});
+
+test("AS 007 pris 255.810 og byggeleder-link uden kunde-hak", () => {
+  assert.equal(priceNumber("255.810 eksk"), 255810);
+  assert.equal(priceLabel("255.810 eksk"), "255.810,-");
+  assert.equal(isLedelseOn({ ledelseStatus: "med_til_ledelse" }), true);
+  assert.equal(isLedelseOn({ ledelseStatus: "med_til_ledelse", trashedAt: undefined }), true);
+  assert.equal(isLedelseOn({ ledelseStatus: "skjult" }), false);
+  assert.equal(defaultLedelseOn("tf", "Z-TF-2026-006"), true);
 });

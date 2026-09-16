@@ -72,7 +72,7 @@ export function SagPinGate({
 
   return (
     <SagShell>
-      <div data-testid="sag-pin-gate" className="rounded-[24px] bg-paper px-4 py-5 shadow-card">
+      <div data-testid="sag-pin-gate" className="no-print rounded-[24px] bg-paper px-4 py-5 shadow-card">
         <p className="font-display text-3xl text-navy">Kode</p>
         <p className="mt-1 text-sm text-muted">Tast 4 cifre for at åbne byggeledelse.</p>
         <div className="mt-5 mb-4 flex justify-center gap-4">

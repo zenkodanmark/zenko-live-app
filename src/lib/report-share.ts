@@ -54,6 +54,19 @@ export function matchesShareKey(row: { id: string; number: string }, slug: strin
   return false;
 }
 
+/** Number/id variants a public /r/ link may use (Z-AS-2026-007, 007, AS-007, raw id). */
+export function shareLookupKeys(kind: ShareKind, slug: string): string[] {
+  const raw = String(slug || "").trim();
+  const key = shareSlug(raw);
+  const prefix = kind.toUpperCase();
+  const keys = [raw, key, `${prefix}-${key}`, `${prefix}${key}`, `Z-${prefix}-${key}`, `Z-${prefix}-2026-${key}`];
+  return [...new Set(keys.filter((k) => k && k.length <= 80))];
+}
+
+export function asDocHeading(kind: "as" | "tb", number: string) {
+  return kind === "tb" ? `Tilbud nr: ${number}` : `Aftaleseddel nr: ${number}`;
+}
+
 export function reportSharePath(kind: ShareKind, number: string) {
   return `/r/${kind}/${shareSlug(number)}`;
 }
@@ -94,11 +107,23 @@ export function asShareRecord(payload: ReportSharePayload, extras?: Partial<Pick
 
 function collectFieldPhotos(ids: string[], fieldItems: FieldItem[]): ReportSharePhoto[] {
   const photos: ReportSharePhoto[] = [];
+  const seen = new Set<string>();
   for (const item of fieldItems) {
     if (!ids.includes(item.id) && !ids.includes(item.driveFileId ?? "")) continue;
     const src = photoSrc(item);
     if (!src) continue;
+    if (seen.has(item.id) || seen.has(src)) continue;
+    seen.add(item.id);
+    seen.add(src);
     photos.push({ id: item.id, name: item.name, src });
+  }
+  for (const id of ids) {
+    if (!id || seen.has(id)) continue;
+    const src = photoSrc({ dataUrl: id, driveFileId: id, driveUrl: id });
+    if (!src || seen.has(src)) continue;
+    seen.add(id);
+    seen.add(src);
+    photos.push({ id, name: id, src });
   }
   return photos;
 }

@@ -18,6 +18,7 @@ import {
   type SagTfView,
 } from "@/lib/sag-ledelse";
 import { BackArrow, CloseX, SagPng, TabPng } from "@/components/sag-icons";
+import { AsBlanket } from "@/components/as-blanket";
 import { SagBack, SagMetaGrid, SagMissing, SagPhotos, SagShell, SagTypeBtn } from "@/components/sag-shell";
 import { ToastHost } from "@/components/toast-host";
 import { PrimaryButton } from "@/components/zenko";
@@ -25,6 +26,7 @@ import { QuickCompose } from "@/components/quick-compose";
 import { TodoDoc } from "@/components/todo-board";
 import { ReportThumb } from "@/components/photo-strip";
 import { firstMasterId, isLedelseTodo } from "@/lib/plan-grid";
+import { asDocHeading } from "@/lib/report-share";
 import { useYard } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import { projectIdFromSlug } from "@/lib/ks-customer";
@@ -454,8 +456,10 @@ export function SagAsPage({ site, number }: { site: SagSite | null; number: stri
   const as = site?.slips.find((r) => r.slug === number || r.number === number || r.number === `AS-${number}`);
   if (!site || !as) return <SagMissing />;
   return (
-    <SagShell job={site.job}>
-      <SagBack to={sagPath(site.job.slug, ["as"])}>Tilbage til AS</SagBack>
+    <SagShell job={site.job} wide>
+      <div className="no-print">
+        <SagBack to={sagPath(site.job.slug, ["as"])}>Tilbage til AS</SagBack>
+      </div>
       <SagAsBody as={as} print={false} />
     </SagShell>
   );
@@ -465,59 +469,43 @@ export function SagTbPage({ site, number }: { site: SagSite | null; number: stri
   const row = site?.tbs.find((r) => r.slug === number || r.number === number || r.number === `TB-${number}`);
   if (!site || !row) return <SagMissing />;
   return (
-    <SagShell job={site.job}>
-      <SagBack to={sagPath(site.job.slug, ["tb"])}>Tilbage til TB</SagBack>
+    <SagShell job={site.job} wide>
+      <div className="no-print">
+        <SagBack to={sagPath(site.job.slug, ["tb"])}>Tilbage til TB</SagBack>
+      </div>
       <SagAsBody as={row} print={false} kind="tb" />
     </SagShell>
   );
 }
 
 export function SagAsBody({ as, print, kind = "as" }: { as: SagAsView; print?: boolean; kind?: "as" | "tb" }) {
-  const rows: [string, string][] = [
-    ["Til", as.customer],
-    ["Dato", dmy(as.createdAt)],
-    ["Byggesag", as.projectName],
-    ["Lokation", as.location],
-  ].filter(([, v]) => v.trim()) as [string, string][];
-
   return (
     <article>
-      <ReadSlip
-        kicker={kind === "tb" ? "TB" : "AS"}
-        number={as.number}
+      {print ? null : (
+        <div className="no-print mb-3">
+          <PrimaryButton className="w-auto px-5" data-testid="as-save-pdf" onClick={() => window.print()}>
+            Gem som PDF
+          </PrimaryButton>
+        </div>
+      )}
+      <AsBlanket
+        heading={asDocHeading(kind, as.number)}
         title={as.title}
-        rows={rows}
-        body={as.description || as.body}
-        photos={as.photos}
-        extra={
-          <>
-            {as.materials.length ? (
-              <section className="mt-4 rounded-[20px] bg-paper px-4 py-4 shadow-card">
-                <p className="text-xs font-semibold tracking-wide text-muted uppercase">Materialer</p>
-                <ul className="mt-2 space-y-2 text-base">
-                  {as.materials.map((m, i) => (
-                    <li key={i} className="flex justify-between gap-4">
-                      <span>{m.text.replace(/\s+\d{1,3}(?:\.\d{3})+\s*,-\s*$/, "").trim() || m.text}</span>
-                      <span className="shrink-0 tabular-nums text-muted">{m.amount != null ? `${m.amount.toLocaleString("da-DK")},-` : ""}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
-            {as.note ? (
-              <section className="mt-4 rounded-[20px] bg-paper px-4 py-4 shadow-card">
-                <p className="text-xs font-semibold tracking-wide text-muted uppercase">Kunde bemærkning</p>
-                <p className="mt-2 whitespace-pre-wrap text-base leading-relaxed">{as.note}</p>
-              </section>
-            ) : null}
-            <section className="mt-4 rounded-[20px] bg-paper px-4 py-4 shadow-card">
-              <p className="text-xs font-semibold tracking-wide text-muted uppercase">Pris ekskl. moms</p>
-              <p className="mt-1 font-display text-3xl text-navy">{as.priceLabel}</p>
-            </section>
-          </>
-        }
+        customer={as.customer}
+        createdAt={as.createdAt}
+        projectName={as.projectName}
+        body={as.body}
+        note={as.note}
+        location={as.location}
+        priceLabel={as.priceLabel}
+        photos={as.photos.map((p) => ({ id: p.id, src: p.src, name: p.n }))}
+        replies={as.replies}
       />
-      {print ? null : <ReportComment kind={kind === "tb" ? "offer" : "slip"} id={as.id} start={as.replies ?? []} />}
+      {print ? null : (
+        <div className="no-print">
+          <ReportComment kind={kind === "tb" ? "offer" : "slip"} id={as.id} start={as.replies ?? []} formOnly />
+        </div>
+      )}
     </article>
   );
 }
@@ -692,10 +680,11 @@ function LedelseComment({
   );
 }
 
-function ReportComment({ kind, id, start }: { kind: "slip" | "offer" | "ent" | "ks"; id: string; start: LedelseReply[] }) {
+function ReportComment({ kind, id, start, formOnly }: { kind: "slip" | "offer" | "ent" | "ks"; id: string; start: LedelseReply[]; formOnly?: boolean }) {
   const [draft, setDraft] = useState("");
   const [replies, setReplies] = useState(start);
   const [busy, setBusy] = useState(false);
+  const startIds = useMemo(() => new Set(start.map((r) => r.id)), [start]);
 
   function send() {
     const text = draft.trim();
@@ -708,7 +697,8 @@ function ReportComment({ kind, id, start }: { kind: "slip" | "offer" | "ent" | "
     setBusy(false);
   }
 
-  return <LedelseComment replies={replies} draft={draft} busy={busy} error="" onDraft={setDraft} onSend={send} />;
+  const shown = formOnly ? replies.filter((r) => !startIds.has(r.id)) : replies;
+  return <LedelseComment replies={shown} draft={draft} busy={busy} error="" onDraft={setDraft} onSend={send} />;
 }
 
 function todoExcerpt(td: Todo) {

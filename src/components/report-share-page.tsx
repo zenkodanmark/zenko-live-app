@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react";
+import { AsBlanket } from "@/components/as-blanket";
 import { BrickMark, PrimaryButton } from "@/components/zenko";
 import { FIRM_CVR, FIRM_MAIL } from "@/lib/seed";
 import { answerReportShare, getReportShare } from "@/lib/report-share.functions";
-import { bundledShareRecord, shareKindLabel, shareSlug, type ReportShareRecord, type ShareKind } from "@/lib/report-share";
+import { loadLiveShare } from "@/lib/report-share-live";
+import { asDocHeading, bundledShareRecord, shareKindLabel, shareSlug, type ReportShareRecord, type ShareKind } from "@/lib/report-share";
+import { priceLabel as formatPrice } from "@/lib/sag-ledelse";
+import { useEffect, useState } from "react";
 
 function dmy(iso: string) {
   const d = new Date(iso);
@@ -36,6 +39,12 @@ function withTimeout<T>(promise: Promise<T>, ms: number) {
   });
 }
 
+function serverFnsLive() {
+  if (typeof window === "undefined") return true;
+  const host = window.location.hostname;
+  return host !== "zenkodanmark.github.io" && !host.endsWith(".github.io");
+}
+
 export function ReportSharePage({ kind, number }: { kind: ShareKind; number: string }) {
   const local = bundledShareRecord(kind, number);
   const [share, setShare] = useState<ReportShareRecord | null>(local);
@@ -49,32 +58,53 @@ export function ReportSharePage({ kind, number }: { kind: ShareKind; number: str
       setShare(fallback);
       setMissing(false);
       setBusy(false);
-    } else {
-      setBusy(true);
+      return () => {
+        live = false;
+      };
     }
-    void withTimeout(getReportShare({ data: { kind, number } }), 4000)
-      .then((res) => {
+    setBusy(true);
+    setMissing(false);
+
+    async function load() {
+      try {
+        const fromDb = await withTimeout(loadLiveShare(kind, number), 8000);
+        if (!live) return;
+        if (fromDb) {
+          setShare(fromDb);
+          setMissing(false);
+          setBusy(false);
+          return;
+        }
+      } catch {
+        /* neon/server fallback below */
+      }
+      if (!serverFnsLive()) {
+        if (!live) return;
+        setShare(null);
+        setMissing(true);
+        setBusy(false);
+        return;
+      }
+      try {
+        const res = await withTimeout(getReportShare({ data: { kind, number } }), 4000);
         if (!live) return;
         if (res.ok) {
           setShare(res.share);
           setMissing(false);
-        } else if (!fallback) {
-          setMissing(true);
-          setShare(null);
-        }
-        setBusy(false);
-      })
-      .catch(() => {
-        if (!live) return;
-        if (fallback) {
-          setShare(fallback);
-          setMissing(false);
         } else {
-          setMissing(true);
           setShare(null);
+          setMissing(true);
         }
-        setBusy(false);
-      });
+      } catch {
+        if (!live) return;
+        setShare(null);
+        setMissing(true);
+      } finally {
+        if (live) setBusy(false);
+      }
+    }
+
+    void load();
     return () => {
       live = false;
     };
@@ -82,7 +112,7 @@ export function ReportSharePage({ kind, number }: { kind: ShareKind; number: str
 
   return (
     <main className="min-h-dvh bg-sand pb-16 text-ink">
-      <header className="border-b border-line bg-paper px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <header className="no-print border-b border-line bg-paper px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div className="mx-auto flex max-w-[210mm] items-center gap-3">
           <BrickMark className="size-8" />
           <p className="font-display text-xl font-semibold tracking-[0.18em] text-navy">ZENKO DANMARK</p>
@@ -96,7 +126,21 @@ export function ReportSharePage({ kind, number }: { kind: ShareKind; number: str
             <p className="mt-2 text-sm leading-relaxed text-muted">Linket er ugyldigt, eller rapporten er ikke udgivet endnu. Bed Zenko sende et nyt link.</p>
           </div>
         ) : null}
-        {share ? <ShareView share={share} onAnswered={setShare} /> : null}
+        {share && (share.kind === "as" || share.kind === "tb") ? (
+          <AsBlanket
+            heading={asDocHeading(share.kind, share.number)}
+            title={share.title}
+            customer={share.customer}
+            createdAt={share.createdAt}
+            projectName={share.projectName}
+            body={share.body}
+            note={share.extra.masterSolution || ""}
+            location={share.location}
+            priceLabel={formatPrice(share.extra.customerPrice || "")}
+            photos={share.photos}
+          />
+        ) : null}
+        {share && share.kind !== "as" && share.kind !== "tb" ? <ShareView share={share} onAnswered={setShare} /> : null}
       </div>
     </main>
   );
