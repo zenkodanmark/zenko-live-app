@@ -41,8 +41,31 @@ export function crewTodoTitle(todo: Todo, lang: Lang) {
   return title || orig.split("\n")[0] || "";
 }
 
-export function crewTodoBody(todo: Todo) {
-  return (todo.body || todo.original || "").trim() || (todo.title || "").trim();
+function nestedBody(raw: unknown): string {
+  if (raw && typeof raw === "object" && "body" in raw) {
+    const body = (raw as { body?: unknown }).body;
+    if (typeof body === "string") return body.trim();
+  }
+  return "";
+}
+
+function isSameTitle(text: string, title: string) {
+  return Boolean(text) && text.localeCompare(title, "da", { sensitivity: "accent" }) === 0;
+}
+
+/** Beskrivelse under titel. Aldrig titlen om igen. Tom = ingen kasse. */
+export function crewTodoBody(todo: Todo, lang?: Lang) {
+  const title = (todo.title || "").trim();
+  if (lang) {
+    const entry = todo.translations ? (todo.translations as Record<string, unknown>)[lang] : undefined;
+    const trBody = nestedBody(entry);
+    if (trBody && !isSameTitle(trBody, title)) return trBody;
+  }
+  const body = (todo.body || "").trim();
+  if (body && !isSameTitle(body, title)) return body;
+  const orig = (todo.original || "").trim();
+  if (orig && !isSameTitle(orig, title)) return orig;
+  return "";
 }
 
 export function crewHomeTodos(todos: Todo[], me: Employee, jobIds: Iterable<string>) {

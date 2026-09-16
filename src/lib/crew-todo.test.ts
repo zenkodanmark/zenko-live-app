@@ -73,13 +73,29 @@ test("svend på sag ser kun tildelte, også via assigneeIds", () => {
   assert.equal(master.length, 4);
 });
 
-test("ansat ser altid beskrivelse, også når den matcher titlen", () => {
+test("ansat ser body, ikke titel om igen", () => {
+  const bath = td({
+    title: "BADEVÆRELSE 2",
+    body: "Vasken sænkes 10 centimeter. Gasbetonen i vinduet skæres af.",
+    original: "BADEVÆRELSE 2",
+    translations: { da: "BADEVÆRELSE 2" },
+  });
+  assert.equal(crewTodoBody(bath, "ro").startsWith("Vasken sænkes"), true);
+  assert.equal(crewTodoBody(bath, "da").includes("BADEVÆRELSE"), false);
+  const onlyTitle = td({ title: "Hent mørtel", body: "", original: "Hent mørtel", translations: { da: "Hent mørtel" } });
+  assert.equal(crewTodoBody(onlyTitle, "ro"), "");
   const same = td({ title: "Sæt stillads", body: "Sæt stillads", original: "Sæt stillads" });
-  assert.equal(crewTodoBody(same), "Sæt stillads");
-  const onlyTitle = td({ title: "Hent mørtel", body: "", original: "" });
-  assert.equal(crewTodoBody(onlyTitle), "Hent mørtel");
+  assert.equal(crewTodoBody(same, "da"), "");
   const long = td({ title: "Fuger", body: "Udkrads 20 mm og sæt NHL 3,5.", original: "Udkrads 20 mm og sæt NHL 3,5." });
-  assert.equal(crewTodoBody(long).includes("NHL"), true);
+  assert.equal(crewTodoBody(long, "da").includes("NHL"), true);
+  const fod = td({ title: "Fodlister", body: "Fodlister – Jyderup (flere kommer)\n- Lille værelse", original: "" });
+  assert.match(crewTodoBody(fod, "ro"), /Jyderup/);
+  const nested = td({
+    title: "Bryggers",
+    body: "Fliser 2,5 x 2,5 m",
+    translations: { ro: { body: "Gresie 2,5 x 2,5 m" } as unknown as string },
+  });
+  assert.equal(crewTodoBody(nested, "ro"), "Gresie 2,5 x 2,5 m");
 });
 
 test("titel oversættes ikke når det er sagsnavn", () => {

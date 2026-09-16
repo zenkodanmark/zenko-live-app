@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, ImagePlus } from "lucide-react";
 import { DriveFileThumb } from "@/components/drive-photo";
-import { UserText } from "@/components/user-text";
 import { ActionPng, BackArrow, SagPng } from "@/components/sag-icons";
 import { GhostButton, PrimaryButton } from "@/components/zenko";
 import { transcribeClip } from "@/lib/ai.functions";
@@ -311,6 +310,7 @@ export function CrewTodoOpen({ td, lang, onClose }: { td: Todo; lang: Lang; onCl
   const [reply, setReply] = useState(live.reply ?? "");
   const [full, setFull] = useState<string | null>(null);
   const photos = todoAllPhotoIds(live);
+  const desc = crewTodoBody(live, lang);
 
   useEffect(() => {
     const orig = (live.original ?? live.body ?? live.title).trim();
@@ -429,18 +429,10 @@ export function CrewTodoOpen({ td, lang, onClose }: { td: Todo; lang: Lang; onCl
           <h1 className="font-display text-3xl font-semibold leading-snug text-navy" data-testid="crew-todo-title">
             {crewTodoTitle(live, lang)}
           </h1>
-          {crewTodoBody(live) ? (
-            <div data-testid="crew-todo-body">
-              <UserText
-                original={crewTodoBody(live)}
-                translations={live.translations}
-                lang={lang}
-                role={me?.role}
-                originalHint
-                className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-ink"
-                linkClass="mt-1 text-xs text-muted"
-              />
-            </div>
+          {desc ? (
+            <p data-testid="crew-todo-body" className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-ink">
+              {desc}
+            </p>
           ) : null}
         </div>
         {photos.length ? (
