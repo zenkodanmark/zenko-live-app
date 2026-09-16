@@ -12,7 +12,7 @@ export function toSpaShell(html) {
   out = out.replace(/<main\b[^>]*>[\s\S]*?<\/main>/i, "<!--spa-->");
   if (!out.includes("data-spa-shell-boot")) {
     const boot =
-      '<script data-spa-shell-boot="1">(function(){var t=self.$_TSR;if(!t||!t.router||!Array.isArray(t.router.matches))return;t.router.matches=t.router.matches.filter(function(m){return m&&m.i==="__root__";});})();</script>';
+      '<script data-spa-shell-boot="1">(function(){var t=self.$_TSR;if(!t||!t.router||!Array.isArray(t.router.matches)||!t.router.matches.length)return;t.router.matches=t.router.matches.slice(0,1);})();</script>';
     if (/<script type="module"/.test(out)) {
       out = out.replace(/<script type="module"/, `${boot}<script type="module"`);
     } else {
