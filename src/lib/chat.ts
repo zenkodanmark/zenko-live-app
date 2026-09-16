@@ -1,4 +1,5 @@
 import { isMasterRole } from "./seed.ts";
+import { crewTodoTitle } from "./crew-todo.ts";
 import type { Assignment, ChatFile, ChatMessage, ChatPhoto, ChatTarget, ChatThread, Employee, Lang, Role, Todo } from "./types";
 import { LANG_IDS } from "./i18n.ts";
 
@@ -97,9 +98,8 @@ export function driveOnlyFiles(files: ChatFile[] | undefined): ChatFile[] | unde
   });
 }
 
-export function shownTodoText(todo: Todo, lang: Lang, _role?: Role) {
-  const original = todo.original ?? todo.body ?? todo.title;
-  return todo.translations?.[lang] ?? todo.translations?.da ?? original;
+export function shownTodoText(todo: Todo, lang: Lang, role?: Role) {
+  return crewTodoTitle(todo, lang, role);
 }
 
 export function hasOriginal(shown: string, original: string) {

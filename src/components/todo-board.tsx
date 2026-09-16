@@ -13,7 +13,7 @@ import { todoAllPhotoIds } from "@/lib/photo-meta";
 import { copenhagenDate, FIRM, FIRM_CVR, isMasterRole } from "@/lib/seed";
 import { useSessionEmployee, useYard } from "@/lib/store";
 import { fillTodoTranslations, uploadTodoPhotos } from "@/lib/todo-drive";
-import { canMarkTodoDone, crewTodoBody, crewTodoTitle, doneTodosNewest, isPersonalTodo, openTodos, todoJobLabel } from "@/lib/crew-todo";
+import { canMarkTodoDone, crewTodoBody, crewTodoTitle, doneTodosNewest, isJobPlaceTitle, isPersonalTodo, openTodos, seedTodoTranslations, todoJobLabel, todoOriginalText, todoShowsOriginal, todoTargetLangs } from "@/lib/crew-todo";
 import { removePladsFile } from "@/lib/plads-file";
 import { todoAssigneeIds, todoAssignedTo, todoDoneLine, todoPeopleLine } from "@/lib/todo-people";
 import type { Lang, Todo } from "@/lib/types";
@@ -362,7 +362,7 @@ function MasterTodoOpen({ td, lang, onClose, onEdit }: { td: Todo; lang: Lang; o
   const [reply, setReply] = useState(live.reply ?? "");
   const [full, setFull] = useState<string | null>(null);
   const photos = todoAllPhotoIds(live);
-  const desc = crewTodoBody(live, lang);
+  const desc = crewTodoBody(live, lang, me?.role);
 
   async function uploadFiles(list: File[]) {
     if (!me || !list.length) return;
@@ -422,11 +422,16 @@ function MasterTodoOpen({ td, lang, onClose, onEdit }: { td: Todo; lang: Lang; o
       <div className="mx-auto max-w-lg space-y-5 px-4 pb-10">
         <div>
           <h1 className="font-display text-3xl font-semibold leading-snug text-navy" data-testid="master-todo-title">
-            {crewTodoTitle(live, lang)}
+            {crewTodoTitle(live, lang, me?.role)}
           </h1>
           {desc ? (
             <p data-testid="master-todo-body" className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-ink">
               {desc}
+            </p>
+          ) : null}
+          {todoShowsOriginal(live, lang, me?.role) ? (
+            <p data-testid="todo-original-line" className="mt-2 text-sm text-muted">
+              {t(lang, "chatOriginalLink")}: {todoOriginalText(live)}
             </p>
           ) : null}
         </div>
@@ -655,11 +660,15 @@ export function TodoEditSheet({ td, lang, onClose }: { td: Todo; lang: Lang; onC
         ? {}
         : { done: true as const, doneAt: at, doneById: whoId }
       : { done: false as const, doneAt: undefined, doneById: undefined };
+    const employees = useYard.getState().employees;
+    const langs = todoTargetLangs({ assigneeId: ids[0]!, assigneeIds: ids, sourceLang: lang }, employees);
+    const keepTitle = isJobPlaceTitle(heading, sagId);
     patchTodo(live.id, {
       title: heading,
       body: text,
       original: text,
-      translations: { ...(live.translations ?? {}), [lang]: text, da: text },
+      sourceLang: lang,
+      translations: seedTodoTranslations({ title: heading, body: text, from: lang, langs, keepTitle }),
       due: due || undefined,
       projectId: sagId,
       assigneeId: ids[0]!,
@@ -667,7 +676,7 @@ export function TodoEditSheet({ td, lang, onClose }: { td: Todo; lang: Lang; onC
       photoFileIds: photoIds,
       ...statusPatch,
     });
-    if (text !== (live.body || live.original || "")) void fillTodoTranslations(live.id, text, lang);
+    if (heading !== live.title || text !== (live.body || live.original || "")) void fillTodoTranslations(live.id);
     useYard.setState({ toast: "Gemt." });
     setBusy(false);
     onClose();

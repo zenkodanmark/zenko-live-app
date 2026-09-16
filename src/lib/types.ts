@@ -1,4 +1,6 @@
 export type Lang = "da" | "ro" | "pl" | "uk" | "de" | "en" | "es";
+export type TodoLangCopy = { title?: string; body?: string };
+export type TodoTranslations = Partial<Record<Lang, string | TodoLangCopy>>;
 export type Role = "mester" | "svend" | "laerling";
 export type IssueKind = "problem" | "materials" | "extra";
 export type DayStatus = "open" | "awaiting" | "ready" | "exported";
@@ -459,7 +461,7 @@ export type Todo = {
   doneAt?: string;
   doneById?: string;
   needsPhoto?: boolean;
-  translations?: Partial<Record<Lang, string>>;
+  translations?: TodoTranslations;
   driveFileId?: string;
   photoFileIds?: string[];
   lat?: number | null;

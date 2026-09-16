@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canMarkTodoDone, crewHomeTodos, crewSagTodos, crewTodoBody, crewTodoTitle, doneTodosNewest, isJobPlaceTitle, isPersonalTodo, openTodos, todoJobLabel } from "./crew-todo.ts";
+import { canMarkTodoDone, crewHomeTodos, crewSagTodos, crewTodoBody, crewTodoTitle, doneTodosNewest, isJobPlaceTitle, isPersonalTodo, openTodos, seedTodoTranslations, todoJobLabel, todoShowsOriginal, todoTargetLangs } from "./crew-todo.ts";
 import type { Employee, Todo } from "./types.ts";
 
 const osvaldo: Employee = { id: "emp-osvaldo", name: "Osvaldo", role: "svend", language: "es", pin: "5555", initials: "OS" };
@@ -127,4 +127,54 @@ test("titel oversættes ikke når det er sagsnavn", () => {
     translations: { ro: "Curăță în spatele șopronului" },
   });
   assert.equal(crewTodoTitle(task, "ro"), "Curăță în spatele șopronului");
+});
+
+test("ansat ser title+body fra translations[sprog], mester dansk", () => {
+  const row = td({
+    assigneeId: "emp-ion",
+    title: "Ryd op bag skuret",
+    body: "Ryd op bag skuret. Send foto.",
+    original: "Ryd op bag skuret. Send foto.",
+    sourceLang: "da",
+    translations: {
+      da: { title: "Ryd op bag skuret", body: "Ryd op bag skuret. Send foto." },
+      ro: { title: "Curăță în spatele șopronului", body: "Curăță în spatele șopronului. Trimite foto." },
+    },
+  });
+  assert.equal(crewTodoTitle(row, "ro", "svend"), "Curăță în spatele șopronului");
+  assert.match(crewTodoBody(row, "ro", "svend"), /Trimite foto/);
+  assert.equal(crewTodoTitle(row, "es", "mester"), "Ryd op bag skuret");
+  assert.match(crewTodoBody(row, "es", "mester"), /Send foto/);
+  assert.equal(todoShowsOriginal(row, "ro", "svend"), true);
+  assert.equal(todoShowsOriginal(row, "da", "mester"), false);
+});
+
+test("tom translations skjuler ikke original body", () => {
+  const row = td({
+    title: "Ryd op bag skuret",
+    body: "Ryd op bag skuret. Send foto.",
+    original: "Ryd op bag skuret. Send foto.",
+    translations: {},
+  });
+  assert.equal(crewTodoTitle(row, "ro", "svend"), "Ryd op bag skuret");
+  assert.match(crewTodoBody(row, "ro", "svend"), /Send foto/);
+  const onlyDaTitle = td({
+    title: "Ryd op bag skuret",
+    body: "Ryd op bag skuret. Send foto.",
+    original: "Ryd op bag skuret. Send foto.",
+    translations: { da: "Ryd op bag skuret" },
+  });
+  assert.match(crewTodoBody(onlyDaTitle, "ro", "svend"), /Send foto/);
+});
+
+test("én oversættelse pr. sprog, da altid med, uden assignee stadig da", () => {
+  const ion: Employee = { id: "emp-ion", name: "Ion", role: "svend", language: "ro", pin: "3333", initials: "IZ" };
+  const alex: Employee = { id: "emp-alex", name: "Alex", role: "laerling", language: "da", pin: "1111", initials: "AL" };
+  const langs = todoTargetLangs({ assigneeId: "emp-ion", assigneeIds: ["emp-ion", "emp-alex"], sourceLang: "da" }, [ion, alex]);
+  assert.deepEqual([...langs].sort(), ["da", "ro"]);
+  const none = todoTargetLangs({ assigneeId: "", assigneeIds: [], sourceLang: "da" }, [ion]);
+  assert.deepEqual(none, ["da"]);
+  const seed = seedTodoTranslations({ title: "Ryd", body: "Send foto.", from: "da", langs: none });
+  assert.equal((seed.da as { body?: string }).body, "Send foto.");
+  assert.equal((seed.da as { title?: string }).title, "Ryd");
 });

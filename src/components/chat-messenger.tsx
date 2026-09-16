@@ -20,7 +20,7 @@ import { gpsPatch, readGpsOrSite } from "@/lib/photo-meta";
 import { printDoc } from "@/lib/print";
 import { copenhagenDate, copenhagenTime, isMasterRole } from "@/lib/seed";
 import { lookupProject, useSessionEmployee, useYard } from "@/lib/store";
-import { fillTodoTranslations, uploadDraftsToFolder } from "@/lib/todo-drive";
+import { uploadDraftsToFolder } from "@/lib/todo-drive";
 import { connectorsOffline, createSagOnDrive } from "@/lib/sag-drive";
 import type { ChatFile, ChatMessage, ChatTarget, Employee, InboxClass, Lang } from "@/lib/types";
 import type { ChatListRow } from "@/lib/chat";
@@ -408,10 +408,7 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
       void translateAll(body, sourceLang).then((translations) => {
         patchChat(row.id, { translations });
         driveLog(translations);
-        if (asTodo && todoId) void fillTodoTranslations(todoId, line, sourceLang);
       });
-    } else if (asTodo && todoId) {
-      void fillTodoTranslations(todoId, line, sourceLang);
     }
     const dump = useYard
       .getState()
@@ -527,7 +524,6 @@ export function ChatPane({ lang, projectId }: { lang: Lang; projectId: string })
       fromChatId: msg.id,
     });
     patchChat(msg.id, { classifiedAs: "todo", classifiedAt: new Date().toISOString() });
-    void fillTodoTranslations(created.id, msg.original, msg.sourceLang);
     void writeJobNote({
       data: {
         projectId: msg.projectId,

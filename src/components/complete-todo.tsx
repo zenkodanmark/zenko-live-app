@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Camera, ImagePlus } from "lucide-react";
 import { DriveFileThumb } from "@/components/drive-photo";
 import { ActionPng, BackArrow, SagPng } from "@/components/sag-icons";
@@ -12,8 +12,8 @@ import { maFolderName } from "@/lib/ma-public";
 import { guessFromPhotoNote } from "@/lib/material";
 import { gpsPatch, readGpsOrSite, stampPhotoFiles, todoAllPhotoIds } from "@/lib/photo-meta";
 import { lookupProject, useSessionEmployee, useYard } from "@/lib/store";
-import { uploadDraftsToFolder, uploadTodoPhotos, fillTodoTranslations } from "@/lib/todo-drive";
-import { canMarkTodoDone, crewTodoBody, crewTodoTitle, isPersonalTodo } from "@/lib/crew-todo";
+import { uploadDraftsToFolder, uploadTodoPhotos } from "@/lib/todo-drive";
+import { canMarkTodoDone, crewTodoBody, crewTodoTitle, isPersonalTodo, todoOriginalText, todoShowsOriginal } from "@/lib/crew-todo";
 import { browserListen, startRecording } from "@/lib/voice-client";
 import type { Lang, Todo } from "@/lib/types";
 
@@ -310,14 +310,7 @@ export function CrewTodoOpen({ td, lang, onClose }: { td: Todo; lang: Lang; onCl
   const [reply, setReply] = useState(live.reply ?? "");
   const [full, setFull] = useState<string | null>(null);
   const photos = todoAllPhotoIds(live);
-  const desc = crewTodoBody(live, lang);
-
-  useEffect(() => {
-    const orig = (live.original ?? live.body ?? live.title).trim();
-    if (!orig) return;
-    if (live.translations?.[lang]) return;
-    void fillTodoTranslations(live.id, orig, live.sourceLang ?? "da");
-  }, [live.id, lang]);
+  const desc = crewTodoBody(live, lang, me?.role);
 
   async function uploadFiles(list: File[]) {
     if (!me || !list.length) return;
@@ -427,11 +420,16 @@ export function CrewTodoOpen({ td, lang, onClose }: { td: Todo; lang: Lang; onCl
       <div className="mx-auto max-w-lg space-y-5 px-4 pb-10">
         <div>
           <h1 className="font-display text-3xl font-semibold leading-snug text-navy" data-testid="crew-todo-title">
-            {crewTodoTitle(live, lang)}
+            {crewTodoTitle(live, lang, me?.role)}
           </h1>
           {desc ? (
             <p data-testid="crew-todo-body" className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-ink">
               {desc}
+            </p>
+          ) : null}
+          {todoShowsOriginal(live, lang, me?.role) ? (
+            <p data-testid="todo-original-line" className="mt-2 text-sm text-muted">
+              {t(lang, "chatOriginalLink")}: {todoOriginalText(live)}
             </p>
           ) : null}
         </div>

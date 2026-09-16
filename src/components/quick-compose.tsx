@@ -7,7 +7,7 @@ import { siteFallback } from "@/lib/geo";
 import { gpsPatch, stampPhotoFiles } from "@/lib/photo-meta";
 import { copenhagenDate } from "@/lib/seed";
 import { lookupProject, useSessionEmployee, useYard } from "@/lib/store";
-import { fillTodoTranslations, uploadDraftsToFolder, uploadTodoPhotos } from "@/lib/todo-drive";
+import { uploadDraftsToFolder, uploadTodoPhotos } from "@/lib/todo-drive";
 import { isPersonalTodo } from "@/lib/crew-todo";
 import type { Lang, LedelseStatus } from "@/lib/types";
 
@@ -143,7 +143,6 @@ export function QuickCompose({
           fromId: fromId ?? me?.id,
           ledelseStatus,
         }).id;
-        void fillTodoTranslations(id, text, lang);
       } else {
         if (!sagId) {
           setErr(t(lang, "matPickJobNeed"));

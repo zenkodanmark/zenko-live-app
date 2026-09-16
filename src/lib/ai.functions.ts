@@ -60,6 +60,65 @@ Return ONLY JSON with keys da,ro,pl,uk,de,en,es — the same meaning in every la
     }
   });
 
+export const translateTodoCopy = createServerFn({ method: "POST" })
+  .validator((input: { title: string; body: string; from: Lang; langs: Lang[]; keepTitle?: boolean }) => input)
+  .handler(async ({ data }) => {
+    const from = data.from;
+    const title = data.title.slice(0, 200);
+    const body = data.body.slice(0, 1200);
+    const langs = [...new Set((data.langs?.length ? data.langs : LANG_IDS).filter(Boolean))] as Lang[];
+    const fallback: Partial<Record<Lang, { title: string; body: string }>> = {};
+    for (const lang of langs) fallback[lang] = { title, body };
+    if (!fallback.da) fallback.da = { title, body };
+    try {
+      const raw = await grokChat({
+        system: `You translate to-do title and body for a Danish masonry crew (Zenko).
+The source language is ${from}. Do NOT detect or guess another language.
+NEVER translate job names, street addresses, report numbers or point codes (examples: Hillerødsholm, Kærhuset, Jyderup, Selskovvej 24, 10.02.04, Z-KS-2026-003, Z-AS-2026-001). Keep product names and measures as written.
+${data.keepTitle ? "Keep the TITLE exactly as given in every language — it is a job or place name." : "Translate the title. If the title is a job or place name, keep it unchanged."}
+Translate the body. Never return only the title — each language must have both title and body.
+Return ONLY JSON with keys ${langs.join(",")}. Each value is {"title":"...","body":"..."}.`,
+        user: `From ${from}:\nTITLE: ${title}\nBODY: ${body}`,
+        maxTokens: 900,
+        timeoutMs: 18000,
+        temperature: 0,
+      });
+      if (!raw) return { ok: false as const, translations: fallback };
+      const json = extractJson(raw);
+      const translations: Partial<Record<Lang, { title: string; body: string }>> = { ...fallback };
+      for (const lang of langs) {
+        const parsed = copyFromGrok(json[lang], fallback[lang] ?? { title, body });
+        if (data.keepTitle) parsed.title = title;
+        if (!parsed.body.trim()) parsed.body = body;
+        if (!parsed.title.trim()) parsed.title = title;
+        translations[lang] = parsed;
+      }
+      if (!translations.da) translations.da = { title, body };
+      if (!translations[from]) translations[from] = { title, body };
+      return { ok: true as const, translations };
+    } catch {
+      return { ok: false as const, translations: fallback };
+    }
+  });
+
+function copyFromGrok(raw: unknown, fallback: { title: string; body: string }) {
+  if (typeof raw === "string") {
+    const s = raw.trim();
+    if (!s) return { ...fallback };
+    const first = s.split("\n")[0]!.trim();
+    const rest = s.slice(first.length).trim();
+    return { title: first || fallback.title, body: rest || fallback.body };
+  }
+  if (raw && typeof raw === "object") {
+    const o = raw as { title?: unknown; body?: unknown };
+    return {
+      title: typeof o.title === "string" && o.title.trim() ? o.title.trim() : fallback.title,
+      body: typeof o.body === "string" && o.body.trim() ? o.body.trim() : fallback.body,
+    };
+  }
+  return { ...fallback };
+}
+
 export const transcribeClip = createServerFn({ method: "POST" })
   .validator((input: { audioBase64: string; mime: string; language?: string }) => input)
   .handler(async ({ data }) => {

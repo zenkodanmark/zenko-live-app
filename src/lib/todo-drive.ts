@@ -1,4 +1,5 @@
-import { translateMessage } from "@/lib/ai.functions";
+import { translateTodoCopy } from "@/lib/ai.functions";
+import { isJobPlaceTitle, seedTodoTranslations, todoTargetLangs } from "@/lib/crew-todo";
 import { pladsPath, uploadPladsBytes } from "@/lib/plads-file";
 import { useYard } from "@/lib/store";
 import { splitDataUrl } from "@/lib/voice-agent";
@@ -42,17 +43,28 @@ export async function uploadTodoPhotos(projectId: string, todoId: string, drafts
   return uploadDraftsToFolder({ projectId: projectId || "personlig", folderName: `todo/${todoId}`, drafts });
 }
 
-export async function fillTodoTranslations(id: string, text: string, from: Lang) {
-  const original = text.trim();
-  if (!original) return;
+export async function fillTodoTranslations(id: string, _text?: string, _from?: Lang) {
   try {
-    const res = await translateMessage({ data: { text: original, from } });
-    if (res.ok) {
-      useYard.getState().patchTodo(id, { translations: res.translations, sourceLang: from, original });
-      return;
+    const s = useYard.getState();
+    const todo = s.todos.find((x) => x.id === id);
+    if (!todo) return;
+    const title = (todo.title || "").trim();
+    const body = (todo.body || todo.original || "").trim();
+    if (!title && !body) return;
+    const from = todo.sourceLang ?? "da";
+    const langs = todoTargetLangs({ ...todo, sourceLang: from }, s.employees);
+    const keepTitle = isJobPlaceTitle(title, todo.projectId);
+    const fallback = seedTodoTranslations({ title, body, from, langs, keepTitle });
+    let next = fallback;
+    try {
+      const res = await translateTodoCopy({ data: { title, body, from, langs, keepTitle } });
+      if (res.translations) next = { ...fallback, ...res.translations };
+    } catch {
+      /* original */
     }
+    if (!useYard.getState().todos.some((x) => x.id === id)) return;
+    useYard.getState().patchTodo(id, { translations: next, sourceLang: from, original: body || title });
   } catch {
-    /* keep original */
+    /* to-do must still exist */
   }
-  useYard.getState().patchTodo(id, { translations: { [from]: original, da: original }, sourceLang: from, original });
 }

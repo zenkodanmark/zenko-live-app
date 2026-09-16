@@ -1,7 +1,7 @@
 import { t } from "./i18n.ts";
 import { isMasterRole, projectById } from "./seed.ts";
-import { todoAssignedTo } from "./todo-people.ts";
-import type { Employee, Lang, Todo } from "./types.ts";
+import { todoAssignedTo, todoAssigneeIds } from "./todo-people.ts";
+import type { Employee, Lang, Role, Todo, TodoLangCopy, TodoTranslations } from "./types.ts";
 
 export function isPersonalTodo(projectId: string | undefined | null) {
   return !projectId;
@@ -31,41 +31,97 @@ export function isJobPlaceTitle(title: string, projectId: string) {
   return false;
 }
 
-export function crewTodoTitle(todo: Todo, lang: Lang) {
-  const title = (todo.title || "").trim();
-  if (title && isJobPlaceTitle(title, todo.projectId)) return title;
-  const orig = (todo.original ?? todo.body ?? title).trim();
-  const tr = todo.translations?.[lang]?.trim();
-  if (tr && title && title === orig) return tr.split("\n")[0]!.trim() || title;
-  if (tr && !title) return tr.split("\n")[0]!.trim();
-  return title || orig.split("\n")[0] || "";
+export function asTodoLangCopy(raw: unknown): TodoLangCopy {
+  if (typeof raw === "string") {
+    const s = raw.trim();
+    if (!s) return { title: "", body: "" };
+    const title = s.split("\n")[0]!.trim();
+    const rest = s.slice(title.length).trim();
+    return { title, body: rest };
+  }
+  if (raw && typeof raw === "object") {
+    const o = raw as { title?: unknown; body?: unknown };
+    return {
+      title: typeof o.title === "string" ? o.title.trim() : "",
+      body: typeof o.body === "string" ? o.body.trim() : "",
+    };
+  }
+  return { title: "", body: "" };
 }
 
-function nestedBody(raw: unknown): string {
-  if (raw && typeof raw === "object" && "body" in raw) {
-    const body = (raw as { body?: unknown }).body;
-    if (typeof body === "string") return body.trim();
+export function todoViewLang(lang: Lang, role?: Role): Lang {
+  if (role && isMasterRole(role)) return "da";
+  return lang;
+}
+
+export function todoTargetLangs(
+  todo: Pick<Todo, "assigneeId" | "assigneeIds" | "sourceLang">,
+  employees: Pick<Employee, "id" | "language">[],
+): Lang[] {
+  const langs = new Set<Lang>();
+  langs.add(todo.sourceLang ?? "da");
+  langs.add("da");
+  for (const id of todoAssigneeIds(todo)) {
+    const who = employees.find((e) => e.id === id);
+    if (who?.language) langs.add(who.language);
   }
-  return "";
+  return [...langs];
+}
+
+export function seedTodoTranslations(opts: {
+  title: string;
+  body: string;
+  from: Lang;
+  langs: Lang[];
+  keepTitle?: boolean;
+}): TodoTranslations {
+  const title = opts.title.trim();
+  const body = opts.body.trim();
+  const out: TodoTranslations = {};
+  const langs = opts.langs.length ? opts.langs : (["da"] as Lang[]);
+  for (const lang of langs) {
+    out[lang] = { title, body };
+  }
+  if (!out.da) out.da = { title, body };
+  return out;
+}
+
+export function crewTodoTitle(todo: Todo, lang: Lang, role?: Role) {
+  const origTitle = (todo.title || "").trim();
+  if (origTitle && isJobPlaceTitle(origTitle, todo.projectId)) return origTitle;
+  const want = todoViewLang(lang, role);
+  const copy = asTodoLangCopy(todo.translations?.[want]);
+  if (copy.title) return copy.title;
+  return origTitle || (todo.original ?? todo.body ?? "").trim().split("\n")[0] || "";
 }
 
 function isSameTitle(text: string, title: string) {
   return Boolean(text) && text.localeCompare(title, "da", { sensitivity: "accent" }) === 0;
 }
 
-/** Beskrivelse under titel. Aldrig titlen om igen. Tom = ingen kasse. */
-export function crewTodoBody(todo: Todo, lang?: Lang) {
-  const title = (todo.title || "").trim();
+/** Beskrivelse under titel. Aldrig titlen om igen. Tom translations skjuler ikke original body. */
+export function crewTodoBody(todo: Todo, lang?: Lang, role?: Role) {
+  const origTitle = (todo.title || "").trim();
+  const origBody = (todo.body || "").trim() || (todo.original || "").trim();
   if (lang) {
-    const entry = todo.translations ? (todo.translations as Record<string, unknown>)[lang] : undefined;
-    const trBody = nestedBody(entry);
-    if (trBody && !isSameTitle(trBody, title)) return trBody;
+    const want = todoViewLang(lang, role);
+    const copy = asTodoLangCopy(todo.translations?.[want]);
+    if (copy.body && !isSameTitle(copy.body, origTitle) && !isSameTitle(copy.body, copy.title || origTitle)) return copy.body;
   }
-  const body = (todo.body || "").trim();
-  if (body && !isSameTitle(body, title)) return body;
-  const orig = (todo.original || "").trim();
-  if (orig && !isSameTitle(orig, title)) return orig;
+  if (origBody && !isSameTitle(origBody, origTitle)) return origBody;
   return "";
+}
+
+export function todoShowsOriginal(todo: Todo, lang: Lang, role?: Role) {
+  const want = todoViewLang(lang, role);
+  const source = todo.sourceLang ?? "da";
+  if (want === source) return false;
+  const copy = asTodoLangCopy(todo.translations?.[want]);
+  return Boolean(copy.title || copy.body);
+}
+
+export function todoOriginalText(todo: Todo) {
+  return (todo.original || todo.body || todo.title || "").trim();
 }
 
 export function openTodos(todos: Todo[]) {

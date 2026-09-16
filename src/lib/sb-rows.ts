@@ -85,8 +85,8 @@ export function ledelseFromTodoRow(r: Record<string, unknown>): { ledelseStatus:
   return {};
 }
 
-export function translationsForTodo(t: Pick<Todo, "translations" | "ledelseStatus">): Record<string, string> {
-  const out: Record<string, string> = { ...((t.translations ?? {}) as Record<string, string>) };
+export function translationsForTodo(t: Pick<Todo, "translations" | "ledelseStatus">): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...((t.translations ?? {}) as Record<string, unknown>) };
   delete out[TODO_LED_KEY];
   if (t.ledelseStatus === "med_til_ledelse" || t.ledelseStatus === "skjult") out[TODO_LED_KEY] = t.ledelseStatus;
   return out;
@@ -94,7 +94,7 @@ export function translationsForTodo(t: Pick<Todo, "translations" | "ledelseStatu
 
 function translationsFromTodoRow(raw: unknown): Todo["translations"] {
   if (!raw || typeof raw !== "object") return undefined;
-  const { [TODO_LED_KEY]: _drop, ...rest } = raw as Record<string, string>;
+  const { [TODO_LED_KEY]: _drop, ...rest } = raw as Record<string, unknown>;
   return Object.keys(rest).length ? (rest as Todo["translations"]) : undefined;
 }
 

@@ -77,6 +77,6 @@ test("to-do-kort følger brugerens sprog", () => {
     translations: { da: "Ryd bag skuret", ro: "Curăță în spatele șopronului", es: "Limpia detrás del cobertizo" },
   } as Todo;
   assert.equal(shownTodoText(todo, "ro", "svend"), "Curăță în spatele șopronului");
-  assert.equal(shownTodoText(todo, "es", "mester"), "Limpia detrás del cobertizo");
+  assert.equal(shownTodoText(todo, "es", "mester"), "Ryd bag skuret");
   assert.equal(shownTodoText(todo, "da", "mester"), "Ryd bag skuret");
 });

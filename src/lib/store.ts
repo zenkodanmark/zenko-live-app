@@ -37,6 +37,7 @@ import { dropDummyEmployees, loadCrew } from "./crew-live";
 import { emitYard } from "./yard-bus";
 import { holdRow, slimChat, slimDay, slimKs, slimNeed, slimOrder, slimTodo } from "./yard-slim";
 import { goesToMaster, unsavedOnNewMessage } from "./chat";
+import { isJobPlaceTitle, seedTodoTranslations, todoTargetLangs } from "./crew-todo";
 import { noticeForChat, noticeForKs, noticeForTodo, noticeForTodoDone, flashBrowser } from "./notify";
 import { rememberDrive, type DriveMap } from "./drive";
 import { applyArchive, applyReopen, ensureProjectHandover } from "./job-archive";
@@ -213,7 +214,7 @@ type YardState = {
     body?: string;
     kind?: TodoKind;
     needsPhoto?: boolean;
-    translations?: Record<string, string>;
+    translations?: import("./types").TodoTranslations;
     id?: string;
     driveFileId?: string;
     photoFileIds?: string[];
@@ -1218,13 +1219,26 @@ export const useYard = create<YardState>()(
     return row;
   },
   addTodo: (input) => {
-    const row = makeTodo(input, get().employeeId ?? "emp-ole");
+    const fromId = get().employeeId ?? "emp-ole";
+    let row = makeTodo(input, fromId);
+    const fromEmp = get().employees.find((e) => e.id === row.fromId);
+    const from = row.sourceLang ?? fromEmp?.language ?? "da";
+    const langs = todoTargetLangs({ ...row, sourceLang: from }, get().employees);
+    const keepTitle = isJobPlaceTitle(row.title, row.projectId);
+    const body = (row.body || row.original || row.title).trim();
+    row = {
+      ...row,
+      sourceLang: from,
+      original: row.original || body,
+      translations: seedTodoTranslations({ title: row.title, body, from, langs, keepTitle }),
+    };
     set((s) => ({ todos: [row, ...(s.todos ?? [])] }));
     const n = noticeForTodo(row);
     if (n) get().pushNotice(n);
     holdRow(row.id);
     emitYard({ kind: "todo", id: row.id, payload: slimTodo(row), isNew: true, actorId: get().employeeId ?? row.fromId });
     void import("./todo-live").then((m) => m.publishTodo(row));
+    void import("./todo-drive").then((m) => m.fillTodoTranslations(row.id));
     return row;
   },
   addPlan: (input) => {
