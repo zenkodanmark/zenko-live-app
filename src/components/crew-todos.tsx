@@ -8,7 +8,7 @@ import { TodoLedelseHak, isTodoLedelseOn } from "@/components/todo-ledelse-hak";
 import { shownTodoText } from "@/lib/chat";
 import { crewHomeTodos, crewSagTodos, isPersonalTodo, todoJobLabel } from "@/lib/crew-todo";
 import { t } from "@/lib/i18n";
-import { copenhagenDate } from "@/lib/seed";
+import { copenhagenDate, isMasterRole } from "@/lib/seed";
 import { activeAssigned, useSessionEmployee, useYard } from "@/lib/store";
 import { todoPeopleLine } from "@/lib/todo-people";
 import type { Lang, Todo } from "@/lib/types";
@@ -96,7 +96,7 @@ function TodoHeading({
         data-testid={`todo-line-${todo.id}`}
         data-ledelse={onLedelse ? "on" : "off"}
       >
-        {!todo.done ? <PencilBtn lang={lang} todoId={todo.id} onClick={() => setEdit(true)} /> : null}
+        {!todo.done && me && isMasterRole(me.role) ? <PencilBtn lang={lang} todoId={todo.id} onClick={() => setEdit(true)} /> : null}
         <button
           type="button"
           className="min-h-12 min-w-0 flex-1 px-2 py-1 text-left"
@@ -117,7 +117,7 @@ function TodoHeading({
       <div className="px-2">
         <TodoLedelseHak todo={todo} lang={lang} />
       </div>
-      {edit ? <TodoEditSheet td={todo} lang={lang} onClose={() => setEdit(false)} /> : null}
+      {edit && me && isMasterRole(me.role) ? <TodoEditSheet td={todo} lang={lang} onClose={() => setEdit(false)} /> : null}
     </li>
   );
 }

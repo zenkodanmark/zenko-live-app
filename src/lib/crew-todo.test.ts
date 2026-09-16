@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canMarkTodoDone, crewHomeTodos, crewSagTodos, isPersonalTodo, todoJobLabel } from "./crew-todo.ts";
+import { canMarkTodoDone, crewHomeTodos, crewSagTodos, crewTodoBody, crewTodoTitle, isJobPlaceTitle, isPersonalTodo, todoJobLabel } from "./crew-todo.ts";
 import type { Employee, Todo } from "./types.ts";
 
 const osvaldo: Employee = { id: "emp-osvaldo", name: "Osvaldo", role: "svend", language: "es", pin: "5555", initials: "OS" };
@@ -71,4 +71,32 @@ test("svend på sag ser kun tildelte, også via assigneeIds", () => {
   assert.deepEqual(sag.map((x) => x.id).sort(), ["1", "2"]);
   const master = crewSagTodos(rows, "job-islevvaenge", ole);
   assert.equal(master.length, 4);
+});
+
+test("ansat ser altid beskrivelse, også når den matcher titlen", () => {
+  const same = td({ title: "Sæt stillads", body: "Sæt stillads", original: "Sæt stillads" });
+  assert.equal(crewTodoBody(same), "Sæt stillads");
+  const onlyTitle = td({ title: "Hent mørtel", body: "", original: "" });
+  assert.equal(crewTodoBody(onlyTitle), "Hent mørtel");
+  const long = td({ title: "Fuger", body: "Udkrads 20 mm og sæt NHL 3,5.", original: "Udkrads 20 mm og sæt NHL 3,5." });
+  assert.equal(crewTodoBody(long).includes("NHL"), true);
+});
+
+test("titel oversættes ikke når det er sagsnavn", () => {
+  const job = todoJobLabel("job-hillerodsholm", "da");
+  assert.equal(isJobPlaceTitle(job, "job-hillerodsholm"), true);
+  const row = td({
+    title: job,
+    body: "Ryd bag skuret i dag",
+    original: "Ryd bag skuret i dag",
+    translations: { ro: "Curăță în spatele șopronului astăzi" },
+  });
+  assert.equal(crewTodoTitle(row, "ro"), job);
+  const task = td({
+    title: "Ryd bag skuret",
+    body: "Ryd bag skuret",
+    original: "Ryd bag skuret",
+    translations: { ro: "Curăță în spatele șopronului" },
+  });
+  assert.equal(crewTodoTitle(task, "ro"), "Curăță în spatele șopronului");
 });

@@ -18,6 +18,33 @@ export function todoJobLabel(projectId: string, lang: Lang) {
   return projectById(projectId).name;
 }
 
+export function isJobPlaceTitle(title: string, projectId: string) {
+  const raw = title.trim();
+  if (!raw || isPersonalTodo(projectId)) return false;
+  const job = projectById(projectId);
+  const name = (job.name || "").trim();
+  const addr = (job.address || "").trim();
+  const t0 = raw.toLowerCase();
+  if (name && t0 === name.toLowerCase()) return true;
+  if (addr && t0 === addr.toLowerCase()) return true;
+  if (name && t0.includes(name.toLowerCase()) && raw.length <= name.length + 8) return true;
+  return false;
+}
+
+export function crewTodoTitle(todo: Todo, lang: Lang) {
+  const title = (todo.title || "").trim();
+  if (title && isJobPlaceTitle(title, todo.projectId)) return title;
+  const orig = (todo.original ?? todo.body ?? title).trim();
+  const tr = todo.translations?.[lang]?.trim();
+  if (tr && title && title === orig) return tr.split("\n")[0]!.trim() || title;
+  if (tr && !title) return tr.split("\n")[0]!.trim();
+  return title || orig.split("\n")[0] || "";
+}
+
+export function crewTodoBody(todo: Todo) {
+  return (todo.body || todo.original || "").trim() || (todo.title || "").trim();
+}
+
 export function crewHomeTodos(todos: Todo[], me: Employee, jobIds: Iterable<string>) {
   const jobs = new Set(jobIds);
   return todos.filter((x) => todoAssignedTo(x, me.id) && (isPersonalTodo(x.projectId) || jobs.has(x.projectId)));

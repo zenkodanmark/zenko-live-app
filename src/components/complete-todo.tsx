@@ -14,7 +14,7 @@ import { guessFromPhotoNote } from "@/lib/material";
 import { gpsPatch, readGpsOrSite, stampPhotoFiles, todoAllPhotoIds } from "@/lib/photo-meta";
 import { lookupProject, useSessionEmployee, useYard } from "@/lib/store";
 import { uploadDraftsToFolder, uploadTodoPhotos, fillTodoTranslations } from "@/lib/todo-drive";
-import { canMarkTodoDone, isPersonalTodo } from "@/lib/crew-todo";
+import { canMarkTodoDone, crewTodoBody, crewTodoTitle, isPersonalTodo } from "@/lib/crew-todo";
 import { browserListen, startRecording } from "@/lib/voice-client";
 import type { Lang, Todo } from "@/lib/types";
 
@@ -427,17 +427,20 @@ export function CrewTodoOpen({ td, lang, onClose }: { td: Todo; lang: Lang; onCl
       <div className="mx-auto max-w-lg space-y-5 px-4 pb-10">
         <div>
           <h1 className="font-display text-3xl font-semibold leading-snug text-navy" data-testid="crew-todo-title">
-            {live.title}
+            {crewTodoTitle(live, lang)}
           </h1>
-          {(live.body || live.original || "").trim() && (live.body || live.original || "").trim() !== live.title.trim() ? (
-            <UserText
-              original={live.original ?? live.body}
-              translations={live.translations}
-              lang={lang}
-              role={me?.role}
-              className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-ink"
-              linkClass="mt-2 text-sm underline underline-offset-2 text-muted"
-            />
+          {crewTodoBody(live) ? (
+            <div data-testid="crew-todo-body">
+              <UserText
+                original={crewTodoBody(live)}
+                translations={live.translations}
+                lang={lang}
+                role={me?.role}
+                originalHint
+                className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-ink"
+                linkClass="mt-1 text-xs text-muted"
+              />
+            </div>
           ) : null}
         </div>
         {photos.length ? (
@@ -457,11 +460,17 @@ export function CrewTodoOpen({ td, lang, onClose }: { td: Todo; lang: Lang; onCl
             data-testid="crew-todo-done"
             disabled={busy}
             onClick={() => void finish()}
-            className="mx-auto flex size-[5.5rem] items-center justify-center rounded-full shadow-card"
+            className="flex min-h-16 w-full items-center justify-center gap-3 rounded-2xl px-4 shadow-card"
             style={{ background: "#c45c3e" }}
             aria-label={t(lang, "todoDoneMark")}
           >
-            <SagPng name="todo" px={72} />
+            <span className="relative inline-flex">
+              <SagPng name="todo" px={48} />
+              <span className="absolute -bottom-0.5 -right-0.5 flex size-5 items-center justify-center rounded-full bg-sand text-sm font-bold leading-none text-[#c45c3e]">
+                ✓
+              </span>
+            </span>
+            <span className="font-display text-2xl text-sand">{t(lang, "todoDoneMark")}</span>
           </button>
         ) : live.done ? (
           <p className="text-center text-base font-semibold text-navy">{t(lang, "todoDoneMark")}</p>

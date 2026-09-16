@@ -11,6 +11,7 @@ export function UserText({
   role,
   className,
   linkClass,
+  originalHint,
 }: {
   original: string;
   translations?: Partial<Record<Lang, string>>;
@@ -18,15 +19,18 @@ export function UserText({
   role?: Role;
   className?: string;
   linkClass?: string;
+  originalHint?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const shown = role && isMasterRole(role)
-    ? (translations?.da ?? original)
-    : (translations?.[lang] ?? translations?.da ?? original);
-  const showLink = hasOriginal(shown, original);
+  const master = Boolean(role && isMasterRole(role));
+  const shown = master ? (translations?.da ?? original) : (translations?.[lang] ?? translations?.da ?? original);
+  const hasLang = Boolean(translations?.[lang]?.trim());
+  const missing = Boolean(originalHint && !master && original.trim() && !hasLang);
+  const showLink = !missing && hasOriginal(shown, original);
   return (
     <div>
       <p className={className}>{shown}</p>
+      {missing ? <p className={linkClass ?? "mt-1 text-xs text-muted"}>{t(lang, "chatOriginalLink")}</p> : null}
       {showLink ? (
         <button type="button" className={linkClass ?? "mt-1 text-xs underline underline-offset-2"} onClick={() => setOpen((v) => !v)}>
           {t(lang, "chatOriginalLink")}
