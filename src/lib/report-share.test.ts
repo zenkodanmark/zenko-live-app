@@ -16,6 +16,15 @@ test("slug og path er kundelink — aldrig mester-hash", () => {
   assert.equal(reportSharePath("as", "AS-399"), "/r/as/399");
   assert.equal(reportSharePath("tf", "12"), "/r/tf/12");
   assert.equal(reportSharePath("er", "ER-5"), "/r/er/5");
+  assert.equal(reportSharePath("tb", "TB-1"), "/r/tb/1");
+  assert.equal(isShareKind("tb"), true);
+  const tf396 = bundledShareRecord("tf", "396");
+  assert.ok(tf396, "TF 396 skal findes uden login");
+  assert.equal(tf396.kind, "tf");
+  assert.equal(shareSlug(tf396.number), "396");
+  const byId = bundledShareRecord("tf", "tf-softr-396");
+  assert.ok(byId, "TF id tf-softr-396 skal ramme samme rapport");
+  assert.equal(byId.id, tf396.id);
 });
 
 test("Kopiér link peger på live domain — ikke preview eller grok.me", () => {

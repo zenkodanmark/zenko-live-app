@@ -3,6 +3,7 @@
 import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { toSpaShell, isSpaShell } from "./spa-shell.mjs";
 
 const pub = ".output/public";
 const prerender = resolve("node_modules/.nitro/prerender/index.mjs");
@@ -28,6 +29,12 @@ if (base !== "/") {
   const prefix = base.slice(1);
   const re = new RegExp(`(href|src)="/(?!${prefix}|https?:)`, "g");
   html = html.replaceAll(re, `$1="${base}`);
+}
+
+html = toSpaShell(html);
+if (!isSpaShell(html)) {
+  console.error("[pages] SPA shell still contains login snapshot");
+  process.exit(1);
 }
 
 writeFileSync(join(pub, "index.html"), html);

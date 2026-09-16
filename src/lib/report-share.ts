@@ -35,13 +35,23 @@ export type ReportShareRecord = ReportSharePayload & {
 
 export function shareSlug(number: string) {
   const raw = String(number).trim();
-  const stripped = raw.replace(/^(AS|TF|ER|KS)[-.\s]*/i, "").replace(/\s+/g, "");
+  const stripped = raw.replace(/^(AS|TF|ER|KS|TB)[-.\s]*/i, "").replace(/\s+/g, "");
   const slug = (stripped || raw).replace(/[^A-Za-z0-9._-]/g, "");
   return slug.slice(0, 40);
 }
 
 export function matchesShareSlug(number: string, slug: string) {
   return shareSlug(number) === shareSlug(slug);
+}
+
+export function matchesShareKey(row: { id: string; number: string }, slug: string) {
+  const key = shareSlug(slug);
+  if (!key) return false;
+  if (row.id === slug || row.id === key) return true;
+  if (shareSlug(row.id) === key) return true;
+  if (matchesShareSlug(row.number, key)) return true;
+  if (row.id.endsWith(`-${key}`)) return true;
+  return false;
 }
 
 export function reportSharePath(kind: ShareKind, number: string) {
@@ -207,21 +217,22 @@ export function bundledSharePayload(kind: ShareKind, slug: string): ReportShareP
   const jobOf = (projectId: string) => projectById(projectId);
   const fields = bundledFields();
   if (kind === "ks") {
-    const row = uniqueById([...softrKsReports(), ...SEED_KS_REPORTS]).find((r) => matchesShareSlug(r.number, key));
+    const row = uniqueById([...softrKsReports(), ...SEED_KS_REPORTS]).find((r) => matchesShareKey(r, slug));
     if (!row) return null;
     return buildKsSharePayload(row, jobOf(row.projectId), softrKsPhotos());
   }
   if (kind === "as") {
-    const row = uniqueById([...softrAsSlips(), ...SEED_SLIPS]).find((r) => matchesShareSlug(r.number, key));
+    const row = uniqueById([...softrAsSlips(), ...SEED_SLIPS]).find((r) => matchesShareKey(r, slug));
     if (!row) return null;
     return buildAsSharePayload(row, jobOf(row.projectId), fields);
   }
+  if (kind === "tb") return null;
   if (kind === "tf") {
-    const row = uniqueById([...softrTfReports(), ...SEED_TFS]).find((r) => matchesShareSlug(r.number, key));
+    const row = uniqueById([...softrTfReports(), ...SEED_TFS]).find((r) => matchesShareKey(r, slug));
     if (!row) return null;
     return buildTfShareReportPayload(row, jobOf(row.projectId), fields);
   }
-  const row = uniqueById([...softrErReports(), ...SEED_ENTS]).find((r) => matchesShareSlug(r.number, key));
+  const row = uniqueById([...softrErReports(), ...SEED_ENTS]).find((r) => matchesShareKey(r, slug));
   if (!row) return null;
   return buildErSharePayload(row, jobOf(row.projectId), fields);
 }

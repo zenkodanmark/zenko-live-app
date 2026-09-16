@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  ensureLedelsePin,
   generateLedelsePin,
   isFourPin,
-  isLedelseUnlocked,
   ledelseClipboard,
   ledelsePublicUrl,
   normalizePin,
-  writeSessionPin,
+  pinMatches,
 } from "./ledelse-pin.ts";
 
 test("kode er 4 cifre", () => {
@@ -16,6 +16,7 @@ test("kode er 4 cifre", () => {
   assert.equal(isFourPin(pin), true);
   assert.equal(isFourPin("12"), false);
   assert.equal(normalizePin("12ab34"), "1234");
+  assert.notEqual(pin, "0000");
 });
 
 test("udklip har sag, github-url og kode", () => {
@@ -27,21 +28,14 @@ test("udklip har sag, github-url og kode", () => {
   assert.equal(ledelsePublicUrl("hilleroedsholm"), "https://zenkodanmark.github.io/sag/hilleroedsholm");
 });
 
-test("forkert kode låser ikke op", () => {
-  const store: Record<string, string> = {};
-  const fake = {
-    getItem: (k: string) => store[k] ?? null,
-    setItem: (k: string, v: string) => {
-      store[k] = v;
-    },
-    removeItem: (k: string) => {
-      delete store[k];
-    },
-  };
-  (globalThis as { sessionStorage?: typeof fake }).sessionStorage = fake;
-  assert.equal(isLedelseUnlocked("hilleroedsholm", "4821"), false);
-  writeSessionPin("hilleroedsholm", "4821");
-  assert.equal(isLedelseUnlocked("hilleroedsholm", "4821"), true);
-  assert.equal(isLedelseUnlocked("hilleroedsholm", "0000"), false);
-  assert.equal(isLedelseUnlocked("hilleroedsholm", ""), false);
+test("PIN kommer fra projects, ikke sessionStorage", () => {
+  assert.equal(pinMatches("7462", "7462"), true);
+  assert.equal(pinMatches("0000", "7462"), false);
+  assert.equal(pinMatches("1234", "7462"), false);
+  assert.equal(pinMatches("7462", ""), false);
+  assert.equal(pinMatches("7462", undefined), false);
+  assert.equal(ensureLedelsePin("7462"), "7462");
+  const made = ensureLedelsePin("");
+  assert.equal(isFourPin(made), true);
+  assert.notEqual(made, "0000");
 });

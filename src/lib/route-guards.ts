@@ -1,13 +1,13 @@
 /** Tiny validators for route files so login does not load Softr/store. */
 
-export type ShareKind = "ks" | "as" | "tf" | "er";
+export type ShareKind = "ks" | "as" | "tf" | "er" | "tb";
 
 export function isKundeSlug(value: string) {
   return /^[a-z0-9-]{2,48}$/.test(String(value || "").trim());
 }
 
 export function isShareKind(value: string): value is ShareKind {
-  return /^(ks|as|tf|er)$/.test(value);
+  return /^(ks|as|tf|er|tb)$/.test(value);
 }
 
 export function isShareSlug(value: string) {
@@ -18,6 +18,7 @@ export function shareKindLabel(kind: ShareKind) {
   if (kind === "ks") return "Proceskontrol";
   if (kind === "as") return "Aftaleseddel";
   if (kind === "tf") return "Teknisk forespørgsel";
+  if (kind === "tb") return "Tilbud";
   return "Entreprenørrapport";
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { SagShell } from "@/components/sag-shell";
-import { isFourPin, isLedelseUnlocked, normalizePin, writeSessionPin } from "@/lib/ledelse-pin";
+import { isFourPin, normalizePin, pinMatches } from "@/lib/ledelse-pin";
 import { pullProjects } from "@/lib/sb-live";
 import { useYard } from "@/lib/store";
 import { mergeById } from "@/lib/yard-slim";
@@ -19,7 +19,7 @@ export function SagPinGate({
   const project = projects.find((p) => p.id === projectId);
   const pin = project?.ledelsePin ?? "";
   const [digits, setDigits] = useState("");
-  const [unlocked, setUnlocked] = useState(() => isLedelseUnlocked(slug, pin));
+  const [unlocked, setUnlocked] = useState(false);
   const [wrong, setWrong] = useState(false);
 
   useEffect(() => {
@@ -35,8 +35,18 @@ export function SagPinGate({
   }, [slug]);
 
   useEffect(() => {
-    if (isLedelseUnlocked(slug, pin)) setUnlocked(true);
-  }, [slug, pin]);
+    setUnlocked(false);
+    setDigits("");
+    setWrong(false);
+  }, [slug]);
+
+  useEffect(() => {
+    if (digits.length !== 4 || !isFourPin(pin)) return;
+    if (pinMatches(digits, pin)) {
+      setUnlocked(true);
+      setWrong(false);
+    }
+  }, [pin, digits]);
 
   function tryUnlock(next: string) {
     const typed = normalizePin(next);
@@ -44,13 +54,12 @@ export function SagPinGate({
       setWrong(false);
       return;
     }
-    if (isFourPin(pin) && typed === pin) {
-      writeSessionPin(slug, typed);
+    if (pinMatches(typed, pin)) {
       setUnlocked(true);
       setWrong(false);
       return;
     }
-    setWrong(true);
+    if (isFourPin(pin)) setWrong(true);
   }
 
   function tap(d: string) {

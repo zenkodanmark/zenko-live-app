@@ -25,11 +25,13 @@ function rowNumber(kind: ShareKind, id: string): string | null {
   const row =
     kind === "as"
       ? s.slips.find((x) => x.id === id)
-      : kind === "tf"
-        ? s.tfs.find((x) => x.id === id)
-        : kind === "er"
-          ? s.ents.find((x) => x.id === id)
-          : s.ksReports.find((x) => x.id === id);
+      : kind === "tb"
+        ? (s.offers ?? []).find((x) => x.id === id)
+        : kind === "tf"
+          ? s.tfs.find((x) => x.id === id)
+          : kind === "er"
+            ? s.ents.find((x) => x.id === id)
+            : s.ksReports.find((x) => x.id === id);
   return row?.number ?? null;
 }
 
@@ -43,10 +45,11 @@ function payloadFor(kind: ShareKind, id: string): { payload: ReportSharePayload;
   const s = useYard.getState();
   const jobOf = (projectId: string) => lookupProject(projectId);
   const fields = [...softrAsFieldItems(), ...s.fieldItems];
-  if (kind === "as") {
-    const row = s.slips.find((x) => x.id === id);
+  if (kind === "as" || kind === "tb") {
+    const row = kind === "tb" ? (s.offers ?? []).find((x) => x.id === id) : s.slips.find((x) => x.id === id);
     if (!row) return null;
-    return { payload: buildAsSharePayload(row, jobOf(row.projectId), fields), slug: shareSlug(row.number) };
+    const payload = buildAsSharePayload(row, jobOf(row.projectId), fields);
+    return { payload: kind === "tb" ? { ...payload, kind: "tb" } : payload, slug: shareSlug(row.number) };
   }
   if (kind === "tf") {
     const row = s.tfs.find((x) => x.id === id);

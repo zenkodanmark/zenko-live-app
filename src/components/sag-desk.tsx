@@ -1,7 +1,6 @@
 import { getRouteApi, Navigate } from "@tanstack/react-router";
 import { SagAsList, SagAsPage, SagErList, SagErPage, SagHome, SagKsList, SagKsPage, SagSamling, SagTbList, SagTbPage, SagTfList, SagTfPage, SagTodoList } from "@/components/sag-pages";
 import { SagPlanPage } from "@/components/plan-page";
-import { SagPinGate } from "@/components/sag-pin";
 import { SagMissing } from "@/components/sag-shell";
 import { useSagSite } from "@/lib/use-sag-site";
 
@@ -24,21 +23,13 @@ export function SagHomeRoute() {
   const { slug } = sagIndex.useParams();
   const { site, missing } = useSagSite(slug);
   if (missing || !site) return <SagMissing />;
-  return (
-    <SagPinGate slug={slug} projectId={site.job.projectId}>
-      <SagHome site={site} />
-    </SagPinGate>
-  );
+  return <SagHome site={site} />;
 }
 export function SagPlanRoute() {
   const { slug } = sagPlan.useParams();
   const { site, missing } = useSagSite(slug);
   if (missing || !site) return <SagMissing />;
-  return (
-    <SagPinGate slug={slug} projectId={site.job.projectId}>
-      <SagPlanPage projectId={site.job.projectId} jobName={site.job.name} />
-    </SagPinGate>
-  );
+  return <SagPlanPage projectId={site.job.projectId} jobName={site.job.name} />;
 }
 export function SagAsListRoute() {
   const { slug } = sagAsList.useParams();

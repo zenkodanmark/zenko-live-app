@@ -12,6 +12,7 @@ import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isSpaShell } from "./spa-shell.mjs";
 
 const KNOWN_STATIC_SSR =
   "rolldownOptions.input should not be an html file when building for SSR";
@@ -72,8 +73,13 @@ if (!existsSync(index) || !existsSync(notFound) || !existsSync(join(pub, ".nojek
   process.exit(1);
 }
 const html = readFileSync(index, "utf8");
-if (!html.includes("login-emp-ole") || html.length < 500) {
-  console.error("[pages] index.html looks empty");
+const notFoundHtml = readFileSync(notFound, "utf8");
+if (!isSpaShell(html) || !isSpaShell(notFoundHtml)) {
+  console.error("[pages] index.html / 404.html are not the same SPA shell");
+  process.exit(1);
+}
+if (html !== notFoundHtml) {
+  console.error("[pages] index.html and 404.html must be identical");
   process.exit(1);
 }
 console.log("[pages] build ready", html.length, "bytes");
