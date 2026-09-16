@@ -38,6 +38,10 @@ export function softrErReports(): Entrepreneur[] {
 
 export function ensureSoftrEr(state: { ents: Entrepreneur[] }) {
   if (!Array.isArray(state.ents)) state.ents = [];
+  state.ents = state.ents.filter((e) => {
+    if (!String(e.id).startsWith("ent-softr-")) return true;
+    return isSoftrEtNumber(e.number);
+  });
   const fresh = softrErReports();
   const byId = new Map(state.ents.map((e) => [e.id, e]));
   for (const row of fresh) {

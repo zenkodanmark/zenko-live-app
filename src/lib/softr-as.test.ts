@@ -27,9 +27,7 @@ test("Softr-aftalesedler uden BMR, ET og TF", () => {
 test("ET-listen bliver entreprenørrapporter", () => {
   const ents = softrErReports();
   assert.ok(ents.length >= 150);
-  const n396 = ents.find((e) => e.number === "ER-396");
-  assert.ok(n396);
-  assert.ok((n396?.photoIds.length ?? 0) >= 10);
+  assert.ok(!ents.some((e) => e.number === "ER-396"));
 });
 
 test("TF-listen bliver tekniske forespørgsler", () => {
@@ -39,6 +37,11 @@ test("TF-listen bliver tekniske forespørgsler", () => {
   assert.ok(tfs.some((e) => e.number === "TF-4"));
   assert.ok(tfs.some((e) => e.number === "TF-22"));
   assert.ok(softrErReports().some((e) => e.number === "ER-22"));
+  const n396 = tfs.find((e) => e.number === "TF-396");
+  assert.ok(n396);
+  assert.equal(n396?.projectId, "job-islevvaenge");
+  assert.equal(n396?.ledelseStatus, "med_til_ledelse");
+  assert.ok((n396?.photoIds.length ?? 0) >= 16);
 });
 
 test("ensureSoftrAs bevarer papirkurv og fjerner ET/TF-sedler", () => {

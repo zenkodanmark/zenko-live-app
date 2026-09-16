@@ -108,6 +108,16 @@ export function ensureSoftrAs(state: { slips: Slip[]; fieldItems?: FieldItem[] }
   }
   const photos = softrAsFieldItems();
   if (!Array.isArray(state.fieldItems)) state.fieldItems = [];
+  const freshById = new Map(photos.map((p) => [p.id, p]));
+  for (const item of state.fieldItems) {
+    const fresh = freshById.get(item.id);
+    if (!fresh) continue;
+    item.classifiedAs = fresh.classifiedAs;
+    item.reportId = fresh.reportId;
+    if (fresh.driveFileId) item.driveFileId = fresh.driveFileId;
+    if (fresh.driveUrl) item.driveUrl = fresh.driveUrl;
+    if (fresh.dataUrl) item.dataUrl = fresh.dataUrl;
+  }
   const have = new Set(state.fieldItems.map((p) => p.id));
   const extra = photos.filter((p) => !have.has(p.id));
   if (extra.length) state.fieldItems = [...extra, ...state.fieldItems];

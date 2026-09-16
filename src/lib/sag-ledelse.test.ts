@@ -118,6 +118,24 @@ test("Islevvænge byggeledelse har 0 KS uden hak", () => {
   assert.equal(site.kss.length, 0);
 });
 
+test("TF-396 Islevvænge vises med fotos på sagssiden", () => {
+  const job = PROJECTS.find((p) => p.id === "job-islevvaenge")!;
+  const bundled = bundledSagInputs();
+  const site = buildSagSite({
+    project: job,
+    tfs: bundled.tfs,
+    slips: bundled.slips,
+    ents: bundled.ents,
+    fieldItems: bundled.fieldItems,
+    kss: [],
+  });
+  const tf = site.tfs.find((t) => t.number === "TF-396" || t.slug === "396");
+  assert.ok(tf);
+  assert.equal(tf?.slug, "396");
+  assert.ok((tf?.photos.length ?? 0) >= 16);
+  assert.ok((tf?.body.length ?? 0) > 200);
+});
+
 test("demo-hak rammer kun de seks AS, TF-006 og ER-366", () => {
   assert.equal(defaultLedelseOn("as", "AS-292"), true);
   assert.equal(defaultLedelseOn("as", "AS-36"), false);

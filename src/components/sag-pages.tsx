@@ -385,7 +385,7 @@ export function SagKsList({ site }: { site: SagSite | null }) {
 }
 
 export function SagTfPage({ site, number }: { site: SagSite | null; number: string }) {
-  const tf = site?.tfs.find((r) => r.slug === number || r.number === number);
+  const tf = site?.tfs.find((r) => r.slug === number || r.number === number || r.number === `TF-${number}`);
   if (!site || !tf) return <SagMissing />;
   return (
     <SagShell job={site.job}>

@@ -224,7 +224,7 @@ export function sagJobFields(job: SagJobMeta) {
 function reportSlug(number: string) {
   return String(number)
     .trim()
-    .replace(/^(AS|ER|TB)[-.\s]*/i, "")
+    .replace(/^(AS|ER|TB|TF)[-.\s]*/i, "")
     .replace(/\s+/g, "")
     .slice(0, 40);
 }

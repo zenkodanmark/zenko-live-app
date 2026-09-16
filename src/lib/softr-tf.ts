@@ -30,7 +30,7 @@ export function softrTfReports(): Tf[] {
     status: "issued" as const,
     photoIds: r.photos.map((_, i) => `softr-as-${r.no}-${i + 1}`),
     source: "softr",
-    ledelseStatus: defaultLedelseStatus("tf", `TF-${r.no}`),
+    ledelseStatus: r.no === 396 ? "med_til_ledelse" : defaultLedelseStatus("tf", `TF-${r.no}`),
   }));
 }
 
@@ -51,7 +51,8 @@ export function ensureSoftrTf(state: { tfs: Tf[] }) {
     prev.projectId = row.projectId;
     prev.source = "softr";
     prev.status = "issued";
-    if (prev.ledelseStatus == null) prev.ledelseStatus = row.ledelseStatus;
+    if (row.number === "TF-396") prev.ledelseStatus = "med_til_ledelse";
+    else if (prev.ledelseStatus == null) prev.ledelseStatus = row.ledelseStatus;
   }
   for (const tf of state.tfs) {
     if (tf.ledelseStatus == null) tf.ledelseStatus = defaultLedelseStatus("tf", tf.number);

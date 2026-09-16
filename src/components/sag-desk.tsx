@@ -1,4 +1,4 @@
-import { getRouteApi } from "@tanstack/react-router";
+import { getRouteApi, Navigate } from "@tanstack/react-router";
 import { SagAsList, SagAsPage, SagErList, SagErPage, SagHome, SagKsList, SagKsPage, SagSamling, SagTbList, SagTbPage, SagTfList, SagTfPage, SagTodoList } from "@/components/sag-pages";
 import { SagPlanPage } from "@/components/plan-page";
 import { SagPinGate } from "@/components/sag-pin";
@@ -92,6 +92,11 @@ export function SagErRoute() {
   const { slug, number } = sagErNum.useParams();
   const { site, missing } = useSagSite(slug);
   if (missing || !site) return <SagMissing />;
+  const hasEr = site.ents.some((r) => r.slug === number || r.number === number || r.number === `ER-${number}`);
+  if (!hasEr) {
+    const tf = site.tfs.find((r) => r.slug === number || r.number === number || r.number === `TF-${number}`);
+    if (tf) return <Navigate to="/sag/$slug/tf/$number" params={{ slug, number: tf.slug }} replace />;
+  }
   return <SagErPage site={site} number={number} />;
 }
 export function SagTfListRoute() {
