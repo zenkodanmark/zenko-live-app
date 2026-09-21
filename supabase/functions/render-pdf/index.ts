@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { PDFDocument, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
+import { PDFDocument, rgb } from "npm:pdf-lib@1.17.1";
+import fontkit from "npm:@pdf-lib/fontkit@1.1.1";
 import { createClient } from "npm:@supabase/supabase-js@2.49.1";
 
 const PAGE_W = 595.28;
@@ -32,7 +33,7 @@ function headingFor(kind: Kind, number: string) {
   if (kind === "as") return `Aftaleseddel nr. ${number}`;
   if (kind === "tb") return `Tilbud nr. ${number}`;
   if (kind === "tf") return `Tilsynsnotat nr. ${number}`;
-  if (kind === "er") return `Entreprenoerrapport nr. ${number}`;
+  if (kind === "er") return `Entreprenørrapport nr. ${number}`;
   return "To-do";
 }
 
@@ -40,19 +41,44 @@ function filenameOf(number: string) {
   return `${String(number || "rapport").replace(/[^\w.-]+/g, "-")}.pdf`;
 }
 
-function pdfSafe(s: string) {
-  return String(s || "")
-    .replace(/ø/g, "oe")
-    .replace(/Ø/g, "Oe")
-    .replace(/æ/g, "ae")
-    .replace(/Æ/g, "Ae")
-    .replace(/å/g, "aa")
-    .replace(/Å/g, "Aa")
-    .replace(/[–—]/g, "-")
-    .replace(/[“”]/g, '"')
-    .replace(/[‘’]/g, "'")
-    .normalize("NFKD")
-    .replace(/[^\t\n\x20-\x7E]/g, "");
+function pdfText(s: string) {
+  return String(s ?? "");
+}
+
+function collapseRepeatedCopy(input: string): string {
+  const s = String(input ?? "");
+  if (s.length < 40) return s;
+  if (s.length % 2 === 0) {
+    const a = s.slice(0, s.length / 2);
+    const b = s.slice(s.length / 2);
+    if (a === b) return a;
+  }
+  const probe = s.slice(0, Math.min(96, Math.floor(s.length / 3)));
+  if (probe.length >= 24) {
+    const idx = s.indexOf(probe, probe.length);
+    if (idx > 0) {
+      const first = s.slice(0, idx);
+      const second = s.slice(idx);
+      if (first === second) return first;
+    }
+  }
+  return s;
+}
+
+function descriptionOnce(title: string, body: string): { title: string; body: string } {
+  const t = pdfText(title).trim();
+  const b = collapseRepeatedCopy(pdfText(body)).trim();
+  if (b && t && b === t) return { title: t, body: "" };
+  return { title: t, body: b };
+}
+
+function noteOnce(title: string, body: string, extra: string): string {
+  const e = collapseRepeatedCopy(pdfText(extra)).trim();
+  if (!e) return "";
+  const t = pdfText(title).trim();
+  const b = collapseRepeatedCopy(pdfText(body)).trim();
+  if (e === t || e === b) return "";
+  return e;
 }
 
 function keptPrice(raw: unknown) {
@@ -70,6 +96,44 @@ function longDate(iso: string) {
   if (Number.isNaN(d.getTime())) return String(iso || "").slice(0, 10);
   const p = (n: number) => String(n).padStart(2, "0");
   return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}`;
+}
+
+const FONT_CACHE: { regular?: Uint8Array; bold?: Uint8Array } = {};
+
+async function loadFont(weight: "regular" | "bold"): Promise<Uint8Array> {
+  const hit = FONT_CACHE[weight];
+  if (hit && hit.byteLength > 1000) return hit;
+  const name = weight === "bold" ? "NotoSans-Bold.ttf" : "NotoSans-Regular.ttf";
+  const sbUrl = Deno.env.get("SUPABASE_URL") || "";
+  const urls = [
+    `${sbUrl}/storage/v1/object/public/plads/fonts/${name}`,
+    `https://zenkodanmark.github.io/fonts/${name}`,
+    `https://raw.githubusercontent.com/zenkodanmark/zenko-live-app/main/public/fonts/${name}`,
+  ];
+  try {
+    const local = await Deno.readFile(new URL(`./${name}`, import.meta.url));
+    if (local.byteLength > 1000) {
+      FONT_CACHE[weight] = local;
+      return local;
+    }
+  } catch {
+    /* remote */
+  }
+  for (const url of urls) {
+    if (!url.startsWith("http")) continue;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const buf = new Uint8Array(await res.arrayBuffer());
+      if (buf.byteLength > 1000 && buf[0] === 0x00 && buf[1] === 0x01) {
+        FONT_CACHE[weight] = buf;
+        return buf;
+      }
+    } catch {
+      /* next */
+    }
+  }
+  throw new Error(`PDF-font mangler: ${name}`);
 }
 
 Deno.serve(async (req) => {
@@ -100,6 +164,12 @@ Deno.serve(async (req) => {
         break;
       }
     }
+    if (!rec) {
+      const byNumber = await sb.from(tablesOf(kind)[0]!).select("*").eq("number", id).maybeSingle();
+      if (!byNumber.error && byNumber.data) {
+        rec = byNumber.data as Record<string, unknown>;
+      }
+    }
     if (!rec) return new Response("not found", { status: 404, headers: CORS });
     const number = String(rec.number || rec.id || "rapport");
     const title = String(rec.title || rec.question || "");
@@ -114,8 +184,10 @@ Deno.serve(async (req) => {
     }
     const bodyText =
       kind === "tf" ? String(rec.question || "") : kind === "todo" ? String(rec.body || rec.original || "") : String(rec.body || "");
-    const extra =
+    const extraRaw =
       kind === "tf" ? String(rec.answer || "") : kind === "er" ? String(rec.note_he || "") : String(rec.master_solution || "");
+    const copy = descriptionOnce(title, bodyText);
+    const extra = noteOnce(copy.title, copy.body, extraRaw);
     const priceRaw = kind === "as" || kind === "tb" ? String(rec.customer_price || "") : "";
     const photoIds = Array.isArray(rec.photo_ids)
       ? (rec.photo_ids as string[])
@@ -127,9 +199,11 @@ Deno.serve(async (req) => {
       ...photoIds.filter((u) => /^https?:\/\//.test(u) || u.includes("/")),
     ].filter(Boolean);
 
+    const [regularBytes, boldBytes] = await Promise.all([loadFont("regular"), loadFont("bold")]);
     const pdf = await PDFDocument.create();
-    const font = await pdf.embedFont(StandardFonts.Helvetica);
-    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    pdf.registerFontkit(fontkit);
+    const font = await pdf.embedFont(regularBytes, { subset: true });
+    const bold = await pdf.embedFont(boldBytes, { subset: true });
     const images: { img: Awaited<ReturnType<typeof pdf.embedJpg>>; w: number; h: number }[] = [];
     for (const src of photoUrls.slice(0, 24)) {
       try {
@@ -145,7 +219,7 @@ Deno.serve(async (req) => {
     }
 
     const wrap = (f: typeof font, text: string, size: number, maxW: number) => {
-      const words = pdfSafe(text).replace(/\r\n/g, "\n").split(/(\s+)/);
+      const words = pdfText(text).replace(/\r\n/g, "\n").split(/(\s+)/);
       const lines: string[] = [];
       let cur = "";
       for (const w of words) {
@@ -177,9 +251,9 @@ Deno.serve(async (req) => {
       }
     };
     const text = (s: string, x: number, yy: number, size: number, f: typeof font, color = INK) => {
-      const safe = pdfSafe(s).replace(/[\r\n\t]+/g, " ");
-      if (!safe) return;
-      page.drawText(safe, { x, y: yy, size, font: f, color });
+      const line = pdfText(s).replace(/[\r\n]+/g, " ");
+      if (!line) return;
+      page.drawText(line, { x, y: yy, size, font: f, color });
     };
 
     ensure(80);
@@ -187,8 +261,8 @@ Deno.serve(async (req) => {
     text("CVR 42285757", MARGIN, y - 26, 9, font, MUTED);
     text(headingFor(kind, number), MARGIN, y - 52, 16, bold, TERRACOTTA);
     y -= 70;
-    if (title) {
-      const lines = wrap(bold, title, 12, INNER_W);
+    if (copy.title) {
+      const lines = wrap(bold, copy.title, 12, INNER_W);
       ensure(lines.length * 16 + 8);
       for (const line of lines) {
         text(line, MARGIN, y, 12, bold, NAVY);
@@ -197,12 +271,12 @@ Deno.serve(async (req) => {
       y -= 6;
     }
     const meta: [string, string][] = [
-      ["Til", customer || "-"],
+      ["Til", customer || "—"],
       ["Dato", longDate(createdAt)],
-      ["Byggesag", projectName || "-"],
+      ["Byggesag", projectName || "—"],
     ];
     if (rec.location) meta.push(["Lokation", String(rec.location)]);
-    if (kind === "todo" && rec.done_at) meta.push(["Udfoert", longDate(String(rec.done_at))]);
+    if (kind === "todo" && rec.done_at) meta.push(["Udført", longDate(String(rec.done_at))]);
     ensure(meta.length * 14 + 10);
     for (const [k, v] of meta) {
       text(`${k}:`, MARGIN, y, 10, bold, NAVY);
@@ -212,7 +286,7 @@ Deno.serve(async (req) => {
     y -= 8;
 
     const box = (heading: string, content: string) => {
-      const lines = wrap(font, content || "-", 10, INNER_W - 16);
+      const lines = wrap(font, content || "—", 10, INNER_W - 16);
       const h = 28 + lines.length * 13 + 16;
       ensure(h);
       page.drawRectangle({
@@ -227,13 +301,13 @@ Deno.serve(async (req) => {
       text(heading, MARGIN + 8, y - 16, 11, bold, NAVY);
       let ty = y - 32;
       for (const line of lines) {
-        text(line.slice(0, 220), MARGIN + 8, ty, 10, font, INK);
+        text(line, MARGIN + 8, ty, 10, font, INK);
         ty -= 13;
       }
       y -= h + 10;
     };
-    box(kind === "tf" ? "Spoergsmaal" : "Beskrivelse", bodyText || "Ingen beskrivelse");
-    if (extra) box(kind === "tf" ? "Svar" : "Bemaerkning", extra);
+    if (copy.body) box(kind === "tf" ? "Spørgsmål" : "Beskrivelse", copy.body);
+    if (extra) box(kind === "tf" ? "Svar" : "Bemærkning", extra);
     const price = keptPrice(priceRaw);
     if (price) {
       ensure(40);
@@ -259,7 +333,7 @@ Deno.serve(async (req) => {
     const path = `${projectId.replace(/[^a-z0-9._-]+/gi, "-").toLowerCase() || "sag"}/pdf/${filenameOf(number)}`;
     try {
       await sb.storage.from("plads").upload(path, bytes, { upsert: true, contentType: "application/pdf" });
-      await sb.from(table).update({ pdf_path: path, updated_at: new Date().toISOString() }).eq("id", id);
+      await sb.from(table).update({ pdf_path: path, updated_at: new Date().toISOString() }).eq("id", rec.id || id);
     } catch {
       /* still return the file */
     }

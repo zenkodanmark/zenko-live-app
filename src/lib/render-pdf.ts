@@ -1,4 +1,5 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
+import { PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
 import { priceLabel } from "./sag-ledelse.ts";
 
 export type PdfKind = "todo" | "tf" | "as" | "tb" | "er";
@@ -33,6 +34,9 @@ export const TERRACOTTA = rgb(196 / 255, 92 / 255, 62 / 255);
 export const NAVY = rgb(26 / 255, 43 / 255, 51 / 255);
 export const INK = rgb(28 / 255, 25 / 255, 23 / 255);
 export const MUTED = rgb(74 / 255, 69 / 255, 63 / 255);
+
+export const PDF_FONT_REGULAR = "NotoSans-Regular.ttf";
+export const PDF_FONT_BOLD = "NotoSans-Bold.ttf";
 
 export function pdfFilename(number: string) {
   const stem = String(number || "rapport").replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "rapport";
@@ -84,24 +88,51 @@ export function paginateKeepTogether(heights: { key: string; h: number }[], page
   return pages.filter((p) => p.length);
 }
 
-export function pdfSafe(s: string) {
-  return String(s || "")
-    .replace(/ø/g, "oe")
-    .replace(/Ø/g, "Oe")
-    .replace(/æ/g, "ae")
-    .replace(/Æ/g, "Ae")
-    .replace(/å/g, "aa")
-    .replace(/Å/g, "Aa")
-    .replace(/[–—]/g, "-")
-    .replace(/[“”]/g, '"')
-    .replace(/[‘’]/g, "'")
-    .normalize("NFKD")
-    .replace(/[^\t\n\x20-\x7E]/g, "");
+/** Keep letters as written (ÆØÅ, ă â î ș ț, ü ß). No transliteration. */
+export function pdfText(s: string) {
+  return String(s ?? "");
+}
+
+/** If the same copy was pasted twice into one field, keep it once. */
+export function collapseRepeatedCopy(input: string): string {
+  const s = String(input ?? "");
+  if (s.length < 40) return s;
+  if (s.length % 2 === 0) {
+    const a = s.slice(0, s.length / 2);
+    const b = s.slice(s.length / 2);
+    if (a === b) return a;
+  }
+  const probe = s.slice(0, Math.min(96, Math.floor(s.length / 3)));
+  if (probe.length >= 24) {
+    const idx = s.indexOf(probe, probe.length);
+    if (idx > 0) {
+      const first = s.slice(0, idx);
+      const second = s.slice(idx);
+      if (first === second) return first;
+    }
+  }
+  return s;
+}
+
+export function descriptionOnce(title: string, body: string): { title: string; body: string } {
+  const t = pdfText(title).trim();
+  const b = collapseRepeatedCopy(pdfText(body)).trim();
+  if (b && t && b === t) return { title: t, body: "" };
+  return { title: t, body: b };
+}
+
+export function noteOnce(title: string, body: string, extra: string): string {
+  const e = collapseRepeatedCopy(pdfText(extra)).trim();
+  if (!e) return "";
+  const t = pdfText(title).trim();
+  const b = collapseRepeatedCopy(pdfText(body)).trim();
+  if (e === t || e === b) return "";
+  return e;
 }
 
 export function wrapLines(text: string, maxChars: number) {
   const out: string[] = [];
-  for (const raw of String(text || "").replace(/\r\n/g, "\n").split("\n")) {
+  for (const raw of pdfText(text).replace(/\r\n/g, "\n").split("\n")) {
     const line = raw.trimEnd();
     if (!line) {
       out.push("");
@@ -126,7 +157,7 @@ function longDate(iso: string) {
 }
 
 function fontWrap(font: PDFFont, text: string, size: number, maxW: number) {
-  const words = pdfSafe(text).replace(/\r\n/g, "\n").split(/(\s+)/);
+  const words = pdfText(text).replace(/\r\n/g, "\n").split(/(\s+)/);
   const lines: string[] = [];
   let cur = "";
   const flush = () => {
@@ -153,13 +184,38 @@ function drawCream(page: PDFPage) {
   page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: CREAM });
 }
 
+let fontCache: { regular: Uint8Array; bold: Uint8Array } | null = null;
+
+async function readFontFile(name: string): Promise<Uint8Array> {
+  if (typeof document !== "undefined") {
+    const res = await fetch(`/fonts/${name}`);
+    if (!res.ok) throw new Error(`PDF-font mangler: ${name}`);
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (buf.byteLength < 1000) throw new Error(`PDF-font tom: ${name}`);
+    return buf;
+  }
+  const fs = await import(/* @vite-ignore */ "node:fs/promises");
+  const path = await import(/* @vite-ignore */ "node:path");
+  const file = path.join(process.cwd(), "public", "fonts", name);
+  return new Uint8Array(await fs.readFile(file));
+}
+
+export async function loadPdfFontBytes(): Promise<{ regular: Uint8Array; bold: Uint8Array }> {
+  if (fontCache) return fontCache;
+  const [regular, bold] = await Promise.all([readFontFile(PDF_FONT_REGULAR), readFontFile(PDF_FONT_BOLD)]);
+  fontCache = { regular, bold };
+  return fontCache;
+}
+
 export async function drawPdfBytes(
   doc: PdfDoc,
   fetchImage?: (src: string) => Promise<Uint8Array | null>,
 ): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  pdf.registerFontkit(fontkit);
+  const packed = await loadPdfFontBytes();
+  const font = await pdf.embedFont(packed.regular, { subset: true });
+  const bold = await pdf.embedFont(packed.bold, { subset: true });
   const images: { img: PDFImage; caption?: string }[] = [];
   for (const photo of doc.photos.slice(0, 24)) {
     if (!fetchImage || !photo.src) continue;
@@ -173,6 +229,9 @@ export async function drawPdfBytes(
       /* skip one broken photo — never guess */
     }
   }
+
+  const copy = descriptionOnce(doc.title, doc.body);
+  const extra = noteOnce(copy.title, copy.body, doc.extra || "");
 
   let page = pdf.addPage([PAGE_W, PAGE_H]);
   drawCream(page);
@@ -189,13 +248,9 @@ export async function drawPdfBytes(
   };
 
   const text = (s: string, x: number, yy: number, size: number, f: PDFFont, color = INK) => {
-    const safe = pdfSafe(s).replace(/[\r\n\t]+/g, " ");
-    if (!safe) return;
-    try {
-      page.drawText(safe, { x, y: yy, size, font: f, color });
-    } catch {
-      page.drawText(safe.replace(/[^\x20-\x7E]/g, "?"), { x, y: yy, size, font: f, color });
-    }
+    const line = pdfText(s).replace(/[\r\n]+/g, " ");
+    if (!line) return;
+    page.drawText(line, { x, y: yy, size, font: f, color });
   };
 
   const heading = headingFor(doc.kind, doc.number);
@@ -204,8 +259,8 @@ export async function drawPdfBytes(
   text(`CVR ${"42285757"}`, MARGIN, y - 26, 9, font, MUTED);
   text(heading, MARGIN, y - 52, 16, bold, TERRACOTTA);
   y -= 70;
-  if (doc.title) {
-    const lines = fontWrap(bold, doc.title, 12, INNER_W);
+  if (copy.title) {
+    const lines = fontWrap(bold, copy.title, 12, INNER_W);
     ensure(lines.length * 16 + 8);
     for (const line of lines) {
       text(line, MARGIN, y, 12, bold, NAVY);
@@ -245,14 +300,14 @@ export async function drawPdfBytes(
     text(title, MARGIN + 8, y - 16, 11, bold, NAVY);
     let ty = y - 32;
     for (const line of lines) {
-      text(line.slice(0, 220), MARGIN + 8, ty, 10, font, INK);
+      text(line, MARGIN + 8, ty, 10, font, INK);
       ty -= 13;
     }
     y -= h + 10;
   };
 
-  bodyBox(doc.kind === "tf" ? "Spørgsmål" : "Beskrivelse", doc.body || "Ingen beskrivelse");
-  if (doc.extra) bodyBox(doc.extraHeading || (doc.kind === "tf" ? "Svar" : "Bemærkning"), doc.extra);
+  if (copy.body) bodyBox(doc.kind === "tf" ? "Spørgsmål" : "Beskrivelse", copy.body);
+  if (extra) bodyBox(doc.extraHeading || (doc.kind === "tf" ? "Svar" : "Bemærkning"), extra);
 
   const price = keptPrice(doc.priceRaw);
   if (price) {
