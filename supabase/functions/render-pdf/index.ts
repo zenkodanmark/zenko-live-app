@@ -81,6 +81,41 @@ function noteOnce(title: string, body: string, extra: string): string {
   return e;
 }
 
+function photoKey(id: string): string {
+  const t = String(id || "").trim();
+  if (!t) return "";
+  try {
+    if (/^https?:\/\//i.test(t)) {
+      const u = new URL(t);
+      return `${u.origin}${u.pathname}`.replace(/\/+$/, "").toLowerCase();
+    }
+  } catch {
+    /* keep raw */
+  }
+  return t;
+}
+
+function uniquePhotoList(ids: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of ids) {
+    const id = String(raw || "").trim();
+    if (!id) continue;
+    const key = photoKey(id);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(id);
+  }
+  return out;
+}
+
+function pdfPhotoIds(photoIds: string[], fallback: string[] = []): string[] {
+  const primary = uniquePhotoList(photoIds);
+  const urls = primary.filter((u) => /^https?:\/\//i.test(u));
+  if (urls.length) return urls;
+  return uniquePhotoList(fallback);
+}
+
 function keptPrice(raw: unknown) {
   const s = String(raw ?? "").trim();
   if (!s) return "";
@@ -194,10 +229,10 @@ Deno.serve(async (req) => {
       : Array.isArray(rec.photo_file_ids)
         ? (rec.photo_file_ids as string[])
         : [];
-    const photoUrls = [
-      ...(Array.isArray(body.photos) ? body.photos : []),
-      ...photoIds.filter((u) => /^https?:\/\//.test(u) || u.includes("/")),
-    ].filter(Boolean);
+    const clientPhotos = Array.isArray(body.photos) ? (body.photos as string[]) : [];
+    const photoUrls = pdfPhotoIds(photoIds, clientPhotos).filter(
+      (u) => /^https?:\/\//.test(u) || u.startsWith("/") || u.includes("/"),
+    );
 
     const [regularBytes, boldBytes] = await Promise.all([loadFont("regular"), loadFont("bold")]);
     const pdf = await PDFDocument.create();
@@ -205,7 +240,11 @@ Deno.serve(async (req) => {
     const font = await pdf.embedFont(regularBytes, { subset: true });
     const bold = await pdf.embedFont(boldBytes, { subset: true });
     const images: { img: Awaited<ReturnType<typeof pdf.embedJpg>>; w: number; h: number }[] = [];
+    const seenSrc = new Set<string>();
     for (const src of photoUrls.slice(0, 24)) {
+      const key = photoKey(src);
+      if (!key || seenSrc.has(key)) continue;
+      seenSrc.add(key);
       try {
         const res = await fetch(src);
         if (!res.ok) continue;
@@ -237,6 +276,44 @@ Deno.serve(async (req) => {
       }
       if (cur) lines.push(cur);
       return lines.length ? lines : [""];
+    };
+
+    const GAP_PT = 12;
+    const LINE_PT = 14;
+    const HEAD_PT = 16;
+    type FlowItem =
+      | { kind: "gap"; h: number }
+      | { kind: "heading"; lines: string[]; h: number }
+      | { kind: "text"; lines: string[]; h: number };
+    const isHeading = (line: string) => /^\d+\.\s/.test(String(line || "").trim());
+    const unstick = (s: string) =>
+      String(s ?? "")
+        .replace(/«(?=\S)/g, "«\n")
+        .replace(/»(?=\S)/g, "»\n");
+    const flowBody = (raw: string, wrapFn: (text: string, size: number) => string[]): FlowItem[] => {
+      const src = unstick(pdfText(raw)).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      const items: FlowItem[] = [];
+      const pushGap = () => {
+        const last = items[items.length - 1];
+        if (!last || last.kind === "gap") return;
+        items.push({ kind: "gap", h: GAP_PT });
+      };
+      for (const part of src.split("\n")) {
+        const line = part.replace(/[ \t]+$/g, "");
+        if (!line.trim()) {
+          pushGap();
+          continue;
+        }
+        if (isHeading(line)) {
+          pushGap();
+          const lines = wrapFn(line.trim(), 11);
+          items.push({ kind: "heading", lines, h: lines.length * HEAD_PT + 2 });
+          continue;
+        }
+        const lines = wrapFn(line.trim(), 10);
+        items.push({ kind: "text", lines, h: Math.max(LINE_PT, lines.length * LINE_PT) });
+      }
+      return items;
     };
 
     let page = pdf.addPage([PAGE_W, PAGE_H]);
@@ -285,29 +362,30 @@ Deno.serve(async (req) => {
     }
     y -= 8;
 
-    const box = (heading: string, content: string) => {
-      const lines = wrap(font, content || "—", 10, INNER_W - 16);
-      const h = 28 + lines.length * 13 + 16;
-      ensure(h);
-      page.drawRectangle({
-        x: MARGIN,
-        y: y - h,
-        width: INNER_W,
-        height: h,
-        borderColor: rgb(0.85, 0.82, 0.77),
-        borderWidth: 1,
-        color: rgb(1, 1, 1),
-      });
-      text(heading, MARGIN + 8, y - 16, 11, bold, NAVY);
-      let ty = y - 32;
-      for (const line of lines) {
-        text(line, MARGIN + 8, ty, 10, font, INK);
-        ty -= 13;
+    const drawFlow = (label: string, content: string) => {
+      ensure(20);
+      text(label, MARGIN, y, 11, bold, NAVY);
+      y -= 18;
+      const items = flowBody(content, (t, size) => wrap(size >= 11 ? bold : font, t, size, INNER_W));
+      for (const item of items) {
+        if (item.kind === "gap") {
+          if (y - item.h >= MARGIN) y -= item.h;
+          continue;
+        }
+        const f = item.kind === "heading" ? bold : font;
+        const size = item.kind === "heading" ? 11 : 10;
+        const lh = item.kind === "heading" ? HEAD_PT : LINE_PT;
+        const color = item.kind === "heading" ? NAVY : INK;
+        for (const line of item.lines) {
+          ensure(lh);
+          text(line, MARGIN, y, size, f, color);
+          y -= lh;
+        }
       }
-      y -= h + 10;
+      y -= 8;
     };
-    if (copy.body) box(kind === "tf" ? "Spørgsmål" : "Beskrivelse", copy.body);
-    if (extra) box(kind === "tf" ? "Svar" : "Bemærkning", extra);
+    if (copy.body) drawFlow(kind === "tf" ? "Spørgsmål" : "Beskrivelse", copy.body);
+    if (extra) drawFlow(kind === "tf" ? "Svar" : "Bemærkning", extra);
     const price = keptPrice(priceRaw);
     if (price) {
       ensure(40);

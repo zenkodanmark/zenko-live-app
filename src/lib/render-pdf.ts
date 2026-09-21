@@ -130,6 +130,57 @@ export function noteOnce(title: string, body: string, extra: string): string {
   return e;
 }
 
+/** Same URL/id once. Query-string does not make a new photo. */
+export function photoKey(id: string): string {
+  const t = String(id || "").trim();
+  if (!t) return "";
+  try {
+    if (/^https?:\/\//i.test(t)) {
+      const u = new URL(t);
+      return `${u.origin}${u.pathname}`.replace(/\/+$/, "").toLowerCase();
+    }
+  } catch {
+    /* keep raw */
+  }
+  return t;
+}
+
+export function uniquePhotoList(ids: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of ids) {
+    const id = String(raw || "").trim();
+    if (!id) continue;
+    const key = photoKey(id);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(id);
+  }
+  return out;
+}
+
+/** photo_ids is the list when it holds URLs. Never concat a second list. IDs (softr-…) use fallback URLs. */
+export function pdfPhotoIds(photoIds: string[], fallback: string[] = []): string[] {
+  const primary = uniquePhotoList(photoIds);
+  const urls = primary.filter((u) => /^https?:\/\//i.test(u));
+  if (urls.length) return urls;
+  return uniquePhotoList(fallback);
+}
+
+export function uniquePdfPhotos(photos: PdfPhoto[]): PdfPhoto[] {
+  const out: PdfPhoto[] = [];
+  const seen = new Set<string>();
+  for (const p of photos ?? []) {
+    const src = String(p?.src || "").trim();
+    if (!src) continue;
+    const key = photoKey(src);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...p, src });
+  }
+  return out;
+}
+
 export function wrapLines(text: string, maxChars: number) {
   const out: string[] = [];
   for (const raw of pdfText(text).replace(/\r\n/g, "\n").split("\n")) {
@@ -148,6 +199,52 @@ export function wrapLines(text: string, maxChars: number) {
     out.push(rest);
   }
   return out;
+}
+
+export const BODY_GAP_PT = 12;
+export const BODY_LINE_PT = 14;
+export const BODY_HEAD_PT = 16;
+
+export type BodyFlowItem =
+  | { kind: "gap"; h: number }
+  | { kind: "heading"; lines: string[]; h: number }
+  | { kind: "text"; lines: string[]; h: number };
+
+export function isNumberedHeading(line: string) {
+  return /^\d+\.\s/.test(String(line || "").trim());
+}
+
+/** Layout only: «word and »word get a line break so quotes are not glued. */
+export function unstickQuotes(s: string) {
+  return String(s ?? "")
+    .replace(/«(?=\S)/g, "«\n")
+    .replace(/»(?=\S)/g, "»\n");
+}
+
+export function flowBody(raw: string, wrap: (text: string, size: number) => string[]): BodyFlowItem[] {
+  const src = unstickQuotes(pdfText(raw)).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const items: BodyFlowItem[] = [];
+  const pushGap = () => {
+    const last = items[items.length - 1];
+    if (!last || last.kind === "gap") return;
+    items.push({ kind: "gap", h: BODY_GAP_PT });
+  };
+  for (const part of src.split("\n")) {
+    const line = part.replace(/[ \t]+$/g, "");
+    if (!line.trim()) {
+      pushGap();
+      continue;
+    }
+    if (isNumberedHeading(line)) {
+      pushGap();
+      const lines = wrap(line.trim(), 11);
+      items.push({ kind: "heading", lines, h: lines.length * BODY_HEAD_PT + 2 });
+      continue;
+    }
+    const lines = wrap(line.trim(), 10);
+    items.push({ kind: "text", lines, h: Math.max(BODY_LINE_PT, lines.length * BODY_LINE_PT) });
+  }
+  return items;
 }
 
 function longDate(iso: string) {
@@ -217,7 +314,7 @@ export async function drawPdfBytes(
   const font = await pdf.embedFont(packed.regular, { subset: true });
   const bold = await pdf.embedFont(packed.bold, { subset: true });
   const images: { img: PDFImage; caption?: string }[] = [];
-  for (const photo of doc.photos.slice(0, 24)) {
+  for (const photo of uniquePdfPhotos(doc.photos).slice(0, 24)) {
     if (!fetchImage || !photo.src) continue;
     try {
       const bytes = await fetchImage(photo.src);
@@ -284,30 +381,33 @@ export async function drawPdfBytes(
   }
   y -= 10;
 
-  const bodyBox = (title: string, body: string) => {
-    const lines = fontWrap(font, body || "—", 10, INNER_W - 16);
-    const h = 28 + lines.length * 13 + 16;
-    ensure(h);
-    page.drawRectangle({
-      x: MARGIN,
-      y: y - h,
-      width: INNER_W,
-      height: h,
-      borderColor: rgb(0.85, 0.82, 0.77),
-      borderWidth: 1,
-      color: rgb(1, 1, 1),
-    });
-    text(title, MARGIN + 8, y - 16, 11, bold, NAVY);
-    let ty = y - 32;
-    for (const line of lines) {
-      text(line, MARGIN + 8, ty, 10, font, INK);
-      ty -= 13;
+  const wrapAt = (f: PDFFont, t: string, size: number) => fontWrap(f, t, size, INNER_W);
+
+  const drawFlow = (label: string, content: string) => {
+    ensure(20);
+    text(label, MARGIN, y, 11, bold, NAVY);
+    y -= 18;
+    const items = flowBody(content, (t, size) => wrapAt(size >= 11 ? bold : font, t, size));
+    for (const item of items) {
+      if (item.kind === "gap") {
+        if (y - item.h >= MARGIN) y -= item.h;
+        continue;
+      }
+      const f = item.kind === "heading" ? bold : font;
+      const size = item.kind === "heading" ? 11 : 10;
+      const lh = item.kind === "heading" ? BODY_HEAD_PT : BODY_LINE_PT;
+      const color = item.kind === "heading" ? NAVY : INK;
+      for (const line of item.lines) {
+        ensure(lh);
+        text(line, MARGIN, y, size, f, color);
+        y -= lh;
+      }
     }
-    y -= h + 10;
+    y -= 8;
   };
 
-  if (copy.body) bodyBox(doc.kind === "tf" ? "Spørgsmål" : "Beskrivelse", copy.body);
-  if (extra) bodyBox(doc.extraHeading || (doc.kind === "tf" ? "Svar" : "Bemærkning"), extra);
+  if (copy.body) drawFlow(doc.kind === "tf" ? "Spørgsmål" : "Beskrivelse", copy.body);
+  if (extra) drawFlow(doc.extraHeading || (doc.kind === "tf" ? "Svar" : "Bemærkning"), extra);
 
   const price = keptPrice(doc.priceRaw);
   if (price) {
