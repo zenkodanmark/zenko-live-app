@@ -4,7 +4,7 @@ import { DrivePhoto } from "@/components/drive-photo";
 import { BrickMark, Chip, GhostButton, PrimaryButton } from "@/components/zenko";
 import { applyReportFix } from "@/lib/ai.functions";
 import { snapshotOf, type FixChange } from "@/lib/report-fix";
-import { LETTERHEAD, printDoc } from "@/lib/print";
+import { LETTERHEAD } from "@/lib/print";
 import { FIRM_CVR, FIRM_MAIL, copenhagenDateTime, copenhagenTime, controlPlanFor, findControlPoint } from "@/lib/seed";
 import { lookupProject, useYard } from "@/lib/store";
 import type { Entrepreneur, InvoicePack, KsPhoto, KsReport, Lang, Project, Slip, Tf } from "@/lib/types";
@@ -17,6 +17,7 @@ import { TfShareBar } from "@/components/tf-share-bar";
 import { KundeHak } from "@/components/kunde-hak";
 import { KsPunktPick } from "@/components/ks-punkt-pick";
 import { LedelseHak } from "@/components/ledelse-hak";
+import { SavePdfForReport } from "@/components/save-pdf-button";
 
 export type ReportKind = "slip" | "offer" | "tf" | "ent" | "ks" | "pack";
 
@@ -26,12 +27,14 @@ export function PrintChrome({
   children,
   kind,
   lang = "da",
+  onMoved,
 }: {
   docId: string;
   onClose: () => void;
   children: ReactNode;
   kind?: ReportKind;
   lang?: Lang;
+  onMoved?: (next: { kind: Exclude<ReportKind, "pack">; id: string }) => void;
 }) {
   const tf = useYard((s) => (kind === "tf" ? s.tfs.find((x) => x.id === docId) : undefined));
   const trashReport = useYard((s) => s.trashReport);
@@ -101,15 +104,17 @@ export function PrintChrome({
         {ksRow ? <KundeHak kind="ks" report={ksRow} lang={lang} /> : null}
         {ksRow ? <KsPunktPick report={ksRow} lang={lang} /> : null}
         {slipRow && kind === "slip" ? <LedelseHak kind="as" report={slipRow} lang={lang} /> : null}
+        {slipRow && kind === "slip" ? <KundeHak kind="as" report={slipRow} lang={lang} /> : null}
         {slipRow && kind === "offer" ? <LedelseHak kind="tb" report={slipRow} lang={lang} /> : null}
+        {slipRow && kind === "offer" ? <KundeHak kind="tb" report={slipRow} lang={lang} /> : null}
         {tfRow ? <LedelseHak kind="tf" report={tfRow} lang={lang} /> : null}
         {tfRow ? <KundeHak kind="tf" report={tfRow} lang={lang} /> : null}
         {entRow ? <LedelseHak kind="er" report={entRow} lang={lang} /> : null}
         {entRow ? <KundeHak kind="er" report={entRow} lang={lang} /> : null}
-        {kind && kind !== "pack" && kind !== "offer" && current ? <MoveReportBar kind={kind} id={docId} projectId={"projectId" in current ? current.projectId : ""} /> : null}
-        <PrimaryButton tone="sand" className="w-auto px-4 text-action" onClick={printDoc}>
-          Print / PDF
-        </PrimaryButton>
+        {kind && kind !== "pack" && kind !== "offer" && current ? <MoveReportBar kind={kind} id={docId} projectId={"projectId" in current ? current.projectId : ""} onMoved={onMoved} /> : null}
+        {kind && (kind === "slip" || kind === "offer" || kind === "tf" || kind === "ent") ? (
+          <SavePdfForReport kind={kind} id={docId} lang={lang} />
+        ) : null}
         <CloseX onClick={onClose} label="Luk" />
       </div>
       {kind ? <ReportFixBar kind={kind} id={docId} /> : null}
@@ -118,7 +123,17 @@ export function PrintChrome({
   );
 }
 
-function MoveReportBar({ kind, id, projectId }: { kind: Exclude<ReportKind, "pack">; id: string; projectId: string }) {
+function MoveReportBar({
+  kind,
+  id,
+  projectId,
+  onMoved,
+}: {
+  kind: Exclude<ReportKind, "pack">;
+  id: string;
+  projectId: string;
+  onMoved?: (next: { kind: Exclude<ReportKind, "pack">; id: string }) => void;
+}) {
   const projects = useYard((s) => s.projects);
   const moveReport = useYard((s) => s.moveReport);
   const [to, setTo] = useState(kind);
@@ -138,7 +153,14 @@ function MoveReportBar({ kind, id, projectId }: { kind: Exclude<ReportKind, "pac
           </option>
         ))}
       </select>
-      <GhostButton className="text-sand" onClick={() => moveReport(kind, id, to, job)}>
+      <GhostButton
+        className="text-sand"
+        onClick={() => {
+          if (kind === "offer" || to === "offer") return;
+          const next = moveReport(kind, id, to, job);
+          if (next) onMoved?.({ kind: to, id: next });
+        }}
+      >
         Flyt
       </GhostButton>
     </div>

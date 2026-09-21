@@ -43,6 +43,7 @@ import { rememberDrive, type DriveMap } from "./drive";
 import { applyArchive, applyReopen, ensureProjectHandover } from "./job-archive";
 import { isMaterialNeed, matchModtagelse, orderLines, scanBehov } from "./material";
 import { seedDrivePhotos } from "./ks-drive";
+import { allocateZNumber, movedSource } from "./report-serial";
 import type {
   Assignment,
   CalEvent,
@@ -247,6 +248,7 @@ type YardState = {
   reopenTodo: (id: string) => void;
   patchTodo: (id: string, patch: Partial<Todo>) => void;
   setTodoLedelse: (id: string) => Promise<boolean>;
+  setTodoKunde: (id: string) => Promise<boolean>;
   removeTodo: (id: string) => void;
   patchEmployee: (id: string, patch: Partial<Employee>) => void;
   convertTodo: (id: string, kind: "slip" | "tf" | "ent" | "ks", projectId?: string) => string | null;
@@ -271,7 +273,7 @@ type YardState = {
   setReportStatus: (kind: "slip" | "offer" | "tf" | "ent" | "pack" | "ks", id: string, status: ReportStatus) => void;
   patchReport: (kind: "slip" | "offer" | "tf" | "ent" | "pack" | "ks", id: string, patch: Record<string, unknown>) => void;
   setReportLedelse: (kind: "tf" | "slip" | "offer" | "ent", id: string) => Promise<boolean>;
-  setReportKunde: (kind: "tf" | "ent" | "ks", id: string) => Promise<boolean>;
+  setReportKunde: (kind: "tf" | "ent" | "ks" | "slip" | "offer", id: string) => Promise<boolean>;
   setKsPunkt: (id: string, punkt: string) => Promise<boolean>;
   resetAlex: () => void;
   pushEvent: (text: string) => void;
@@ -566,7 +568,7 @@ export const useYard = create<YardState>()(
     as: 6,
     tb: 1,
     tf: 7,
-    er: 1,
+    er: 3,
     ks: 5,
     fb: 1,
     mo: 1
@@ -959,23 +961,25 @@ export const useYard = create<YardState>()(
     if (row) void import("./sb-live").then((m) => m.publishProject(row));
   },
   addSlip: (input) => {
-    const n = get().serial.as;
+    const used = get().slips.map((x) => x.number);
+    const allocated = allocateZNumber("as", used, get().serial.as, input.number);
     const slip = {
-      id: `slip-${crypto.randomUUID().slice(0, 8)}`,
-      number: `Z-AS-2026-${pad(n)}`,
       createdAt: (new Date()).toISOString(),
       status: "draft" as const,
       forwarded: false,
       paid: false,
-      photoIds: [],
       ledelseStatus: "skjult" as const,
-      ...input
+      kundeStatus: "skjult" as const,
+      ...input,
+      id: `slip-${crypto.randomUUID()}`,
+      number: allocated.number,
+      photoIds: input.photoIds ?? [],
     };
     set((s) => ({
       slips: [slip, ...s.slips],
       serial: {
         ...s.serial,
-        as: n + 1
+        as: Math.max(s.serial.as, allocated.n + 1),
       },
       toast: "Gemt."
     }));
@@ -983,24 +987,25 @@ export const useYard = create<YardState>()(
     return slip;
   },
   addOffer: (input) => {
-    const n = get().serial.tb ?? 1;
+    const used = (get().offers ?? []).map((x) => x.number);
+    const allocated = allocateZNumber("tb", used, get().serial.tb ?? 1, input.number);
     const offer: Offer = {
-      id: `offer-${crypto.randomUUID().slice(0, 8)}`,
-      number: input.number || `TB-2026-${pad(n)}`,
       createdAt: (new Date()).toISOString(),
       status: "draft" as const,
       forwarded: false,
       paid: false,
-      photoIds: [],
       ledelseStatus: "skjult" as const,
       kundeStatus: "skjult" as const,
       ...input,
+      id: `offer-${crypto.randomUUID()}`,
+      number: allocated.number,
+      photoIds: input.photoIds ?? [],
     };
     set((s) => ({
       offers: [offer, ...(s.offers ?? [])],
       serial: {
         ...s.serial,
-        tb: n + 1,
+        tb: Math.max(s.serial.tb ?? 1, allocated.n + 1),
       },
       toast: "Gemt.",
     }));
@@ -1101,23 +1106,24 @@ export const useYard = create<YardState>()(
     };
   }),
   addTf: (input) => {
-    const n = get().serial.tf;
+    const used = get().tfs.map((x) => x.number);
+    const allocated = allocateZNumber("tf", used, get().serial.tf, input.number);
     const tf = {
-      id: `tf-${crypto.randomUUID().slice(0, 8)}`,
-      number: `Z-TF-2026-${pad(n)}`,
       createdAt: (new Date()).toISOString(),
       status: "draft" as const,
       answered: false,
-      photoIds: [],
       ledelseStatus: "skjult" as const,
       kundeStatus: "skjult" as const,
-      ...input
+      ...input,
+      id: `tf-${crypto.randomUUID()}`,
+      number: allocated.number,
+      photoIds: input.photoIds ?? [],
     };
     set((s) => ({
       tfs: [tf, ...s.tfs],
       serial: {
         ...s.serial,
-        tf: n + 1
+        tf: Math.max(s.serial.tf, allocated.n + 1),
       },
       toast: "Gemt."
     }));
@@ -1139,22 +1145,23 @@ export const useYard = create<YardState>()(
       ),
     })),
   addEnt: (input) => {
-    const n = get().serial.er;
+    const used = get().ents.map((x) => x.number);
+    const allocated = allocateZNumber("er", used, get().serial.er, input.number);
     const ent = {
-      id: `ent-${crypto.randomUUID().slice(0, 8)}`,
-      number: `Z-ER-2026-${pad(n)}`,
       createdAt: (new Date()).toISOString(),
       status: "draft" as const,
-      ledelseStatus: "skjult" as const,
       kundeStatus: "skjult" as const,
       ...input,
-      photoIds: input.photoIds ?? []
+      id: `ent-${crypto.randomUUID()}`,
+      number: allocated.number,
+      photoIds: input.photoIds ?? [],
+      ledelseStatus: "skjult" as const,
     };
     set((s) => ({
       ents: [ent, ...s.ents],
       serial: {
         ...s.serial,
-        er: n + 1
+        er: Math.max(s.serial.er, allocated.n + 1),
       },
       toast: "Gemt."
     }));
@@ -1384,6 +1391,27 @@ export const useYard = create<YardState>()(
     if (saved) emitYard({ kind: "todo", id: saved.id, payload: slimTodo(saved), isNew: false, actorId: get().employeeId ?? saved.fromId });
     return true;
   },
+  setTodoKunde: async (id) => {
+    const before = get().todos.find((t) => t.id === id);
+    if (!before) return false;
+    const next = before.kundeStatus === "med_til_kunden" ? ("skjult" as const) : ("med_til_kunden" as const);
+    const updatedAt = new Date().toISOString();
+    set((s) => ({
+      todos: s.todos.map((t) => (t.id === id ? { ...t, kundeStatus: next, updatedAt } : t)),
+    }));
+    holdRow(id);
+    const after = get().todos.find((t) => t.id === id);
+    if (!after) return false;
+    const ok = await import("./todo-live").then((m) => m.publishTodoKunde(after, next));
+    if (!ok) {
+      set((s) => ({
+        todos: s.todos.map((t) => (t.id === id ? before : t)),
+        toast: "Kunne ikke gemme",
+      }));
+      return false;
+    }
+    return true;
+  },
   replyTodo: (id, fromId, text) => {
     const note = text.trim();
     if (!note) return;
@@ -1486,15 +1514,27 @@ export const useYard = create<YardState>()(
       const row = s.tfs.find((x) => x.id === id);
       if (!row) return null;
       const jobId = jobFallback || row.projectId;
-      get().trashReport("tf", id);
       if (to === "tf") {
+        get().trashReport("tf", id);
         get().restoreReport("tf", id);
         get().patchReport("tf", id, { projectId: jobId });
         return id;
       }
       const title = row.title || row.question.slice(0, 48);
+      if (to === "ent") {
+        const created = get().addEnt({
+          projectId: jobId,
+          title,
+          location: "",
+          body: row.question,
+          noteHe: row.answer || "",
+          photoIds: [...(row.photoIds ?? [])],
+        });
+        get().patchReport("tf", id, { trashedAt: new Date().toISOString(), source: movedSource(created.id) });
+        return created.id;
+      }
+      get().trashReport("tf", id);
       if (to === "slip") return get().addSlip({ projectId: jobId, title, location: "", body: row.question, masterSolution: row.answer || "", customerPrice: "", hoursEst: 0, materialsEst: "", photoIds: row.photoIds }).id;
-      if (to === "ent") return get().addEnt({ projectId: jobId, title, location: "", body: row.question, noteHe: row.answer || "", photoIds: row.photoIds }).id;
       return get().addKsReport(jobId, "div", { deviations: row.question, task: title, photoIds: row.photoIds }).id;
     }
     if (from === "ent") {
@@ -1507,7 +1547,7 @@ export const useYard = create<YardState>()(
         get().patchReport("ent", id, { projectId: jobId });
         return id;
       }
-      if (to === "slip") return get().addSlip({ projectId: jobId, title: row.title, location: row.location, body: row.body, masterSolution: row.noteHe, customerPrice: "", hoursEst: 0, materialsEst: "", photoIds: row.photoIds }).id;
+      if (to === "slip") return get().addSlip({ projectId: jobId, title: row.title, location: row.location ?? "", body: row.body, masterSolution: row.noteHe || "", customerPrice: "", hoursEst: 0, materialsEst: "", photoIds: row.photoIds }).id;
       if (to === "tf") return get().addTf({ projectId: jobId, question: row.body || row.title, title: row.title, photoIds: row.photoIds }).id;
       return get().addKsReport(jobId, "div", { deviations: row.body, location: row.location, task: row.title, photoIds: row.photoIds }).id;
     }
@@ -1799,7 +1839,7 @@ export const useYard = create<YardState>()(
     holdRow(id);
     const after = reportOf(get(), kind, id);
     const ok = await import("./hak-live").then((m) =>
-      m.publishKundeHak(kind, id, next, after as Tf | Entrepreneur | KsReport | undefined),
+      m.publishKundeHak(kind, id, next, after as Tf | Entrepreneur | KsReport | Slip | Offer | undefined),
     );
     if (!ok) {
       patchReportList(kind, id, before);
@@ -2381,7 +2421,7 @@ export const useYard = create<YardState>()(
         as: 6,
         tb: 1,
         tf: 7,
-        er: 1,
+        er: 3,
         ks: 5,
         fb: 1,
         mo: 1

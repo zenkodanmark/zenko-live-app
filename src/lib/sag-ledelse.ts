@@ -218,7 +218,7 @@ export function sagJobFields(job: SagJobMeta) {
     ["Periode", job.period],
     ["Sagsansvarlig", job.qualityManager],
   ];
-  return rows.filter(([, v]) => v.trim());
+  return rows.filter(([, v]) => String(v || "").trim());
 }
 
 function reportSlug(number: string) {
@@ -261,7 +261,7 @@ export function toSagAs(slip: Slip, job: Project, fields: FieldItem[]): SagAsVie
     title: slip.title,
     body: slip.body,
     description: parsed.description,
-    location: slip.location,
+    location: slip.location ?? "",
     createdAt: slip.createdAt,
     customer: job.customer || "",
     projectName: job.name,
@@ -291,7 +291,7 @@ export function toSagEr(ent: Entrepreneur, job: Project, fields: FieldItem[]): S
     slug: reportSlug(ent.number),
     title: ent.title,
     body: ent.body,
-    location: ent.location,
+    location: ent.location ?? "",
     createdAt: ent.createdAt,
     customer: job.customer || "",
     projectName: job.name,

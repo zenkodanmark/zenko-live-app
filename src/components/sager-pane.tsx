@@ -11,6 +11,7 @@ import { KsListThumb, ReportThumb, TodoPhotos } from "@/components/photo-strip";
 import { Chip, GhostButton } from "@/components/zenko";
 import { AsShareChip, ErShareChip, KsShareChip } from "@/components/report-share-bar";
 import { TfShareChip } from "@/components/tf-share-bar";
+import { SavePdfForReport } from "@/components/save-pdf-button";
 import { KundeHak } from "@/components/kunde-hak";
 import { KsPunktPick } from "@/components/ks-punkt-pick";
 import { LedelseHak } from "@/components/ledelse-hak";
@@ -439,7 +440,9 @@ export function SagerPane({
                         </button>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <AsShareChip slip={live} lang={lang} />
+                          <SavePdfForReport kind="slip" id={row.id} lang={lang} chip />
                           <LedelseHak kind="as" report={live} lang={lang} />
+                          <KundeHak kind="as" report={live} lang={lang} />
                           {showTrash ? (
                             <GhostButton className="shrink-0 rounded-full bg-paper px-3 text-action" onClick={() => restoreReport("slip", row.id)}>
                               {t(lang, "restoreTrash")}
@@ -498,7 +501,9 @@ export function SagerPane({
                           </span>
                         </button>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <SavePdfForReport kind="offer" id={row.id} lang={lang} chip />
                           <LedelseHak kind="tb" report={row} lang={lang} />
+                          <KundeHak kind="tb" report={row} lang={lang} />
                           {showTrash ? (
                             <GhostButton className="shrink-0 rounded-full bg-paper px-3 text-action" onClick={() => restoreReport("offer", row.id)}>
                               {t(lang, "restoreTrash")}
@@ -558,6 +563,7 @@ export function SagerPane({
                       </button>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <TfShareChip tf={live} lang={lang} />
+                        <SavePdfForReport kind="tf" id={row.id} lang={lang} chip />
                         <LedelseHak kind="tf" report={live} lang={lang} />
                         <KundeHak kind="tf" report={live} lang={lang} />
                         {showTrash ? (
@@ -621,6 +627,7 @@ export function SagerPane({
                         </button>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <ErShareChip ent={live} lang={lang} />
+                          <SavePdfForReport kind="ent" id={row.id} lang={lang} chip />
                           <LedelseHak kind="er" report={live} lang={lang} />
                           <KundeHak kind="er" report={live} lang={lang} />
                           {showTrash ? (
@@ -771,7 +778,7 @@ export function SagerPane({
       ) : null}
 
       {slip ? (
-        <PrintChrome docId={slip.id} kind="slip" lang={lang} onClose={() => setView(null)}>
+        <PrintChrome docId={slip.id} kind="slip" lang={lang} onClose={() => setView(null)} onMoved={setView}>
           <SlipDoc slip={slip} />
           <SlipInternalFlags slip={slip} onForwarded={() => toggleFwd(slip.id)} onPaid={() => togglePaid(slip.id)} />
           <div className="no-print mx-auto max-w-[210mm] px-4 pb-8">
@@ -780,7 +787,7 @@ export function SagerPane({
         </PrintChrome>
       ) : null}
       {offer ? (
-        <PrintChrome docId={offer.id} kind="offer" lang={lang} onClose={() => setView(null)}>
+        <PrintChrome docId={offer.id} kind="offer" lang={lang} onClose={() => setView(null)} onMoved={setView}>
           <OfferDoc offer={offer} />
           <SlipInternalFlags slip={offer} onForwarded={() => toggleOfferFwd(offer.id)} onPaid={() => toggleOfferPaid(offer.id)} />
           <div className="no-print mx-auto max-w-[210mm] px-4 pb-8">
@@ -789,7 +796,7 @@ export function SagerPane({
         </PrintChrome>
       ) : null}
       {tf ? (
-        <PrintChrome docId={tf.id} kind="tf" lang={lang} onClose={() => setView(null)}>
+        <PrintChrome docId={tf.id} kind="tf" lang={lang} onClose={() => setView(null)} onMoved={setView}>
           <TfDoc tf={tf} onAnswer={(a) => answerTf(tf.id, a)} />
           <div className="no-print mx-auto max-w-[210mm] px-4 pb-8">
             <FieldAttach lang={lang} projectId={tf.projectId} kind="tf" reportId={tf.id} attachedIds={tf.photoIds} />
@@ -797,7 +804,7 @@ export function SagerPane({
         </PrintChrome>
       ) : null}
       {ent ? (
-        <PrintChrome docId={ent.id} kind="ent" lang={lang} onClose={() => setView(null)}>
+        <PrintChrome docId={ent.id} kind="ent" lang={lang} onClose={() => setView(null)} onMoved={setView}>
           <EntDoc ent={ent} />
           <div className="no-print mx-auto max-w-[210mm] px-4 pb-8">
             <FieldAttach lang={lang} projectId={ent.projectId} kind="ent" reportId={ent.id} attachedIds={ent.photoIds} />

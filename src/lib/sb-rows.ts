@@ -222,6 +222,8 @@ export function todoToRow(t: Todo) {
     order_id: t.orderId ?? null,
     from_chat_id: t.fromChatId ?? null,
     ledelse_status: t.ledelseStatus ?? null,
+    kunde_status: t.kundeStatus ?? null,
+    pdf_path: t.pdfPath ?? null,
     updated_at: t.updatedAt ?? new Date().toISOString(),
   };
 }
@@ -258,6 +260,8 @@ export function todoFromRow(r: Record<string, unknown>): Todo {
     orderId: str(r.order_id) || undefined,
     fromChatId: str(r.from_chat_id) || undefined,
     ...ledelseFromTodoRow(r),
+    ...kundeOf(r.kunde_status),
+    pdfPath: str(r.pdf_path) || undefined,
     updatedAt: iso(r.updated_at) || undefined,
   };
 }
@@ -564,6 +568,7 @@ export function tfToRow(t: Tf) {
     trashed_at: t.trashedAt ?? null,
     share_token: t.shareToken ?? null,
     source: t.source ?? null,
+    pdf_path: t.pdfPath ?? null,
     updated_at: t.updatedAt || new Date().toISOString(),
   };
 }
@@ -588,6 +593,7 @@ export function tfFromRow(r: Record<string, unknown>): Tf {
     trashedAt: iso(r.trashed_at) || undefined,
     shareToken: str(r.share_token) || undefined,
     source: str(r.source) || undefined,
+    pdfPath: str(r.pdf_path) || undefined,
     updatedAt: iso(r.updated_at) || undefined,
   };
 }
@@ -615,6 +621,7 @@ export function slipToRow(s: Slip) {
     kunde_status: s.kundeStatus ?? null,
     trashed_at: s.trashedAt ?? null,
     source: s.source ?? null,
+    pdf_path: s.pdfPath ?? null,
     updated_at: s.updatedAt || new Date().toISOString(),
   };
 }
@@ -641,6 +648,7 @@ export function slipFromRow(r: Record<string, unknown>): Slip {
     kundeStatus: (r.kunde_status as Slip["kundeStatus"]) || undefined,
     trashedAt: iso(r.trashed_at) || undefined,
     source: str(r.source) || undefined,
+    pdfPath: str(r.pdf_path) || undefined,
     updatedAt: iso(r.updated_at) || undefined,
   };
 }
@@ -665,6 +673,7 @@ export function entToRow(e: Entrepreneur) {
     hours_est: e.hoursEst ?? null,
     trashed_at: e.trashedAt ?? null,
     source: e.source ?? null,
+    pdf_path: e.pdfPath ?? null,
     updated_at: e.updatedAt || new Date().toISOString(),
   };
 }
@@ -688,6 +697,7 @@ export function entFromRow(r: Record<string, unknown>): Entrepreneur {
     hoursEst: r.hours_est == null ? undefined : Number(r.hours_est),
     trashedAt: iso(r.trashed_at) || undefined,
     source: str(r.source) || undefined,
+    pdfPath: str(r.pdf_path) || undefined,
     updatedAt: iso(r.updated_at) || undefined,
   };
 }

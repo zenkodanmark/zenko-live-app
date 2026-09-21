@@ -212,6 +212,7 @@ export type Slip = {
   trashedAt?: string;
   source?: string;
   updatedAt?: string;
+  pdfPath?: string;
 };
 
 export type Offer = Slip;
@@ -237,6 +238,7 @@ export type Tf = {
   shareToken?: string;
   source?: string;
   updatedAt?: string;
+  pdfPath?: string;
 };
 
 export type Entrepreneur = {
@@ -259,6 +261,7 @@ export type Entrepreneur = {
   trashedAt?: string;
   source?: string;
   updatedAt?: string;
+  pdfPath?: string;
 };
 
 export type InvoicePack = {
@@ -479,7 +482,9 @@ export type Todo = {
   orderId?: string;
   fromChatId?: string;
   ledelseStatus?: LedelseStatus;
+  kundeStatus?: KundeStatus;
   updatedAt?: string;
+  pdfPath?: string;
 };
 
 export type Supplier = { id: string; name: string; email: string };

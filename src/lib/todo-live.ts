@@ -1,6 +1,7 @@
 import { ledelseFromTodoRow, todoFromRow, todoToRow, translationsForTodo } from "./sb-rows";
 import { supabase } from "./supabase";
-import type { LedelseStatus, Todo } from "./types";
+import { updateKnown, upsertKnown } from "./sb-upsert";
+import type { KundeStatus, LedelseStatus, Todo } from "./types";
 
 export async function pullTodos(): Promise<Todo[] | null> {
   try {
@@ -15,11 +16,10 @@ export async function pullTodos(): Promise<Todo[] | null> {
 export async function publishTodo(todo: Todo): Promise<boolean> {
   try {
     const row = todoToRow(todo);
-    const { error } = await supabase().from("todos").upsert(row);
-    if (!error) return true;
-    const { ledelse_status: _drop, ...rest } = row as typeof row & { ledelse_status?: unknown };
-    const retry = await supabase().from("todos").upsert(rest);
-    return !retry.error;
+    return upsertKnown(async (r) => {
+      const { error } = await supabase().from("todos").upsert(r);
+      return { error };
+    }, row as Record<string, unknown>);
   } catch {
     return false;
   }
@@ -35,23 +35,52 @@ export async function publishTodoLedelse(todo: Todo, status: LedelseStatus): Pro
   const updatedAt = todo.updatedAt ?? new Date().toISOString();
   const translations = translationsForTodo({ ...todo, ledelseStatus: status });
   const withCol = { translations, updated_at: updatedAt, ledelse_status: status };
-  const noCol = { translations, updated_at: updatedAt };
   try {
     const sb = supabase();
-    let error = (await sb.from("todos").update(withCol).eq("id", todo.id)).error;
-    if (error) error = (await sb.from("todos").update(noCol).eq("id", todo.id)).error;
-    if (error) {
+    const upd = await updateKnown(
+      async (r) => {
+        const res = await sb.from("todos").update(r).eq("id", todo.id);
+        return { error: res.error };
+      },
+      withCol,
+    );
+    if (!upd.ok) {
       const row = todoToRow({ ...todo, ledelseStatus: status, updatedAt });
-      let up = await sb.from("todos").upsert(row);
-      if (up.error) {
-        const { ledelse_status: _drop, ...rest } = row as typeof row & { ledelse_status?: unknown };
-        up = await sb.from("todos").upsert(rest);
-      }
-      if (up.error) return false;
+      const ok = await upsertKnown(async (r) => {
+        const res = await sb.from("todos").upsert(r);
+        return { error: res.error };
+      }, row as Record<string, unknown>);
+      if (!ok) return false;
     }
-    const read = await sb.from("todos").select("translations").eq("id", todo.id).maybeSingle();
+    const read = await sb.from("todos").select("translations,ledelse_status").eq("id", todo.id).maybeSingle();
     if (read.error || !read.data) return false;
     return writtenLedelse(read.data as Record<string, unknown>) === status;
+  } catch {
+    return false;
+  }
+}
+
+export async function publishTodoKunde(todo: Todo, status: KundeStatus): Promise<boolean> {
+  const updatedAt = todo.updatedAt ?? new Date().toISOString();
+  const withCol = { updated_at: updatedAt, kunde_status: status };
+  try {
+    const sb = supabase();
+    const upd = await updateKnown(
+      async (r) => {
+        const res = await sb.from("todos").update(r).eq("id", todo.id).select("kunde_status").maybeSingle();
+        return { error: res.error, data: res.data };
+      },
+      withCol,
+    );
+    if (upd.ok && (upd.data as { kunde_status?: string } | null)?.kunde_status === status) return true;
+    const row = todoToRow({ ...todo, kundeStatus: status, updatedAt });
+    const ok = await upsertKnown(async (r) => {
+      const res = await sb.from("todos").upsert(r);
+      return { error: res.error };
+    }, row as Record<string, unknown>);
+    if (!ok) return false;
+    const read = await sb.from("todos").select("kunde_status").eq("id", todo.id).maybeSingle();
+    return (read.data as { kunde_status?: string } | null)?.kunde_status === status;
   } catch {
     return false;
   }

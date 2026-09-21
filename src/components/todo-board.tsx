@@ -5,10 +5,10 @@ import { CrewTodoOpen } from "@/components/complete-todo";
 import { GpsLink, ReportThumb, TodoPhotos } from "@/components/photo-strip";
 import { DriveFileThumb } from "@/components/drive-photo";
 import { Card, Chip, GhostButton, PrimaryButton, SectionLabel } from "@/components/zenko";
-import { TodoLedelseHak, isTodoLedelseOn } from "@/components/todo-ledelse-hak";
+import { TodoHakPair, isTodoLedelseOn } from "@/components/todo-ledelse-hak";
+import { SavePdfButton } from "@/components/save-pdf-button";
 import { shownTodoText } from "@/lib/chat";
 import { t } from "@/lib/i18n";
-import { printDoc } from "@/lib/print";
 import { todoAllPhotoIds } from "@/lib/photo-meta";
 import { copenhagenDate, FIRM, FIRM_CVR, isMasterRole } from "@/lib/seed";
 import { useSessionEmployee, useYard } from "@/lib/store";
@@ -145,7 +145,7 @@ function TodoLine({ td, lang, onOpen }: { td: Todo; lang: Lang; onOpen?: () => v
           </span>
         </button>
       </div>
-      <TodoLedelseHak todo={td} lang={lang} />
+      <TodoHakPair todo={td} lang={lang} />
       <GhostButton
         className="mt-1 min-h-9 px-2 text-xs"
         onClick={() => {
@@ -217,7 +217,7 @@ export function OpenTodoRow({
           {hint}
         </button>
       </div>
-      <TodoLedelseHak todo={live} lang={lang} />
+      <TodoHakPair todo={live} lang={lang} />
       {edit ? <TodoEditSheet td={live} lang={lang} onClose={() => setEdit(false)} /> : null}
     </div>
   );
@@ -411,15 +411,14 @@ function MasterTodoOpen({ td, lang, onClose, onEdit }: { td: Todo; lang: Lang; o
   return (
     <div className="fixed inset-0 z-[60] overflow-y-auto bg-sand" data-testid="master-todo-open">
       <div className="sticky top-0 z-10 flex items-center gap-2 bg-sand px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
-        <PrimaryButton tone="navy" className="w-auto px-4" data-testid="todo-pdf" onClick={() => printDoc()}>
-          PDF
-        </PrimaryButton>
+        <SavePdfButton kind="todo" id={live.id} lang={lang} />
         <GhostButton className="bg-paper" onClick={onEdit}>
           {t(lang, "editShort")}
         </GhostButton>
         <CloseX onClick={onClose} label={t(lang, "close")} />
       </div>
       <div className="mx-auto max-w-lg space-y-5 px-4 pb-10">
+        <TodoHakPair todo={live} lang={lang} />
         <div>
           <h1 className="font-display text-3xl font-semibold leading-snug text-navy" data-testid="master-todo-title">
             {crewTodoTitle(live, lang, me?.role)}
@@ -685,14 +684,7 @@ export function TodoEditSheet({ td, lang, onClose }: { td: Todo; lang: Lang; onC
   return (
     <div className="fixed inset-0 z-[80] overflow-y-auto bg-sand" data-testid="todo-edit-sheet">
       <div className="no-print sticky top-0 z-10 flex items-center gap-2 bg-navy px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-sand">
-        <PrimaryButton
-          tone="sand"
-          className="w-auto shrink-0 px-4"
-          data-testid="todo-pdf"
-          onClick={() => printDoc()}
-        >
-          PDF
-        </PrimaryButton>
+        <SavePdfButton kind="todo" id={live.id} lang={lang} />
         <p className="min-w-0 flex-1 truncate font-display text-lg">{t(lang, "editShort")}</p>
         <CloseX onClick={onClose} label={t(lang, "close")} />
       </div>

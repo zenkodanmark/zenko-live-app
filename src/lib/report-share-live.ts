@@ -64,7 +64,12 @@ async function fetchFields(ids: string[]): Promise<FieldItem[]> {
 }
 
 function pickRow<T extends { id: string; number: string }>(rows: T[], slug: string): T | null {
-  return rows.find((r) => matchesShareKey(r, slug)) ?? rows[0] ?? null;
+  const exact = rows.find((r) => r.id === slug);
+  if (exact) return exact;
+  const hits = rows.filter((r) => matchesShareKey(r, slug));
+  if (hits.length === 1) return hits[0]!;
+  if (hits.length > 1) return hits.find((r) => r.id === slug) ?? null;
+  return null;
 }
 
 function ksWithLedelse(raw: Record<string, unknown>): KsReport {
@@ -76,7 +81,8 @@ function ksWithLedelse(raw: Record<string, unknown>): KsReport {
 
 export async function loadLiveShare(kind: ShareKind, slug: string): Promise<ReportShareRecord | null> {
   const keys = shareLookupKeys(kind, slug);
-  const rawRows = await fetchByKeys(TABLE[kind], keys);
+  let rawRows = await fetchByKeys(TABLE[kind], keys);
+  if (!rawRows.length && kind === "tb") rawRows = await fetchByKeys("slips", keys);
   if (!rawRows.length) return null;
 
   if (kind === "as" || kind === "tb") {

@@ -5,13 +5,15 @@ import { slugForProject, snapshotKundeReport } from "@/lib/ks-customer";
 import { setKundeReportStatus } from "@/lib/ks-customer.functions";
 import { softrKsPhotos } from "@/lib/softr-ks";
 import { t } from "@/lib/i18n";
-import type { Entrepreneur, KsReport, Lang, Tf } from "@/lib/types";
+import type { Entrepreneur, KsReport, Lang, Offer, Slip, Tf } from "@/lib/types";
 
-type KundeHakKind = "ks" | "tf" | "er";
+type KundeHakKind = "ks" | "tf" | "er" | "as" | "tb";
 
 function storeKindOf(kind: KundeHakKind) {
   if (kind === "tf") return "tf" as const;
   if (kind === "er") return "ent" as const;
+  if (kind === "as") return "slip" as const;
+  if (kind === "tb") return "offer" as const;
   return "ks" as const;
 }
 
@@ -21,7 +23,7 @@ export function KundeHak({
   lang,
 }: {
   kind?: KundeHakKind;
-  report: KsReport | Tf | Entrepreneur;
+  report: KsReport | Tf | Entrepreneur | Slip | Offer;
   lang: Lang;
 }) {
   const setReportKunde = useYard((s) => s.setReportKunde);
@@ -30,6 +32,8 @@ export function KundeHak({
   const live = useYard((s) => {
     if (storeKind === "tf") return s.tfs.find((x) => x.id === report.id);
     if (storeKind === "ent") return s.ents.find((x) => x.id === report.id);
+    if (storeKind === "slip") return s.slips.find((x) => x.id === report.id);
+    if (storeKind === "offer") return (s.offers ?? []).find((x) => x.id === report.id);
     return s.ksReports.find((x) => x.id === report.id);
   }) ?? report;
   const on = live.kundeStatus === "med_til_kunden";
@@ -67,7 +71,7 @@ export function KundeHak({
       onClick={toggle}
       title={t(lang, on ? "kundeHakOn" : "kundeHakOff")}
       data-kunde={on ? "on" : "off"}
-      data-testid={`kunde-hak-${report.number}`}
+      data-testid={`kunde-hak-${"number" in report && report.number ? report.number : live.id}`}
     />
   );
 }

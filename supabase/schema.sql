@@ -87,6 +87,8 @@ create table todos (
   order_id text,
   from_chat_id text,
   ledelse_status text,
+  kunde_status text,
+  pdf_path text,
   updated_at timestamptz default now()
 );
 
@@ -190,6 +192,7 @@ create table tfs (
   trashed_at timestamptz,
   share_token text,
   source text,
+  pdf_path text,
   updated_at timestamptz default now()
 );
 
@@ -215,6 +218,7 @@ create table slips (
   kunde_status text,
   trashed_at timestamptz,
   source text,
+  pdf_path text,
   updated_at timestamptz default now()
 );
 
@@ -240,6 +244,7 @@ create table offers (
   kunde_status text,
   trashed_at timestamptz,
   source text,
+  pdf_path text,
   updated_at timestamptz default now()
 );
 
@@ -262,6 +267,7 @@ create table ents (
   hours_est double precision,
   trashed_at timestamptz,
   source text,
+  pdf_path text,
   updated_at timestamptz default now()
 );
 

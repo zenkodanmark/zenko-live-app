@@ -22,6 +22,7 @@ import { AsBlanket } from "@/components/as-blanket";
 import { SagBack, SagMetaGrid, SagMissing, SagPhotos, SagShell, SagTypeBtn } from "@/components/sag-shell";
 import { ToastHost } from "@/components/toast-host";
 import { PrimaryButton } from "@/components/zenko";
+import { SavePdfButton } from "@/components/save-pdf-button";
 import { QuickCompose } from "@/components/quick-compose";
 import { TodoDoc } from "@/components/todo-board";
 import { ReportThumb } from "@/components/photo-strip";
@@ -387,7 +388,7 @@ export function SagKsList({ site }: { site: SagSite | null }) {
 }
 
 export function SagTfPage({ site, number }: { site: SagSite | null; number: string }) {
-  const tf = site?.tfs.find((r) => r.slug === number || r.number === number || r.number === `TF-${number}`);
+  const tf = site?.tfs.find((r) => r.id === number || r.slug === number || r.number === number || r.number === `TF-${number}`);
   if (!site || !tf) return <SagMissing />;
   return (
     <SagShell job={site.job}>
@@ -442,10 +443,13 @@ function SagTfBody({ tf, job }: { tf: SagTfView; job: SagSite["job"] }) {
     ["Byggesag", tf.projectName],
     ["Sag / adresse", tf.address],
     ["Status", replies.length ? "Besvaret" : "Åben"],
-  ].filter(([, v]) => v.trim()) as [string, string][];
+  ].filter(([, v]) => String(v || "").trim()) as [string, string][];
 
   return (
     <article>
+      <div className="no-print mb-3">
+        <SavePdfButton kind="tf" id={tf.id} />
+      </div>
       <ReadSlip kicker="TF" number={tf.number} title={tf.title} rows={rows} body={tf.body} photos={tf.photos} />
       <LedelseComment replies={replies} draft={draft} busy={busy} error={error} onDraft={setDraft} onSend={() => void send()} />
     </article>
@@ -453,7 +457,7 @@ function SagTfBody({ tf, job }: { tf: SagTfView; job: SagSite["job"] }) {
 }
 
 export function SagAsPage({ site, number }: { site: SagSite | null; number: string }) {
-  const as = site?.slips.find((r) => r.slug === number || r.number === number || r.number === `AS-${number}`);
+  const as = site?.slips.find((r) => r.id === number || r.slug === number || r.number === number || r.number === `AS-${number}`);
   if (!site || !as) return <SagMissing />;
   return (
     <SagShell job={site.job} wide>
@@ -466,7 +470,7 @@ export function SagAsPage({ site, number }: { site: SagSite | null; number: stri
 }
 
 export function SagTbPage({ site, number }: { site: SagSite | null; number: string }) {
-  const row = site?.tbs.find((r) => r.slug === number || r.number === number || r.number === `TB-${number}`);
+  const row = site?.tbs.find((r) => r.id === number || r.slug === number || r.number === number || r.number === `TB-${number}`);
   if (!site || !row) return <SagMissing />;
   return (
     <SagShell job={site.job} wide>
@@ -483,9 +487,7 @@ export function SagAsBody({ as, print, kind = "as" }: { as: SagAsView; print?: b
     <article>
       {print ? null : (
         <div className="no-print mb-3">
-          <PrimaryButton className="w-auto px-5" data-testid="as-save-pdf" onClick={() => window.print()}>
-            Gem som PDF
-          </PrimaryButton>
+          <SavePdfButton kind={kind} id={as.id} />
         </div>
       )}
       <AsBlanket
@@ -511,7 +513,7 @@ export function SagAsBody({ as, print, kind = "as" }: { as: SagAsView; print?: b
 }
 
 export function SagErPage({ site, number }: { site: SagSite | null; number: string }) {
-  const er = site?.ents.find((r) => r.slug === number || r.number === number || r.number === `ER-${number}`);
+  const er = site?.ents.find((r) => r.id === number || r.slug === number || r.number === number || r.number === `ER-${number}`);
   if (!site || !er) return <SagMissing />;
   return (
     <SagShell job={site.job}>
@@ -527,9 +529,12 @@ function SagErBody({ er }: { er: SagErView }) {
     ["Dato", dmy(er.createdAt)],
     ["Byggesag", er.projectName],
     ["Lokation", er.location],
-  ].filter(([, v]) => v.trim()) as [string, string][];
+  ].filter(([, v]) => String(v || "").trim()) as [string, string][];
   return (
     <article>
+      <div className="no-print mb-3">
+        <SavePdfButton kind="er" id={er.id} />
+      </div>
       <ReadSlip
         kicker="ER"
         number={er.number}
@@ -570,7 +575,7 @@ function SagKsBody({ ks }: { ks: SagKsView }) {
     ["Udført af", ks.employeeName],
     ["Kontrolomfang", ks.qcScope],
     ["Metode", ks.qcMethod],
-  ].filter(([, v]) => v.trim()) as [string, string][];
+  ].filter(([, v]) => String(v || "").trim()) as [string, string][];
   return (
     <article>
       <ReadSlip
@@ -787,7 +792,8 @@ function LedelseTodos({ projectId }: { projectId: string }) {
       ) : null}
       {open ? (
         <div className="fixed inset-0 z-[80] overflow-y-auto bg-navy/50" data-testid="ledelse-todo-slip">
-          <div className="sticky top-0 z-10 flex items-center justify-end bg-navy px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+          <div className="sticky top-0 z-10 flex items-center justify-end gap-2 bg-navy px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+            <SavePdfButton kind="todo" id={open.id} />
             <CloseX onClick={() => setOpenId(null)} label="Luk" />
           </div>
           <div className="bg-sand py-6">
@@ -861,7 +867,7 @@ export function SagSamling({ site, numbers }: { site: SagSite | null; numbers: s
                 ["Til", job.client],
                 ["Antal", String(rows.length)],
                 ["Dato", day],
-              ].filter(([, v]) => v.trim()) as [string, string][]
+              ].filter(([, v]) => String(v || "").trim()) as [string, string][]
             }
           />
           <table className="mt-6 w-full text-left text-sm">

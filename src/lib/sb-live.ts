@@ -19,6 +19,7 @@ import {
 } from "./sb-rows";
 import { supabase } from "./supabase";
 import { mergeEmployeeAssignments } from "./yard-slim";
+import { upsertKnown } from "./sb-upsert";
 import type { Assignment, Entrepreneur, MaterialOrder, Offer, PlanBlock, Project, Slip, Tf } from "./types";
 
 async function pullTable<T>(table: string, fromRow: (r: Record<string, unknown>) => T): Promise<T[] | null> {
@@ -33,8 +34,10 @@ async function pullTable<T>(table: string, fromRow: (r: Record<string, unknown>)
 
 async function upsert(table: string, row: object) {
   try {
-    const { error } = await supabase().from(table).upsert(row);
-    return !error;
+    return upsertKnown(async (r) => {
+      const { error } = await supabase().from(table).upsert(r);
+      return { error };
+    }, row as Record<string, unknown>);
   } catch {
     return false;
   }
@@ -66,10 +69,15 @@ export async function publishSlip(row: Slip) {
 }
 
 export async function pullOffers() {
-  return pullTable("offers", offerFromRow);
+  const rows = await pullTable("offers", offerFromRow);
+  if (rows) return rows;
+  const slips = await pullTable("slips", slipFromRow);
+  if (!slips) return null;
+  return slips.filter((s) => /^Z-TB-|^TB-/i.test(s.number));
 }
 export async function publishOffer(row: Offer) {
-  return upsert("offers", offerToRow(row));
+  if (await upsert("offers", offerToRow(row))) return true;
+  return upsert("slips", offerToRow(row));
 }
 
 export async function pullEnts() {

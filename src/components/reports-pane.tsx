@@ -3,6 +3,7 @@ import { FieldAttach, InboxPane } from "@/components/inbox-pane";
 import { EntDoc, KsDoc, PackDoc, PrintChrome, SlipDoc, SlipInternalFlags, TfDoc } from "@/components/print-docs";
 import { AsShareChip, ErShareChip, KsShareChip } from "@/components/report-share-bar";
 import { TfShareChip } from "@/components/tf-share-bar";
+import { SavePdfForReport } from "@/components/save-pdf-button";
 import { KundeHak } from "@/components/kunde-hak";
 import { KsPunktPick } from "@/components/ks-punkt-pick";
 import { LedelseHak } from "@/components/ledelse-hak";
@@ -235,7 +236,9 @@ export function ReportsPane({ lang }: { lang: Lang }) {
                 </button>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <AsShareChip slip={live} lang={lang} />
+                  <SavePdfForReport kind="slip" id={s.id} lang={lang} chip />
                   <LedelseHak kind="as" report={live} lang={lang} />
+                  <KundeHak kind="as" report={live} lang={lang} />
                   {showTrash ? (
                     <GhostButton className="shrink-0 rounded-full bg-sand px-3 text-action" onClick={() => restoreReport("slip", s.id)}>
                       {t(lang, "restoreTrash")}
@@ -273,6 +276,7 @@ export function ReportsPane({ lang }: { lang: Lang }) {
                 </button>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <TfShareChip tf={live} lang={lang} />
+                  <SavePdfForReport kind="tf" id={s.id} lang={lang} chip />
                   <LedelseHak kind="tf" report={live} lang={lang} />
                   <KundeHak kind="tf" report={live} lang={lang} />
                   {showTrash ? (
@@ -317,6 +321,7 @@ export function ReportsPane({ lang }: { lang: Lang }) {
                 </button>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <ErShareChip ent={live} lang={lang} />
+                  <SavePdfForReport kind="ent" id={s.id} lang={lang} chip />
                   <LedelseHak kind="er" report={live} lang={lang} />
                   <KundeHak kind="er" report={live} lang={lang} />
                   {showTrash ? (
