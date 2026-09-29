@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CloseX } from "@/components/sag-icons";
 import { DrivePhoto } from "@/components/drive-photo";
 import { BrickMark, Chip, GhostButton, PrimaryButton } from "@/components/zenko";
@@ -18,8 +18,11 @@ import { KundeHak } from "@/components/kunde-hak";
 import { KsPunktPick } from "@/components/ks-punkt-pick";
 import { LedelseHak } from "@/components/ledelse-hak";
 import { SavePdfForReport } from "@/components/save-pdf-button";
+import { draftDirty, reportStamp, serverCue } from "@/lib/report-draft";
 
 export type ReportKind = "slip" | "offer" | "tf" | "ent" | "ks" | "pack";
+
+type DraftApi = { dirty: () => boolean; save: () => void };
 
 export function PrintChrome({
   docId,
@@ -74,6 +77,18 @@ export function PrintChrome({
   })() : undefined;
   const trashed = Boolean(current && "trashedAt" in current && current.trashedAt);
   const canTrash = kind === "slip" || kind === "offer" || kind === "tf" || kind === "ent" || kind === "ks";
+  const draftKind = kind === "slip" || kind === "offer" || kind === "tf" || kind === "ent";
+  const draftRef = useRef<DraftApi | null>(null);
+  const [askSave, setAskSave] = useState(false);
+
+  function requestClose() {
+    if (draftRef.current?.dirty()) {
+      setAskSave(true);
+      return;
+    }
+    onClose();
+  }
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-navy/50">
       <div className="no-print sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-navy px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-sand">
@@ -115,9 +130,51 @@ export function PrintChrome({
         {kind && (kind === "slip" || kind === "offer" || kind === "tf" || kind === "ent") ? (
           <SavePdfForReport kind={kind} id={docId} lang={lang} />
         ) : null}
-        <CloseX onClick={onClose} label="Luk" />
+        {draftKind ? (
+          <button
+            type="button"
+            data-testid="report-draft-save"
+            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brick px-4 text-sm font-semibold text-sand"
+            onClick={() => draftRef.current?.save()}
+          >
+            Gem
+          </button>
+        ) : null}
+        <CloseX onClick={requestClose} label="Luk" />
       </div>
-      {kind ? <ReportFixBar kind={kind} id={docId} /> : null}
+      {askSave ? (
+        <div className="no-print fixed inset-0 z-[60] flex items-end justify-center bg-navy/40 p-4 sm:items-center" data-testid="draft-save-ask">
+          <div className="w-full max-w-sm rounded-2xl bg-sand p-4 shadow-card">
+            <p className="font-display text-xl text-navy">Vil du gemme?</p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                data-testid="draft-save-yes"
+                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-brick text-sm font-semibold text-sand"
+                onClick={() => {
+                  draftRef.current?.save();
+                  setAskSave(false);
+                  onClose();
+                }}
+              >
+                Ja
+              </button>
+              <button
+                type="button"
+                data-testid="draft-save-no"
+                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-paper text-sm font-semibold text-navy"
+                onClick={() => {
+                  setAskSave(false);
+                  onClose();
+                }}
+              >
+                Nej
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {kind ? <ReportFixBar kind={kind} id={docId} draftRef={draftKind ? draftRef : undefined} /> : null}
       <div className="bg-white py-6">{children}</div>
     </div>
   );
@@ -167,7 +224,7 @@ function MoveReportBar({
   );
 }
 
-function ReportFixBar({ kind, id }: { kind: ReportKind; id: string }) {
+function ReportFixBar({ kind, id, draftRef }: { kind: ReportKind; id: string; draftRef?: { current: DraftApi | null } }) {
   const slips = useYard((s) => s.slips);
   const offers = useYard((s) => s.offers) ?? [];
   const tfs = useYard((s) => s.tfs);
@@ -188,21 +245,82 @@ function ReportFixBar({ kind, id }: { kind: ReportKind; id: string }) {
               ? packs.find((x) => x.id === id)
               : ksReports.find((x) => x.id === id);
   const [note, setNote] = useState("");
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(kind === "slip" || kind === "offer" || kind === "tf" || kind === "ent");
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<{ who: "bot" | "me"; text: string; changes?: FixChange[] }[]>(() => [welcome()]);
   const [fields, setFields] = useState<Record<string, string>>(() => fieldsFrom(kind, report));
+  const [baseline, setBaseline] = useState<Record<string, string>>(() => fieldsFrom(kind, report));
+  const [baseStamp, setBaseStamp] = useState(() => reportStamp(report as { updatedAt?: string }));
+  const [conflict, setConflict] = useState(false);
+  const [pending, setPending] = useState<Record<string, string> | null>(null);
+  const [docKey, setDocKey] = useState(`${kind}:${id}`);
+  const fieldsRef = useRef(fields);
+  const baselineRef = useRef(baseline);
+  const stampRef = useRef(baseStamp);
+  fieldsRef.current = fields;
+  baselineRef.current = baseline;
+  stampRef.current = baseStamp;
   const fixKind = kind === "offer" ? "slip" : kind;
-
-  useEffect(() => {
-    setFields(fieldsFrom(kind, report));
-  }, [kind, id, report]);
+  const key = `${kind}:${id}`;
+  if (docKey !== key) {
+    const next = fieldsFrom(kind, report);
+    setDocKey(key);
+    setFields(next);
+    setBaseline(next);
+    setBaseStamp(reportStamp(report as { updatedAt?: string }));
+    setConflict(false);
+    setPending(null);
+    setOpen(kind === "slip" || kind === "offer" || kind === "tf" || kind === "ent");
+  }
 
   useEffect(() => {
     setLog([welcome()]);
     setNote("");
-    setOpen(false);
   }, [kind, id]);
+
+  useEffect(() => {
+    if (!report) return;
+    const stamp = reportStamp(report as { updatedAt?: string; fixAt?: string });
+    const incoming = fieldsFrom(kind, report);
+    const dirty = draftDirty(baselineRef.current, fieldsRef.current);
+    const cue = serverCue({ dirty, baseStamp: stampRef.current, serverStamp: stamp });
+    if (cue === "ask") {
+      setPending(incoming);
+      setConflict(true);
+      return;
+    }
+    if (cue === "adopt" && draftDirty(fieldsRef.current, incoming)) {
+      setFields(incoming);
+      setBaseline(incoming);
+      setBaseStamp(stamp);
+      setConflict(false);
+      setPending(null);
+    }
+  }, [report, kind, id]);
+
+  function saveFields() {
+    const draft = fieldsRef.current;
+    const stamp = new Date().toISOString();
+    patchReport(kind, id, {
+      ...fieldsPatch(kind, draft),
+      fixAt: stamp,
+      updatedAt: stamp,
+    });
+    setBaseline(draft);
+    setBaseStamp(stamp);
+    stampRef.current = stamp;
+    baselineRef.current = draft;
+    setConflict(false);
+    setPending(null);
+    useYard.setState({ toast: "Gemt" });
+  }
+
+  if (draftRef) {
+    draftRef.current = {
+      dirty: () => draftDirty(baselineRef.current, fieldsRef.current),
+      save: () => saveFields(),
+    };
+  }
 
   if (!report) return null;
   const plan = kind === "ks" ? controlPlanFor((report as KsReport).projectId) : [];
@@ -214,7 +332,7 @@ function ReportFixBar({ kind, id }: { kind: ReportKind; id: string }) {
     setNote("");
     setLog((rows) => [...rows, { who: "me", text }]);
     try {
-      const snapshot = snapshotOf(fixKind, report as unknown as Record<string, unknown>);
+      const snapshot = snapshotOf(fixKind, { ...(report as unknown as Record<string, unknown>), ...fieldsRef.current });
       const res = await applyReportFix({
         data: { kind: fixKind, instruction: text, report: snapshot },
       });
@@ -224,11 +342,13 @@ function ReportFixBar({ kind, id }: { kind: ReportKind; id: string }) {
       }
       const patch = res.patch ?? {};
       if (Object.keys(patch).length) {
-        patchReport(kind, id, {
-          ...patch,
-          fixNote: text,
-          fixAt: new Date().toISOString(),
-        });
+        const str: Record<string, string> = {};
+        for (const [k, v] of Object.entries(patch)) {
+          if (typeof v === "string") str[k] = v;
+        }
+        const nextFields = { ...fieldsRef.current, ...str };
+        setFields(nextFields);
+        fieldsRef.current = nextFields;
       }
       setLog((rows) => [
         ...rows,
@@ -243,14 +363,6 @@ function ReportFixBar({ kind, id }: { kind: ReportKind; id: string }) {
     } finally {
       setBusy(false);
     }
-  }
-
-  function saveFields() {
-    patchReport(kind, id, {
-      ...fieldsPatch(kind, fields),
-      fixAt: new Date().toISOString(),
-    });
-    setLog((rows) => [...rows, { who: "bot", text: "Felter gemt." }]);
   }
 
   return (
@@ -299,6 +411,45 @@ function ReportFixBar({ kind, id }: { kind: ReportKind; id: string }) {
           <span className="text-xs text-muted">Sidst rettet {copenhagenDateTime(report.fixAt as string)}</span>
         ) : null}
       </div>
+      {conflict ? (
+        <div className="mt-3 rounded-xl border-2 border-brick/40 bg-white px-3 py-2" data-testid="draft-server-newer">
+          <p className="text-sm text-navy">Nyere version på server — behold min tekst / hent server</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              data-testid="draft-keep"
+              className="inline-flex min-h-11 items-center rounded-xl bg-brick px-3 text-sm font-semibold text-sand"
+              onClick={() => {
+                const stamp = reportStamp(report as { updatedAt?: string; fixAt?: string });
+                setBaseStamp(stamp);
+                stampRef.current = stamp;
+                setConflict(false);
+              }}
+            >
+              Behold min tekst
+            </button>
+            <button
+              type="button"
+              data-testid="draft-pull"
+              className="inline-flex min-h-11 items-center rounded-xl bg-paper px-3 text-sm font-semibold text-navy"
+              onClick={() => {
+                if (!pending) return;
+                setFields(pending);
+                setBaseline(pending);
+                fieldsRef.current = pending;
+                baselineRef.current = pending;
+                const stamp = reportStamp(report as { updatedAt?: string; fixAt?: string });
+                setBaseStamp(stamp);
+                stampRef.current = stamp;
+                setConflict(false);
+                setPending(null);
+              }}
+            >
+              Hent server
+            </button>
+          </div>
+        </div>
+      ) : null}
       {open ? (
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {kind === "ks" ? (
@@ -319,10 +470,10 @@ function ReportFixBar({ kind, id }: { kind: ReportKind; id: string }) {
           ) : (
             <FixInput label="Titel" value={fields.title ?? ""} onChange={(v) => setFields((f) => ({ ...f, title: v }))} />
           )}
-          {kind === "slip" || kind === "ent" ? (
+          {kind === "slip" || kind === "offer" || kind === "ent" ? (
             <FixInput label="Lokation" value={fields.location ?? ""} onChange={(v) => setFields((f) => ({ ...f, location: v }))} />
           ) : null}
-          {kind === "slip" ? (
+          {kind === "slip" || kind === "offer" ? (
             <FixInput label="Pris ekskl. moms" value={fields.customerPrice ?? ""} onChange={(v) => setFields((f) => ({ ...f, customerPrice: v }))} />
           ) : null}
           {kind === "ks" ? (
@@ -331,20 +482,21 @@ function ReportFixBar({ kind, id }: { kind: ReportKind; id: string }) {
           {kind === "tf" ? (
             <label className="text-sm font-medium text-navy sm:col-span-2">
               Spørgsmål
-              <textarea className="mt-1 min-h-24 w-full rounded-xl border-2 border-navy/20 bg-white px-3 py-2 text-base" value={fields.question ?? ""} onChange={(e) => setFields((e2) => ({ ...e2, question: e.target.value }))} />
+              <textarea data-testid="report-draft-body" className="mt-1 min-h-24 w-full rounded-xl border-2 border-navy/20 bg-white px-3 py-2 text-base" value={fields.question ?? ""} onChange={(e) => setFields((e2) => ({ ...e2, question: e.target.value }))} />
             </label>
           ) : null}
-          {kind === "slip" || kind === "ent" || kind === "ks" ? (
+          {kind === "slip" || kind === "offer" || kind === "ent" || kind === "ks" ? (
             <label className="text-sm font-medium text-navy sm:col-span-2">
               {kind === "ks" ? "Afvigelser" : "Beskrivelse"}
               <textarea
+                data-testid={kind === "ks" ? undefined : "report-draft-body"}
                 className="mt-1 min-h-24 w-full rounded-xl border-2 border-navy/20 bg-white px-3 py-2 text-base"
                 value={kind === "ks" ? (fields.deviations ?? "") : (fields.body ?? "")}
                 onChange={(e) => setFields((f) => ({ ...f, [kind === "ks" ? "deviations" : "body"]: e.target.value }))}
               />
             </label>
           ) : null}
-          {kind === "slip" ? (
+          {kind === "slip" || kind === "offer" ? (
             <label className="text-sm font-medium text-navy sm:col-span-2">
               Kunde bemærkning
               <textarea className="mt-1 min-h-20 w-full rounded-xl border-2 border-navy/20 bg-white px-3 py-2 text-base" value={fields.masterSolution ?? ""} onChange={(e) => setFields((f) => ({ ...f, masterSolution: e.target.value }))} />
@@ -357,7 +509,7 @@ function ReportFixBar({ kind, id }: { kind: ReportKind; id: string }) {
             </label>
           ) : null}
           <PrimaryButton className="sm:col-span-2" onClick={saveFields}>
-            Gem felter
+            Gem
           </PrimaryButton>
         </div>
       ) : null}
@@ -393,7 +545,7 @@ function fieldsFrom(kind: ReportKind, report: Slip | Tf | Entrepreneur | Invoice
   }
   if (kind === "ent") {
     const e = report as Entrepreneur;
-    return { title: e.title, location: e.location, body: e.body, noteHe: e.noteHe };
+    return { title: e.title ?? "", location: e.location ?? "", body: e.body ?? "", noteHe: e.noteHe ?? "" };
   }
   if (kind === "pack") {
     const p = report as InvoicePack;

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { FacePhoto } from "@/components/face-photo";
 import { ActionPng, CloseX, SagPng } from "@/components/sag-icons";
 import { CrewTodoOpen } from "@/components/complete-todo";
@@ -13,6 +13,8 @@ import { todoAllPhotoIds } from "@/lib/photo-meta";
 import { copenhagenDate, FIRM, FIRM_CVR, isMasterRole } from "@/lib/seed";
 import { useSessionEmployee, useYard } from "@/lib/store";
 import { fillTodoTranslations, uploadTodoPhotos } from "@/lib/todo-drive";
+import { publishTodo } from "@/lib/todo-live";
+import { draftDirty, reportStamp, serverCue } from "@/lib/report-draft";
 import { canMarkTodoDone, crewTodoBody, crewTodoTitle, doneTodosNewest, isJobPlaceTitle, isPersonalTodo, openTodos, seedTodoTranslations, todoJobLabel, todoOriginalText, todoShowsOriginal, todoTargetLangs } from "@/lib/crew-todo";
 import { removePladsFile } from "@/lib/plads-file";
 import { todoAssigneeIds, todoAssignedTo, todoDoneLine, todoPeopleLine } from "@/lib/todo-people";
@@ -581,6 +583,29 @@ function SeddelFelt({ label, children }: { label: string; children: ReactNode })
   );
 }
 
+function todoSnap(row: {
+  title?: string;
+  body?: string;
+  original?: string;
+  due?: string;
+  projectId?: string;
+  assigneeIds?: string[];
+  assigneeId?: string;
+  done?: boolean;
+  photoFileIds?: string[];
+}) {
+  const ids = row.assigneeIds?.length ? row.assigneeIds : row.assigneeId ? [row.assigneeId] : [];
+  return {
+    title: row.title || (row.original ?? row.body ?? "").slice(0, 80),
+    body: row.body || row.original || "",
+    due: row.due ?? "",
+    sagId: row.projectId ?? "",
+    assignees: ids.join(","),
+    done: row.done ? "1" : "0",
+    photos: (row.photoFileIds ?? []).join(","),
+  };
+}
+
 export function TodoEditSheet({ td, lang, onClose }: { td: Todo; lang: Lang; onClose: () => void }) {
   const live = useYard((s) => s.todos.find((x) => x.id === td.id)) ?? td;
   const employees = useYard((s) => s.employees);
@@ -593,15 +618,60 @@ export function TodoEditSheet({ td, lang, onClose }: { td: Todo; lang: Lang; onC
   const [sagId, setSagId] = useState(live.projectId);
   const [done, setDone] = useState(live.done);
   const [photoIds, setPhotoIds] = useState<string[]>(() => [...(live.photoFileIds ?? [])]);
+  const [removed, setRemoved] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [askSave, setAskSave] = useState(false);
+  const [conflict, setConflict] = useState(false);
+  const [baseStamp, setBaseStamp] = useState(() => reportStamp(live));
   const camRef = useRef<HTMLInputElement>(null);
   const galRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const baseRef = useRef(todoSnap(live));
+  const stampRef = useRef(baseStamp);
+
+  function currentSnap() {
+    return {
+      title,
+      body,
+      due,
+      sagId,
+      assignees: assigneeIds.join(","),
+      done: done ? "1" : "0",
+      photos: photoIds.join(","),
+    };
+  }
+
+  const dirtyNow = () => draftDirty(baseRef.current, currentSnap());
+
+  useEffect(() => {
+    const stamp = reportStamp(live);
+    const incoming = todoSnap(live);
+    const cue = serverCue({ dirty: draftDirty(baseRef.current, currentSnap()), baseStamp: stampRef.current, serverStamp: stamp });
+    if (cue === "ask") {
+      setConflict(true);
+      return;
+    }
+    if (cue === "adopt" && draftDirty(currentSnap(), incoming)) {
+      setTitle(incoming.title);
+      setBody(incoming.body);
+      setDue(incoming.due);
+      setSagId(incoming.sagId);
+      setAssigneeIds(incoming.assignees ? incoming.assignees.split(",") : []);
+      setDone(incoming.done === "1");
+      setPhotoIds(incoming.photos ? incoming.photos.split(",") : []);
+      baseRef.current = incoming;
+      setBaseStamp(stamp);
+      stampRef.current = stamp;
+      setConflict(false);
+    }
+    // currentSnap is derived from the draft; only the server stamp should re-check.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live.updatedAt, live.id]);
 
   const preview: Todo = {
     ...live,
-    title: title.trim() || live.title,
-    body: body.trim() || title.trim() || live.body,
+    title,
+    body,
     due: due || undefined,
     projectId: sagId,
     assigneeId: assigneeIds[0] || live.assigneeId,
@@ -631,27 +701,23 @@ export function TodoEditSheet({ td, lang, onClose }: { td: Todo; lang: Lang; onC
         useYard.setState({ toast: t(lang, "driveFail") });
         return;
       }
-      const next = [...photoIds, ...ids];
-      setPhotoIds(next);
-      patchTodo(live.id, { photoFileIds: next });
+      setPhotoIds((cur) => [...cur, ...ids]);
     } finally {
       setBusy(false);
     }
   }
 
   function dropPhoto(id: string) {
-    const next = photoIds.filter((x) => x !== id);
-    setPhotoIds(next);
-    patchTodo(live.id, { photoFileIds: next });
-    void removePladsFile(id);
+    setPhotoIds((cur) => cur.filter((x) => x !== id));
+    setRemoved((cur) => (cur.includes(id) ? cur : [...cur, id]));
   }
 
   function save() {
     if (busy) return;
     setBusy(true);
     const ids = assigneeIds.length ? assigneeIds : [live.assigneeId];
-    const heading = title.trim() || body.trim().slice(0, 80) || live.title;
-    const text = body.trim() || heading;
+    const heading = title;
+    const text = body;
     const whoId = useYard.getState().employeeId ?? live.assigneeId;
     const at = new Date().toISOString();
     const statusPatch = done
@@ -659,8 +725,8 @@ export function TodoEditSheet({ td, lang, onClose }: { td: Todo; lang: Lang; onC
         ? {}
         : { done: true as const, doneAt: at, doneById: whoId }
       : { done: false as const, doneAt: undefined, doneById: undefined };
-    const employees = useYard.getState().employees;
-    const langs = todoTargetLangs({ assigneeId: ids[0]!, assigneeIds: ids, sourceLang: lang }, employees);
+    const employeesNow = useYard.getState().employees;
+    const langs = todoTargetLangs({ assigneeId: ids[0]!, assigneeIds: ids, sourceLang: lang }, employeesNow);
     const keepTitle = isJobPlaceTitle(heading, sagId);
     patchTodo(live.id, {
       title: heading,
@@ -673,11 +739,30 @@ export function TodoEditSheet({ td, lang, onClose }: { td: Todo; lang: Lang; onC
       assigneeId: ids[0]!,
       assigneeIds: ids,
       photoFileIds: photoIds,
+      updatedAt: at,
       ...statusPatch,
     });
+    const saved = useYard.getState().todos.find((x) => x.id === live.id);
+    if (saved) void publishTodo(saved);
     if (heading !== live.title || text !== (live.body || live.original || "")) void fillTodoTranslations(live.id);
-    useYard.setState({ toast: "Gemt." });
+    for (const id of removed) {
+      if (!photoIds.includes(id)) void removePladsFile(id);
+    }
+    const snap = currentSnap();
+    baseRef.current = snap;
+    stampRef.current = at;
+    setBaseStamp(at);
+    setRemoved([]);
+    setConflict(false);
+    useYard.setState({ toast: "Gemt" });
     setBusy(false);
+  }
+
+  function requestClose() {
+    if (dirtyNow()) {
+      setAskSave(true);
+      return;
+    }
     onClose();
   }
 
@@ -685,10 +770,93 @@ export function TodoEditSheet({ td, lang, onClose }: { td: Todo; lang: Lang; onC
     <div className="fixed inset-0 z-[80] overflow-y-auto bg-sand" data-testid="todo-edit-sheet">
       <div className="no-print sticky top-0 z-10 flex items-center gap-2 bg-navy px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-sand">
         <SavePdfButton kind="todo" id={live.id} lang={lang} />
+        <button
+          type="button"
+          data-testid="todo-edit-save"
+          className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brick px-4 text-sm font-semibold text-sand"
+          disabled={busy}
+          onClick={save}
+        >
+          Gem
+        </button>
         <p className="min-w-0 flex-1 truncate font-display text-lg">{t(lang, "editShort")}</p>
-        <CloseX onClick={onClose} label={t(lang, "close")} />
+        <CloseX onClick={requestClose} label={t(lang, "close")} />
       </div>
+      {askSave ? (
+        <div className="no-print fixed inset-0 z-[90] flex items-end justify-center bg-navy/40 p-4 sm:items-center" data-testid="draft-save-ask">
+          <div className="w-full max-w-sm rounded-2xl bg-sand p-4 shadow-card">
+            <p className="font-display text-xl text-navy">Vil du gemme?</p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                data-testid="draft-save-yes"
+                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-brick text-sm font-semibold text-sand"
+                onClick={() => {
+                  save();
+                  setAskSave(false);
+                  onClose();
+                }}
+              >
+                Ja
+              </button>
+              <button
+                type="button"
+                data-testid="draft-save-no"
+                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-paper text-sm font-semibold text-navy"
+                onClick={() => {
+                  setAskSave(false);
+                  onClose();
+                }}
+              >
+                Nej
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="no-print mx-auto max-w-lg space-y-3 px-4 py-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+          {conflict ? (
+            <div className="rounded-xl border-2 border-brick/40 bg-paper px-3 py-2" data-testid="draft-server-newer">
+              <p className="text-sm text-navy">Nyere version på server — behold min tekst / hent server</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  data-testid="draft-keep"
+                  className="inline-flex min-h-11 items-center rounded-xl bg-brick px-3 text-sm font-semibold text-sand"
+                  onClick={() => {
+                    const stamp = reportStamp(live);
+                    stampRef.current = stamp;
+                    setBaseStamp(stamp);
+                    setConflict(false);
+                  }}
+                >
+                  Behold min tekst
+                </button>
+                <button
+                  type="button"
+                  data-testid="draft-pull"
+                  className="inline-flex min-h-11 items-center rounded-xl bg-white px-3 text-sm font-semibold text-navy"
+                  onClick={() => {
+                    const incoming = todoSnap(live);
+                    setTitle(incoming.title);
+                    setBody(incoming.body);
+                    setDue(incoming.due);
+                    setSagId(incoming.sagId);
+                    setAssigneeIds(incoming.assignees ? incoming.assignees.split(",") : []);
+                    setDone(incoming.done === "1");
+                    setPhotoIds(incoming.photos ? incoming.photos.split(",") : []);
+                    baseRef.current = incoming;
+                    const stamp = reportStamp(live);
+                    stampRef.current = stamp;
+                    setBaseStamp(stamp);
+                    setConflict(false);
+                  }}
+                >
+                  Hent server
+                </button>
+              </div>
+            </div>
+          ) : null}
           <label className="block text-xs text-muted">
             {t(lang, "composeTitle")}
             <input
@@ -819,8 +987,8 @@ export function TodoEditSheet({ td, lang, onClose }: { td: Todo; lang: Lang; onC
               </button>
             </div>
           </div>
-          <PrimaryButton disabled={busy} onClick={save} data-testid="todo-edit-save">
-            {busy ? t(lang, "saving") : t(lang, "save")}
+          <PrimaryButton disabled={busy} onClick={save}>
+            {busy ? t(lang, "saving") : "Gem"}
           </PrimaryButton>
         </div>
       <div className="print-only">
