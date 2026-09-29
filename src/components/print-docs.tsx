@@ -18,7 +18,9 @@ import { KundeHak } from "@/components/kunde-hak";
 import { KsPunktPick } from "@/components/ks-punkt-pick";
 import { LedelseHak } from "@/components/ledelse-hak";
 import { SavePdfForReport } from "@/components/save-pdf-button";
+import { ReportPhotoEditor } from "@/components/report-photo-editor";
 import { draftDirty, reportStamp, serverCue } from "@/lib/report-draft";
+import { photoFolderOf, photoIdsForSave, visibleReportPhotos } from "@/lib/report-photos";
 
 export type ReportKind = "slip" | "offer" | "tf" | "ent" | "ks" | "pack";
 
@@ -248,7 +250,7 @@ function ReportFixBar({ kind, id, draftRef }: { kind: ReportKind; id: string; dr
   const [open, setOpen] = useState(kind === "slip" || kind === "offer" || kind === "tf" || kind === "ent");
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<{ who: "bot" | "me"; text: string; changes?: FixChange[] }[]>(() => [welcome()]);
-  const [fields, setFields] = useState<Record<string, string>>(() => fieldsFrom(kind, report));
+  const [fields, setFieldsState] = useState<Record<string, string>>(() => fieldsFrom(kind, report));
   const [baseline, setBaseline] = useState<Record<string, string>>(() => fieldsFrom(kind, report));
   const [baseStamp, setBaseStamp] = useState(() => reportStamp(report as { updatedAt?: string }));
   const [conflict, setConflict] = useState(false);
@@ -257,13 +259,20 @@ function ReportFixBar({ kind, id, draftRef }: { kind: ReportKind; id: string; dr
   const fieldsRef = useRef(fields);
   const baselineRef = useRef(baseline);
   const stampRef = useRef(baseStamp);
-  fieldsRef.current = fields;
+  const photoTouchedRef = useRef(false);
+  const photoBusyRef = useRef(false);
+  function setFields(update: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) {
+    const next = typeof update === "function" ? update(fieldsRef.current) : update;
+    fieldsRef.current = next;
+    setFieldsState(next);
+  }
   baselineRef.current = baseline;
   stampRef.current = baseStamp;
   const fixKind = kind === "offer" ? "slip" : kind;
   const key = `${kind}:${id}`;
   if (docKey !== key) {
     const next = fieldsFrom(kind, report);
+    photoTouchedRef.current = false;
     setDocKey(key);
     setFields(next);
     setBaseline(next);
@@ -292,20 +301,33 @@ function ReportFixBar({ kind, id, draftRef }: { kind: ReportKind; id: string; dr
     if (cue === "adopt" && draftDirty(fieldsRef.current, incoming)) {
       setFields(incoming);
       setBaseline(incoming);
+      baselineRef.current = incoming;
       setBaseStamp(stamp);
+      stampRef.current = stamp;
       setConflict(false);
       setPending(null);
+      photoTouchedRef.current = false;
     }
   }, [report, kind, id]);
 
   function saveFields() {
-    const draft = fieldsRef.current;
+    if (photoBusyRef.current) {
+      useYard.setState({ toast: "Venter på foto" });
+      return;
+    }
+    const draft = { ...fieldsRef.current };
     const stamp = new Date().toISOString();
-    patchReport(kind, id, {
-      ...fieldsPatch(kind, draft),
-      fixAt: stamp,
-      updatedAt: stamp,
-    });
+    const folder = photoFolderOf(kind);
+    const patch: Record<string, unknown> = { ...fieldsPatch(kind, draft), fixAt: stamp, updatedAt: stamp };
+    if (folder) {
+      const photoIds = photoIdsForSave(rowPhotoIds(kind, id), (draft.photos ?? "").split("\n"), photoTouchedRef.current);
+      patch.photoIds = photoIds;
+      draft.photos = photoIds.join("\n");
+      fieldsRef.current = draft;
+      setFields(draft);
+      photoTouchedRef.current = false;
+    }
+    patchReport(kind, id, patch);
     setBaseline(draft);
     setBaseStamp(stamp);
     stampRef.current = stamp;
@@ -508,6 +530,24 @@ function ReportFixBar({ kind, id, draftRef }: { kind: ReportKind; id: string; dr
               <textarea className="mt-1 min-h-20 w-full rounded-xl border-2 border-navy/20 bg-white px-3 py-2 text-base" value={fields.noteHe ?? ""} onChange={(e) => setFields((f) => ({ ...f, noteHe: e.target.value }))} />
             </label>
           ) : null}
+          {photoFolderOf(kind) ? (
+            <ReportPhotoEditor
+              projectId={projectIdOf(report)}
+              folder={photoFolderOf(kind)!}
+              ids={(fields.photos ?? "").split("\n").filter(Boolean)}
+              onBusy={(v) => {
+                photoBusyRef.current = v;
+              }}
+              onChange={(next) => {
+                photoTouchedRef.current = true;
+                setFields((f) => {
+                  const row = { ...f, photos: next.join("\n") };
+                  fieldsRef.current = row;
+                  return row;
+                });
+              }}
+            />
+          ) : null}
           <PrimaryButton className="sm:col-span-2" onClick={saveFields}>
             Gem
           </PrimaryButton>
@@ -535,17 +575,18 @@ function FixInput({ label, value, onChange }: { label: string; value: string; on
 
 function fieldsFrom(kind: ReportKind, report: Slip | Tf | Entrepreneur | InvoicePack | KsReport | undefined): Record<string, string> {
   if (!report) return {};
+  const photos = ("photoIds" in report && Array.isArray(report.photoIds) ? report.photoIds : []).join("\n");
   if (kind === "slip" || kind === "offer") {
     const s = report as Slip;
-    return { title: s.title, location: s.location, body: s.body, masterSolution: s.masterSolution, customerPrice: s.customerPrice };
+    return { title: s.title, location: s.location, body: s.body, masterSolution: s.masterSolution, customerPrice: s.customerPrice, photos };
   }
   if (kind === "tf") {
     const t = report as Tf;
-    return { title: t.title ?? "", question: t.question };
+    return { title: t.title ?? "", question: t.question, photos };
   }
   if (kind === "ent") {
     const e = report as Entrepreneur;
-    return { title: e.title ?? "", location: e.location ?? "", body: e.body ?? "", noteHe: e.noteHe ?? "" };
+    return { title: e.title ?? "", location: e.location ?? "", body: e.body ?? "", noteHe: e.noteHe ?? "", photos };
   }
   if (kind === "pack") {
     const p = report as InvoicePack;
@@ -553,6 +594,25 @@ function fieldsFrom(kind: ReportKind, report: Slip | Tf | Entrepreneur | Invoice
   }
   const k = report as KsReport;
   return { point: k.point, deviations: k.deviations ?? "", crew: k.crew ?? "", employeeName: k.employeeName ?? "" };
+}
+
+function projectIdOf(report: Slip | Tf | Entrepreneur | InvoicePack | KsReport): string {
+  return "projectId" in report && report.projectId ? String(report.projectId) : "sag";
+}
+
+function rowPhotoIds(kind: ReportKind, id: string): string[] {
+  const s = useYard.getState();
+  const row =
+    kind === "slip"
+      ? s.slips.find((x) => x.id === id)
+      : kind === "offer"
+        ? (s.offers ?? []).find((x) => x.id === id)
+        : kind === "tf"
+          ? s.tfs.find((x) => x.id === id)
+          : kind === "ent"
+            ? s.ents.find((x) => x.id === id)
+            : undefined;
+  return row && "photoIds" in row && Array.isArray(row.photoIds) ? row.photoIds : [];
 }
 
 function fieldsPatch(kind: ReportKind, fields: Record<string, string>): Record<string, unknown> {
@@ -846,17 +906,29 @@ export function EntDoc({ ent }: { ent: Entrepreneur }) {
 function FieldBilag({ ids, label }: { ids: string[]; label: string }) {
   const fieldItems = useYard((s) => s.fieldItems);
   const [open, setOpen] = useState<string | null>(null);
+  const urls = visibleReportPhotos(ids);
+  const urlKeys = new Set(urls.map((p) => p.src.split("?")[0]));
   const items = [...softrAsFieldItems(), ...fieldItems].filter((f, i, all) => {
     if (all.findIndex((x) => x.id === f.id) !== i) return false;
+    if (urlKeys.has(f.id.split("?")[0]) || urlKeys.has((f.driveFileId ?? "").split("?")[0])) return false;
     return ids.includes(f.id) || ids.includes(f.driveFileId ?? "");
   });
-  const leftover = ids.filter((id) => id && !items.some((it) => it.id === id || it.driveFileId === id) && !id.startsWith("softr-"));
-  if (!items.length && !leftover.length) return null;
-  const shown = open ? items.find((i) => i.id === open) : null;
+  const leftover = ids.filter((id) => id && !urlKeys.has(id.split("?")[0]) && !items.some((it) => it.id === id || it.driveFileId === id) && !id.startsWith("softr-") && !/^https?:\/\//i.test(id));
+  if (!items.length && !leftover.length && !urls.length) return null;
+  const shown = open ? items.find((i) => i.id === open) ?? urls.find((p) => p.id === open) : null;
+  const shownSrc = shown && "src" in shown ? shown.src : shown && "dataUrl" in shown ? shown.dataUrl : "";
   return (
     <section className="mt-6">
       <h2 className="mb-3 text-xl font-bold">{label}</h2>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {urls.filter((p) => !p.video).map((p) => (
+          <button key={p.src} type="button" className="aspect-square overflow-hidden rounded-lg border-2 border-gray-300 bg-gray-100" onClick={() => setOpen(p.id)}>
+            <img src={p.src} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
+          </button>
+        ))}
+        {urls.filter((p) => p.video).map((p) => (
+          <video key={p.src} src={p.src} controls className="aspect-square w-full rounded-lg border-2 border-gray-300 object-cover" />
+        ))}
         {items.map((it) => (
           <button
             key={it.id}
@@ -919,9 +991,9 @@ function FieldBilag({ ids, label }: { ids: string[]; label: string }) {
           </div>
         ))}
       </div>
-      {shown?.dataUrl ? (
+      {shownSrc ? (
         <button type="button" className="no-print fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4" onClick={() => setOpen(null)}>
-          <img src={shown.dataUrl} alt={shown.name} className="max-h-[90vh] max-w-full object-contain" />
+          <img src={shownSrc} alt="" className="max-h-[90vh] max-w-full object-contain" referrerPolicy="no-referrer" />
         </button>
       ) : null}
     </section>

@@ -6,6 +6,7 @@ import { softrErReports } from "./softr-er.ts";
 import { softrTfReports } from "./softr-tf.ts";
 import { SEED_ENTS, SEED_FIELD_ITEMS, SEED_SLIPS, SEED_TFS } from "./seed.ts";
 import { photoSrc } from "./tf-share.ts";
+import { visibleReportPhotos } from "./report-photos.ts";
 import { defaultLedelseStatus } from "./sag-ledelse-defaults.ts";
 import type { Entrepreneur, FieldItem, KsPhoto, KsReport, LedelseReply, Offer, Project, Slip, Tf } from "./types.ts";
 
@@ -177,8 +178,18 @@ function photosOf(ids: string[], fieldItems: FieldItem[]): SagPhoto[] {
     const src = photoSrc(item);
     if (!src) continue;
     seen.add(item.id);
+    if (src) seen.add(src.split("?")[0]);
     n += 1;
     out.push({ id: item.id, src, n: String(n).padStart(2, "0") });
+  }
+  for (const pic of visibleReportPhotos(ids)) {
+    if (pic.video) continue;
+    const key = pic.src.split("?")[0];
+    if (seen.has(pic.id) || seen.has(key)) continue;
+    seen.add(pic.id);
+    seen.add(key);
+    n += 1;
+    out.push({ id: pic.id, src: pic.src, n: String(n).padStart(2, "0") });
   }
   return out;
 }
