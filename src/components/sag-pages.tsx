@@ -28,6 +28,7 @@ import { TodoDoc } from "@/components/todo-board";
 import { ReportThumb } from "@/components/photo-strip";
 import { firstMasterId, isLedelseTodo } from "@/lib/plan-grid";
 import { asDocHeading } from "@/lib/report-share";
+import { buildSamlingPdf } from "@/lib/samling-pdf";
 import { useYard } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import { projectIdFromSlug } from "@/lib/ks-customer";
@@ -826,12 +827,39 @@ export function SagTodoList({ site }: { site: SagSite | null }) {
   );
 }
 
+function pickSamling(slips: SagAsView[], numbers: string[]) {
+  const picked: SagAsView[] = [];
+  const seen = new Set<string>();
+  for (const raw of numbers) {
+    const key = raw.trim();
+    if (!key) continue;
+    const bare = key.replace(/^AS-/i, "");
+    const hit = slips.find((s) => {
+      const numBare = s.number.replace(/^AS-/i, "");
+      return s.slug === key || s.slug === bare || s.number === key || s.number === bare || numBare === bare || numBare === key;
+    });
+    if (!hit || seen.has(hit.id)) continue;
+    seen.add(hit.id);
+    picked.push(hit);
+  }
+  return picked;
+}
+
+async function fetchSamlingImage(src: string): Promise<Uint8Array | null> {
+  try {
+    const res = await fetch(src, { signal: AbortSignal.timeout(12_000) });
+    if (!res.ok) return null;
+    const buf = new Uint8Array(await res.arrayBuffer());
+    return buf.byteLength > 24 ? buf : null;
+  } catch {
+    return null;
+  }
+}
+
 export function SagSamling({ site, numbers }: { site: SagSite | null; numbers: string[] }) {
-  const rows = useMemo(() => {
-    if (!site) return [];
-    const want = new Set(numbers.map((n) => n.replace(/^AS-/i, "")));
-    return site.slips.filter((s) => want.has(s.slug) || want.has(s.number) || want.has(s.number.replace(/^AS-/i, "")));
-  }, [site, numbers]);
+  const rows = useMemo(() => (site ? pickSamling(site.slips, numbers) : []), [site, numbers]);
+  const [busy, setBusy] = useState(false);
+  const [pdfErr, setPdfErr] = useState("");
 
   useEffect(() => {
     if (!site || !rows.length) return;
@@ -842,69 +870,126 @@ export function SagSamling({ site, numbers }: { site: SagSite | null; numbers: s
     };
   }, [site, rows.length]);
 
+  useEffect(() => {
+    function mark() {
+      document.querySelectorAll("a, button").forEach((el) => {
+        const label = `${el.textContent || ""} ${el.getAttribute("aria-label") || ""}`.replace(/\s+/g, " ").trim();
+        if (/åbn i app|print \/ pdf|tilbage/i.test(label)) el.setAttribute("data-print-hide", "1");
+      });
+    }
+    window.addEventListener("beforeprint", mark);
+    return () => window.removeEventListener("beforeprint", mark);
+  }, []);
+
   if (!site) return <SagMissing />;
   if (!rows.length) return <SagMissing />;
   const job = site.job;
   const tot = sumAsPrices(rows);
-  const pages = 1 + rows.length;
   const day = dmy(new Date().toISOString());
 
+  async function gem() {
+    if (busy) return;
+    setBusy(true);
+    setPdfErr("");
+    try {
+      const bytes = await buildSamlingPdf({
+        jobName: job.name,
+        client: job.client,
+        dateLabel: day,
+        totalLabel: tot.label,
+        fetchImage: fetchSamlingImage,
+        rows: rows.map((r) => ({
+          number: r.number,
+          title: r.title,
+          dateLabel: dmy(r.createdAt),
+          priceLabel: r.priceLabel,
+          customer: r.customer,
+          createdAt: r.createdAt,
+          projectName: r.projectName,
+          body: r.body,
+          note: r.note,
+          location: r.location,
+          photos: r.photos.map((p) => ({ src: p.src })),
+          replies: (r.replies ?? []).map((x) => ({ at: x.at, text: x.text })),
+        })),
+      });
+      const copy = new Uint8Array(bytes.byteLength);
+      copy.set(bytes);
+      const blob = new Blob([copy], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = asPdfFilename(job);
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4_000);
+    } catch {
+      setPdfErr("Kunne ikke lave PDF");
+      window.print();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <main className="min-h-dvh bg-sand pb-16">
-      <div className="mx-auto max-w-lg px-4 py-6">
-        <div className="mb-6 flex flex-wrap items-center gap-4 text-sm">
-          <BackArrow href={sagPath(job.slug, ["as"])} label="Tilbage til AS" />
-          <button type="button" className="min-h-11 font-semibold text-navy" onClick={() => window.print()}>
-            Print / PDF
-          </button>
+    <main className="as-samling min-h-dvh bg-sand pb-16" data-testid="as-samling">
+      <div className="no-print mx-auto flex max-w-[210mm] flex-wrap items-center gap-4 px-4 py-4 text-sm">
+        <BackArrow href={sagPath(job.slug, ["as"])} label="Tilbage til AS" />
+        <button type="button" className="min-h-11 font-semibold text-navy" data-testid="as-samling-pdf" disabled={busy} onClick={() => void gem()}>
+          {busy ? "Laver PDF…" : "Gem som PDF"}
+        </button>
+        <button type="button" className="min-h-11 font-semibold text-navy" data-testid="as-samling-print" onClick={() => window.print()}>
+          Print / PDF
+        </button>
+        {pdfErr ? <span className="text-sm text-brick">{pdfErr}</span> : null}
+      </div>
+      <article className="as-samling-cover" data-testid="as-samling-cover">
+        <p className="text-sm font-semibold text-brick">ZENKO · AS-samling</p>
+        <h1 className="mt-1 font-display text-4xl leading-none text-navy">{job.name}</h1>
+        <div className="mt-4 space-y-1 text-base">
+          <p>
+            <span className="font-semibold">Til</span> {job.client || "—"}
+          </p>
+          <p>
+            <span className="font-semibold">Dato</span> {day}
+          </p>
+          <p>
+            <span className="font-semibold">Antal</span> {rows.length}
+          </p>
         </div>
-        <section className="rounded-[24px] bg-paper px-4 py-5 shadow-card">
-          <p className="text-xs font-semibold tracking-wide text-brick uppercase">AS · samling</p>
-          <h1 className="mt-1 font-display text-4xl text-navy">{job.name}</h1>
-          <SagMetaGrid
-            rows={
-              [
-                ["Til", job.client],
-                ["Antal", String(rows.length)],
-                ["Dato", day],
-              ].filter(([, v]) => String(v || "").trim()) as [string, string][]
-            }
-          />
-          <table className="mt-6 w-full text-left text-sm">
+        <div className="as-samling-scroll">
+          <table className="as-samling-table">
             <thead>
-              <tr className="border-b border-line text-xs tracking-wide text-muted uppercase">
-                <th className="py-2 font-medium">Nr</th>
-                <th className="py-2 font-medium">Titel</th>
-                <th className="py-2 font-medium">Dato</th>
-                <th className="py-2 text-right font-medium">Beløb</th>
+              <tr>
+                <th className="nr">NR</th>
+                <th className="titel">Titel</th>
+                <th className="dato">Dato</th>
+                <th className="beloeb">Beløb</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-b border-line">
-                  <td className="py-3">{r.number}</td>
-                  <td className="py-3">{r.title}</td>
-                  <td className="py-3">{dmy(r.createdAt)}</td>
-                  <td className="py-3 text-right tabular-nums">{r.priceLabel}</td>
+                <tr key={r.id}>
+                  <td className="nr">{r.number}</td>
+                  <td className="titel">{r.title}</td>
+                  <td className="dato">{dmy(r.createdAt)}</td>
+                  <td className="beloeb">{r.priceLabel}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="mt-6 font-display text-2xl text-navy">I alt {tot.label}</p>
-          <p className="mt-4 text-sm text-muted">
-            Side 1 af {pages} · CVR {job.cvr}
-            {tot.missing ? ` · ${tot.missing} uden beløb er ikke talt med` : ""}
-          </p>
-        </section>
-        {rows.map((r, i) => (
-          <section key={r.id} className="mt-6">
-            <SagAsBody as={r} print />
-            <p className="mt-3 text-sm text-muted">
-              Side {i + 2} af {pages} · CVR {job.cvr}
-            </p>
-          </section>
-        ))}
-      </div>
+        </div>
+        <p className="as-samling-sum" data-testid="as-samling-sum">
+          I alt {tot.label}
+        </p>
+      </article>
+      {rows.map((r) => (
+        <article key={r.id} className="as-samling-slip" data-testid={`as-samling-slip-${r.number}`}>
+          <SagAsBody as={r} print />
+        </article>
+      ))}
     </main>
   );
 }

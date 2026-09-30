@@ -213,6 +213,144 @@
   }
 }
 
+.as-samling-cover,
+.as-samling-slip {
+  max-width: 210mm;
+  margin-right: auto;
+  margin-left: auto;
+  background: #fff;
+  color: #111;
+}
+.as-samling-cover {
+  padding: 10mm 8mm 8mm;
+  break-after: page;
+  page-break-after: always;
+}
+.as-samling-slip {
+  margin-top: 8mm;
+  break-before: page;
+  page-break-before: always;
+  break-inside: auto;
+  page-break-inside: auto;
+}
+.as-samling-scroll {
+  margin-top: 6mm;
+  overflow-x: auto;
+}
+.as-samling-table {
+  width: 100%;
+  min-width: 170mm;
+  border-collapse: collapse;
+  table-layout: fixed;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.as-samling-table th,
+.as-samling-table td {
+  padding: 2.2mm 0;
+  vertical-align: top;
+}
+.as-samling-table .nr {
+  width: 38mm;
+  white-space: nowrap;
+  font-weight: 650;
+}
+.as-samling-table .titel {
+  padding-right: 4mm;
+  overflow-wrap: anywhere;
+}
+.as-samling-table .dato {
+  width: 32mm;
+  white-space: nowrap;
+  padding-left: 3mm;
+  padding-right: 4mm;
+}
+.as-samling-table .beloeb {
+  width: 32mm;
+  white-space: nowrap;
+  padding-left: 5mm;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.as-samling-table thead th {
+  border-bottom: 1px solid #cfc6bb;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #4a453f;
+}
+.as-samling-table tbody td {
+  border-bottom: 1px solid #e4dcd2;
+}
+.as-samling-sum {
+  margin-top: 6mm;
+  text-align: right;
+  font-size: 22px;
+  font-weight: 650;
+  color: #1a2b33;
+}
+
+@media print {
+  .as-samling {
+    background: #fff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .as-samling-cover {
+    max-width: none;
+    width: auto;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+  }
+  .as-samling-slip {
+    max-width: none;
+    width: auto;
+    margin: 0 !important;
+    padding: 0;
+    break-before: page;
+    page-break-before: always;
+    break-after: auto;
+    page-break-after: auto;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+  .as-samling-slip .doc-a4 {
+    min-height: 0 !important;
+    max-width: none;
+    width: auto;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+  .as-samling-slip img {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .as-samling-scroll {
+    overflow: visible !important;
+  }
+  .as-samling-table {
+    min-width: 0;
+    width: 100%;
+  }
+  .no-print,
+  [data-print-hide="1"],
+  [data-created-with-grok-banner],
+  [data-created-with-grok-spacer] {
+    display: none !important;
+  }
+  .as-samling a[href]::after {
+    content: none !important;
+  }
+}
+
 .pin-key {
   min-height: 3.5rem;
   border-radius: 0.75rem;
